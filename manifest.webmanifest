@@ -1,0 +1,12 @@
+{
+  "name": "OMBOR QOLDIG'I",
+  "short_name": "Ombor",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef1f2",
+  "theme_color": "#1a2338",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

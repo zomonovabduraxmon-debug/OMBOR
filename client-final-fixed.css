@@ -1,0 +1,604 @@
+
+/* ==========================================================
+   FINAL CLIENT DESIGN
+   Premium hero + 4 equal navigation cards + polished client table
+   Presentation only — no data/business logic.
+   ========================================================== */
+
+:root{
+  --ui-bg:#f4f7fb;
+  --ui-card:#fff;
+  --ui-ink:#14213d;
+  --ui-muted:#76869f;
+  --ui-line:#e3eaf3;
+  --ui-blue:#1768ff;
+  --ui-blue-soft:#eef5ff;
+  --ui-navy:#143567;
+  --ui-green:#17966f;
+  --ui-amber:#ef8c14;
+  --ui-red:#e34c55;
+  --ui-shadow:0 10px 28px rgba(31,52,87,.075);
+  --ui-shadow-strong:0 18px 46px rgba(31,52,87,.12);
+}
+
+html{background:var(--ui-bg);}
+body{
+  background:
+    radial-gradient(circle at 100% 0%,rgba(72,136,255,.10),transparent 28%),
+    linear-gradient(180deg,#f9fbff 0%,var(--ui-bg) 48%,#f7f9fc 100%) !important;
+  color:var(--ui-ink) !important;
+}
+
+/* ===== HERO HEADER ===== */
+.topbar{
+  width:calc(100% - 32px);
+  max-width:1480px;
+  margin:16px auto 0 !important;
+  padding:20px 24px 18px !important;
+  background:#eaf3fb !important;
+  border:1px solid var(--ui-line) !important;
+  border-radius:22px !important;
+  box-shadow:var(--ui-shadow-strong) !important;
+  color:var(--ui-ink) !important;
+}
+
+.topbar-inner{
+  max-width:none !important;
+  min-height:112px;
+  margin:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:28px !important;
+}
+
+.brand{
+  display:flex !important;
+  align-items:center !important;
+  gap:24px !important;
+}
+
+.brand-logo{
+  width:96px !important;
+  height:96px !important;
+  object-fit:contain;
+  flex:0 0 96px !important;
+  padding:9px 12px !important;
+  background:#fff !important;
+  border:1px solid #e4ebf4 !important;
+  border-radius:20px !important;
+  box-shadow:0 10px 24px rgba(29,49,83,.09) !important;
+  transform-style:preserve-3d;
+  backface-visibility:hidden;
+  animation:logo-flip-client 12s ease-in-out infinite !important;
+}
+
+@keyframes logo-flip-client{
+  0%,91.666%{transform:rotateY(0deg);}
+  100%{transform:rotateY(360deg);}
+}
+
+.brand-text{gap:4px !important;}
+
+.brand-mark{
+  color:#14213d !important;
+  font-family:var(--sans) !important;
+  font-size:34px !important;
+  line-height:1.05 !important;
+  font-weight:850 !important;
+  letter-spacing:-1px !important;
+  white-space:nowrap;
+}
+
+.brand-sub{
+  color:#7d8ca5 !important;
+  font-size:14px !important;
+  font-weight:600 !important;
+}
+
+.topbar-actions{
+  display:flex !important;
+  align-items:center !important;
+  gap:12px !important;
+}
+
+.sync-pill,.auth-btn{
+  min-height:42px;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  border-radius:999px !important;
+  padding:9px 16px !important;
+  font-size:12px !important;
+  font-weight:750 !important;
+}
+
+.sync-pill{
+  color:#307b68 !important;
+  background:#edf9f4 !important;
+  border:1px solid #d2eee3 !important;
+}
+.sync-pill::before{
+  content:"";
+  width:8px;height:8px;
+  margin-right:8px;
+  border-radius:50%;
+  background:#22be85;
+  box-shadow:0 0 0 4px rgba(34,190,133,.11);
+}
+
+.auth-btn{
+  color:#244367 !important;
+  background:#fff !important;
+  border:1px solid #d8e3ef !important;
+  box-shadow:0 5px 14px rgba(34,65,104,.06) !important;
+}
+.auth-btn::before{
+  content:"↪";
+  margin-right:6px;
+  color:var(--ui-blue);
+  font-size:16px;
+}
+
+/* ===== 4 EQUAL NAV CARDS ===== */
+.tabs{
+  max-width:none !important;
+  margin:8px 0 0 !important;
+  padding:0 !important;
+  display:grid !important;
+  grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+  gap:14px !important;
+  border:0 !important;
+  overflow:visible !important;
+}
+
+.tab-btn{
+  min-height:86px !important;
+  position:relative;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:flex-start !important;
+  justify-content:center !important;
+  gap:3px !important;
+  padding:16px 18px 15px 68px !important;
+  background:#fff !important;
+  color:#17233d !important;
+  border:1px solid #e0e8f2 !important;
+  border-radius:16px !important;
+  box-shadow:0 8px 20px rgba(31,55,94,.055);
+  font-size:15px !important;
+  line-height:1.2 !important;
+  font-weight:800 !important;
+  text-align:left !important;
+  white-space:normal !important;
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease !important;
+}
+
+.tab-btn::before{
+  position:absolute;
+  left:20px;
+  top:50%;
+  transform:translateY(-50%);
+  width:32px;height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--ui-blue);
+  font-size:27px;
+  line-height:1;
+}
+
+.tab-btn::after{
+  margin-top:4px;
+  color:#72829a;
+  font-size:11px;
+  font-weight:600;
+}
+
+.tab-btn:nth-child(1)::before{content:"◈";}
+.tab-btn:nth-child(2)::before{content:"▤";}
+.tab-btn:nth-child(3)::before{content:"▣";}
+.tab-btn:nth-child(4)::before{content:"⇩";}
+
+.tab-btn:nth-child(1)::after{content:"остатки по квотам";}
+.tab-btn:nth-child(2)::after{content:"список разрешений";}
+.tab-btn:nth-child(3)::after{content:"создать отгрузку";}
+.tab-btn:nth-child(4)::after{content:"выгрузка данных";}
+
+.tab-btn:hover{
+  transform:translateY(-2px);
+  border-color:#b9cdeb !important;
+  box-shadow:0 12px 28px rgba(31,55,94,.09) !important;
+}
+.tab-btn.active{
+  color:#105ff0 !important;
+  background:linear-gradient(180deg,#fff 0%,#f5f9ff 100%) !important;
+  border:1.5px solid #68a0ff !important;
+  box-shadow:0 10px 26px rgba(23,104,255,.12) !important;
+}
+
+/* ===== CONTENT ===== */
+.wrap{
+  max-width:1480px !important;
+  margin:0 auto !important;
+  padding:18px 16px 42px !important;
+}
+
+.toolbar{
+  margin:0 0 16px !important;
+  padding:18px 20px 0 !important;
+  gap:18px !important;
+}
+.toolbar h1{
+  color:#17233c !important;
+  font-family:var(--sans) !important;
+  font-size:22px !important;
+  font-weight:820 !important;
+  letter-spacing:-.25px !important;
+}
+.toolbar .desc{
+  color:#75859c !important;
+  margin-top:5px !important;
+  font-size:12px !important;
+}
+
+.dashboard-controls{gap:10px !important;}
+
+.search-input,.dashboard-select{
+  height:44px !important;
+  background-color:#fff !important;
+  color:#283852 !important;
+  border:1px solid #dce5f0 !important;
+  border-radius:11px !important;
+  box-shadow:0 4px 12px rgba(34,54,87,.035);
+}
+
+.search-input{
+  width:290px !important;
+  padding:9px 14px 9px 42px !important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%238393a8' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") !important;
+  background-repeat:no-repeat !important;
+  background-position:14px 50% !important;
+}
+.dashboard-select{
+  min-width:190px !important;
+  padding:9px 34px 9px 13px !important;
+}
+.search-input:focus,.dashboard-select:focus{
+  outline:none !important;
+  border-color:#8eb4ff !important;
+  box-shadow:0 0 0 4px rgba(23,104,255,.08) !important;
+}
+
+/* ===== TOTAL CARD ===== */
+.warehouse-summary{
+  min-height:84px;
+  margin:0 20px 18px !important;
+  padding:17px 24px !important;
+  color:#fff !important;
+  background:
+    radial-gradient(circle at 78% -20%,rgba(255,255,255,.10),transparent 34%),
+    linear-gradient(110deg,#143567 0%,#17457f 55%,#1853a1 100%) !important;
+  border:0 !important;
+  border-radius:13px !important;
+  box-shadow:0 10px 24px rgba(21,62,119,.14);
+}
+.warehouse-summary .title{
+  color:#fff !important;
+  font-family:var(--sans) !important;
+  font-size:16px !important;
+  font-weight:820 !important;
+}
+.warehouse-summary .hint{color:#cbd8eb !important;}
+.warehouse-values{gap:36px !important;}
+.warehouse-value + .warehouse-value{
+  padding-left:36px;
+  border-left:1px solid rgba(255,255,255,.20);
+}
+.warehouse-value strong{
+  color:#fff !important;
+  font-family:var(--sans) !important;
+  font-size:29px !important;
+  font-weight:850 !important;
+  letter-spacing:-.75px !important;
+}
+.warehouse-value span{color:#d9e4f3 !important;}
+
+/* ===== KPI CARDS ===== */
+.cards-row{
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:14px !important;
+  margin:0 20px 18px !important;
+}
+
+.stat-card{
+  min-height:108px;
+  display:grid !important;
+  grid-template-columns:58px 1fr !important;
+  grid-template-rows:auto auto !important;
+  column-gap:15px !important;
+  align-items:center !important;
+  padding:18px 20px !important;
+  background:#fff !important;
+  border:1px solid var(--ui-line) !important;
+  border-radius:16px !important;
+  box-shadow:var(--ui-shadow) !important;
+}
+
+.stat-card::before{
+  content:"";
+  grid-column:1;
+  grid-row:1/3;
+  width:52px;height:52px;
+  display:block;
+  border-radius:16px;
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:25px 25px;
+}
+.stat-card:nth-child(1)::before{
+  background-color:#eaf2ff;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25' viewBox='0 0 24 24' fill='none' stroke='%231768ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3 8 4-8 4-8-4 8-4Z'/%3E%3Cpath d='m4 7 8 4 8-4M4 7v9l8 5 8-5V7'/%3E%3C/svg%3E");
+}
+.stat-card:nth-child(2)::before{
+  background-color:#fff3e1;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25' viewBox='0 0 24 24' fill='none' stroke='%23ef8c14' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3h10M7 21h10M8 3v4l4 5 4-5V3M8 21v-4l4-5 4 5v4'/%3E%3C/svg%3E");
+}
+.stat-card:nth-child(3)::before{
+  background-color:#ffeaed;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25' viewBox='0 0 24 24' fill='none' stroke='%23e34c55' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m8 12 2.5 2.5L16 9'/%3E%3C/svg%3E");
+}
+.stat-card .num{
+  grid-column:2;
+  color:#182641 !important;
+  font-family:var(--sans) !important;
+  font-size:29px !important;
+  font-weight:850 !important;
+  line-height:1 !important;
+}
+.stat-card.warn .num{color:#cf790c !important;}
+.stat-card.crit .num{color:#cf4450 !important;}
+.stat-card .lbl{
+  grid-column:2;
+  margin-top:6px !important;
+  color:#6d7d94 !important;
+  font-size:12px !important;
+  font-weight:600 !important;
+}
+
+/* ===== CLIENT DATA TABLE ===== */
+.panel{
+  margin-left:20px;
+  margin-right:20px;
+  overflow:hidden;
+  background:#fff !important;
+  border:1px solid var(--ui-line) !important;
+  border-radius:18px !important;
+  box-shadow:var(--ui-shadow) !important;
+}
+.panel + .panel{margin-top:18px !important;}
+
+.panel-head{
+  min-height:50px;
+  padding:13px 18px !important;
+  background:linear-gradient(180deg,#fff 0%,#fbfcfe 100%) !important;
+  border-bottom:1px solid #e9eef5 !important;
+}
+.panel-head h2,.panel-head h3{
+  color:#1f2f4a !important;
+  font-family:var(--sans) !important;
+  font-weight:800 !important;
+}
+.panel-head h2{font-size:15px !important;}
+
+.panel-body{
+  padding:0 !important;
+  background:#fff !important;
+  overflow-x:auto !important;
+}
+
+table{
+  width:100% !important;
+  border-collapse:separate !important;
+  border-spacing:0 !important;
+  background:#fff !important;
+}
+
+th{
+  padding:11px 12px !important;
+  color:#74849b !important;
+  background:#f8fafc !important;
+  border-bottom:1px solid #e5ebf3 !important;
+  font-size:10px !important;
+  font-weight:800 !important;
+  text-transform:uppercase !important;
+  letter-spacing:.5px !important;
+}
+
+td{
+  padding:12px !important;
+  color:#263650 !important;
+  background:#fff;
+  border-bottom:1px solid #edf1f6 !important;
+  font-size:12px !important;
+  line-height:1.4 !important;
+}
+
+tbody tr:hover td{background:#f7faff !important;}
+tbody tr:last-child td{border-bottom:0 !important;}
+
+.code-col{color:#264f89 !important;font-weight:650;}
+.num-col{color:#1e2d47 !important;font-weight:600;}
+
+tfoot td{
+  background:#f7f9fc !important;
+  color:#273953 !important;
+  border-top:1px solid #dfe7f1 !important;
+  border-bottom:0 !important;
+  font-weight:800 !important;
+}
+
+.badge{
+  min-height:24px;
+  display:inline-flex !important;
+  align-items:center !important;
+  padding:4px 9px !important;
+  border-radius:999px !important;
+  font-size:10px !important;
+  font-weight:800 !important;
+}
+.badge.ok,.badge.accepted{color:#168160 !important;background:#e7f7f1 !important;}
+.badge.warn{color:#bb7110 !important;background:#fff2dc !important;}
+.badge.crit{color:#c53d49 !important;background:#ffe8eb !important;}
+.badge.completed,.badge.neutral{color:#66758a !important;background:#edf1f5 !important;}
+
+.gauge{
+  width:118px !important;
+  height:6px !important;
+  background:#e9eef4 !important;
+  border-radius:999px !important;
+  overflow:hidden !important;
+}
+.gauge-seg{border-radius:999px !important;}
+.gauge-pct{color:#7b889a !important;font-size:10px !important;}
+
+/* ===== GENERIC CONTROLS ===== */
+.btn{
+  min-height:38px;
+  border-radius:10px !important;
+  padding:8px 14px !important;
+}
+.field input,.field select{
+  min-height:42px;
+  border:1px solid #dce5ef !important;
+  border-radius:10px !important;
+  background:#fff !important;
+}
+.modal{border-radius:18px !important;}
+.dropzone{border-radius:14px !important;background:#f7faff !important;}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:1000px){
+  .brand-mark{font-size:28px !important;}
+  .tabs{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
+}
+@media(max-width:760px){
+  .topbar{width:calc(100% - 20px);padding:14px !important;border-radius:18px !important;}
+  .topbar-inner{flex-wrap:wrap !important;align-items:flex-start !important;}
+  .brand-logo{width:68px !important;height:68px !important;flex-basis:68px !important;}
+  .brand-mark{font-size:22px !important;white-space:normal;}
+  .topbar-actions{width:100%;justify-content:flex-start !important;}
+  .tabs{grid-template-columns:1fr !important;gap:10px !important;}
+  .tab-btn{min-height:68px !important;padding:12px 14px 12px 56px !important;}
+  .warehouse-summary,.cards-row,.panel{margin-left:10px !important;margin-right:10px !important;}
+  .cards-row{grid-template-columns:1fr !important;}
+  .dashboard-controls{width:100%;}
+  .search-input,.dashboard-select{width:100% !important;min-width:0 !important;}
+  .warehouse-value strong{font-size:23px !important;}
+}
+
+/* ==========================================================
+   SHIPMENT FORM UI FIX
+   Layout-only fix. Existing permit/invoice values and logic
+   are intentionally untouched.
+   ========================================================== */
+
+/* client-final.css uses zero padding for table panel bodies.
+   Restore comfortable spacing only for the shipment form card. */
+.panel-body:has(#shipPermit){
+  padding:24px !important;
+  overflow:visible !important;
+}
+
+.panel:has(#shipPermit){
+  border-radius:18px !important;
+  overflow:visible !important;
+}
+
+/* Keep the two-column form balanced and prevent either side
+   from pushing outside the card. */
+.panel-body:has(#shipPermit) .field-row{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+  gap:18px 22px !important;
+  align-items:start !important;
+}
+
+.panel-body:has(#shipPermit) .field-row + .field-row{
+  margin-top:18px !important;
+}
+
+.panel-body:has(#shipPermit) .field{
+  min-width:0 !important;
+  margin:0 !important;
+}
+
+.panel-body:has(#shipPermit) .field label{
+  display:block !important;
+  margin:0 0 7px 2px !important;
+  padding:0 !important;
+  color:#69788d !important;
+  font-size:12px !important;
+  line-height:1.25 !important;
+  font-weight:750 !important;
+  letter-spacing:.08px !important;
+}
+
+/* Inputs/selects remain visually consistent, but get enough
+   height and internal spacing so labels/values never look clipped. */
+.panel-body:has(#shipPermit) .field input,
+.panel-body:has(#shipPermit) .field select{
+  width:100% !important;
+  min-width:0 !important;
+  min-height:50px !important;
+  padding:0 14px !important;
+  color:#26364e !important;
+  background:#fff !important;
+  border:1px solid #d9e4f0 !important;
+  border-radius:12px !important;
+  box-shadow:0 3px 10px rgba(31,52,87,.025) !important;
+  font-size:14px !important;
+}
+
+.panel-body:has(#shipPermit) .field input:focus,
+.panel-body:has(#shipPermit) .field select:focus{
+  outline:none !important;
+  border-color:#8fb5ff !important;
+  box-shadow:0 0 0 4px rgba(23,104,255,.08) !important;
+}
+
+/* Give the shipment title a little more separation from the card. */
+.wrap > .toolbar:has(+ .panel .panel-body #shipPermit){
+  padding:18px 20px 2px !important;
+  margin-bottom:16px !important;
+}
+
+/* Empty/next shipment panel should also sit neatly below the form. */
+.panel:has(#shipPermit) + .panel{
+  margin-top:18px !important;
+}
+
+.panel:has(#shipPermit) + .panel .empty{
+  padding:42px 22px !important;
+}
+
+/* Mobile: fields become one clean column without changing content. */
+@media(max-width:760px){
+  .panel-body:has(#shipPermit){
+    padding:16px !important;
+  }
+
+  .panel-body:has(#shipPermit) .field-row{
+    grid-template-columns:1fr !important;
+    gap:14px !important;
+  }
+
+  .panel-body:has(#shipPermit) .field-row + .field-row{
+    margin-top:14px !important;
+  }
+
+  .panel-body:has(#shipPermit) .field input,
+  .panel-body:has(#shipPermit) .field select{
+    min-height:48px !important;
+  }
+}
