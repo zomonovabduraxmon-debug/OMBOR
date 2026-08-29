@@ -1616,11 +1616,43 @@
       body.appendChild(card);
     }
 
+    function decorateLoginModalV15(){
+      const backdrop = document.querySelector('.modal-backdrop');
+      if(!backdrop) return;
+
+      const modal = backdrop.querySelector('.modal');
+      const email = modal?.querySelector('#authEmail');
+      const password = modal?.querySelector('#authPassword');
+      if(!modal || !email || !password) return;
+
+      backdrop.classList.add('v15-auth-backdrop');
+      modal.classList.add('v15-login-modal');
+
+      const body = modal.querySelector('.modal-body');
+      if(body && !body.querySelector('.v15-login-brand')){
+        const brand = document.createElement('div');
+        brand.className = 'v15-login-brand';
+        brand.innerHTML = `
+          <span class="v15-login-symbol" aria-hidden="true">
+            <img src="./logo-mark.png" alt="">
+          </span>
+          <span class="v15-login-company">
+            <strong>MENGI TEKSTIL</strong>
+            <small>GROUP</small>
+          </span>`;
+        body.insertBefore(brand, body.firstChild);
+      }
+
+      const fields = body?.querySelectorAll('.field') || [];
+      fields.forEach(field=>field.classList.add('v15-auth-field'));
+    }
+
     function scheduleEnhance(){
       clearTimeout(enhanceTimer);
       enhanceTimer = setTimeout(()=>{
         createQuickControlBar();
         decorateV9Dashboard();
+        decorateLoginModalV15();
         translateDOM(document.body);
         applyDashboardPagination();
         styleExportPanel();

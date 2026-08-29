@@ -3277,6 +3277,206 @@ html.v12-shell-ready .stat-card{
   height:21px;
 }
 
+/* ==========================================================
+   LOGIN MODAL BRANDING (v15) — matches approved reference design
+   ========================================================== */
+html.v12-shell-ready .modal-backdrop,
+html.v12-shell-ready .v15-auth-backdrop{
+  z-index:1700 !important;
+  inset:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  padding:18px !important;
+  overflow:auto !important;
+  background:rgba(10,20,35,.52) !important;
+  backdrop-filter:blur(5px);
+}
+
+html.v12-shell-ready .v15-login-modal{
+  position:relative !important;
+  z-index:1701 !important;
+  width:min(560px,calc(100vw - 36px)) !important;
+  max-width:560px !important;
+  min-height:0 !important;
+  max-height:calc(100vh - 36px) !important;
+  overflow:hidden !important;
+  border:1px solid rgba(217,226,236,.95) !important;
+  border-radius:18px !important;
+  background:#fff !important;
+  box-shadow:0 28px 80px rgba(6,22,43,.28) !important;
+}
+
+html.v12-shell-ready .v15-login-modal .modal-head{
+  min-height:58px;
+  padding:15px 20px !important;
+  background:#fff !important;
+  border-bottom:1px solid #e6ebf1 !important;
+}
+
+html.v12-shell-ready .v15-login-modal .modal-head h2{
+  color:#0c2857 !important;
+  font-size:16px !important;
+  font-weight:820 !important;
+}
+
+html.v12-shell-ready .v15-login-modal .modal-body{
+  display:block !important;
+  max-height:calc(100vh - 174px) !important;
+  padding:22px 24px 20px !important;
+  overflow:auto !important;
+  background:#fff !important;
+}
+
+.v15-login-brand{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:13px;
+  margin:0 0 22px;
+  padding:4px 0 12px;
+}
+
+.v15-login-symbol{
+  width:52px;
+  height:38px;
+  flex:0 0 52px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.v15-login-symbol img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+
+.v15-login-company{
+  display:flex;
+  flex-direction:column;
+  line-height:1;
+}
+
+.v15-login-company strong{
+  color:#0b1830;
+  font-size:18px;
+  font-weight:850;
+  letter-spacing:.1px;
+}
+
+.v15-login-company small{
+  margin-top:6px;
+  color:#51627a;
+  font-size:6.5px;
+  font-weight:800;
+  letter-spacing:5px;
+}
+
+html.v12-shell-ready .v15-login-modal .v15-auth-field{
+  display:block !important;
+  margin:0 0 15px !important;
+  opacity:1 !important;
+  visibility:visible !important;
+}
+
+html.v12-shell-ready .v15-login-modal #authEmail,
+html.v12-shell-ready .v15-login-modal #authPassword{
+  display:block !important;
+  width:100% !important;
+  min-height:46px !important;
+  padding:11px 13px !important;
+  opacity:1 !important;
+  visibility:visible !important;
+  color:#162b4a !important;
+  background:#fff !important;
+  border:1px solid #d5e0ec !important;
+  border-radius:10px !important;
+  box-shadow:none !important;
+}
+
+html.v12-shell-ready .v15-login-modal #authEmail:focus,
+html.v12-shell-ready .v15-login-modal #authPassword:focus{
+  outline:none !important;
+  border-color:#4f84c7 !important;
+  box-shadow:0 0 0 3px rgba(41,100,177,.10) !important;
+}
+
+html.v12-shell-ready .v15-login-modal .subtle-note{
+  color:#718198 !important;
+  font-size:11px !important;
+  line-height:1.5 !important;
+}
+
+html.v12-shell-ready .v15-login-modal .modal-foot{
+  padding:15px 20px !important;
+  gap:10px !important;
+  background:#fff !important;
+  border-top:1px solid #e6ebf1 !important;
+}
+
+html.v12-shell-ready .v15-login-modal .modal-foot .btn{
+  min-height:42px;
+  padding:9px 17px !important;
+  border-radius:10px !important;
+}
+
+html.v12-shell-ready .v15-login-modal .modal-foot .btn:not(.secondary){
+  min-width:112px;
+  color:#fff !important;
+  background:linear-gradient(180deg,#0d4d9e,#083775) !important;
+  border-color:#0a4088 !important;
+}
+
+html[data-theme="dark"].v12-shell-ready .v15-login-modal{
+  background:#101c2e !important;
+  border-color:#2c405b !important;
+}
+
+html[data-theme="dark"].v12-shell-ready .v15-login-modal .modal-head,
+html[data-theme="dark"].v12-shell-ready .v15-login-modal .modal-foot{
+  background:#101c2e !important;
+  border-color:#2b405b !important;
+}
+
+html[data-theme="dark"].v12-shell-ready .v15-login-modal .modal-head h2{
+  color:#edf3fc !important;
+}
+
+html[data-theme="dark"].v12-shell-ready .v15-login-modal .modal-body{
+  background:#101c2e !important;
+}
+
+html[data-theme="dark"].v12-shell-ready .v15-login-brand{
+  padding:10px 14px 14px;
+  border-radius:13px;
+  background:#fff;
+}
+
+html[data-theme="dark"].v12-shell-ready .v15-login-modal #authEmail,
+html[data-theme="dark"].v12-shell-ready .v15-login-modal #authPassword{
+  color:#eaf0f8 !important;
+  background:#14243a !important;
+  border-color:#334b69 !important;
+}
+
+html[data-theme="dark"].v12-shell-ready .v15-login-modal .subtle-note{
+  color:#91a3ba !important;
+}
+
+@media(max-width:700px){
+  html.v12-shell-ready .modal-backdrop,
+  html.v12-shell-ready .v15-auth-backdrop{
+    padding:10px !important;
+  }
+
+  html.v12-shell-ready .v15-login-modal{
+    width:100% !important;
+    max-height:calc(100vh - 20px) !important;
+    border-radius:14px !important;
+  }
+}
+
 /* DARK MODE precision */
 html[data-theme="dark"].v12-shell-ready .brand-logo{
   background:transparent !important;
