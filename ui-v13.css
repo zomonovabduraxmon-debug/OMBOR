@@ -2802,16 +2802,43 @@ html.v12-shell-ready .wrap{
 }
 
 html.v12-shell-ready .brand-logo{
-  width:170px !important;
-  height:70px !important;
-  flex-basis:170px !important;
-  padding:5px 8px !important;
+  width:auto !important;
+  height:38px !important;
+  flex:0 0 auto !important;
+  padding:0 !important;
   background:transparent !important;
   border:none !important;
   box-shadow:none !important;
   transform-origin:center;
   backface-visibility:hidden !important;
-  animation:logo-turn-v12 6s cubic-bezier(.45,0,.2,1) infinite !important;
+  animation:none !important;
+}
+
+/* Horizontal wordmark next to the icon, matching the approved brand look */
+html.v12-shell-ready .brand{gap:12px !important;}
+
+html.v12-shell-ready .brand-text{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:1px !important;
+  justify-content:center !important;
+}
+
+html.v12-shell-ready .brand-mark{
+  font-family:inherit !important;
+  font-size:19px !important;
+  font-weight:800 !important;
+  letter-spacing:0.3px !important;
+  color:#0b1c33 !important;
+  line-height:1.1 !important;
+}
+
+html.v12-shell-ready .brand-sub{
+  font-size:10px !important;
+  font-weight:700 !important;
+  letter-spacing:2.5px !important;
+  color:#8a97a8 !important;
+  text-transform:uppercase !important;
 }
 
 /* New V12 textile rail */
@@ -2935,6 +2962,11 @@ html.v12-shell-ready .brand-logo{
 /* Audit moved into the left sidebar; hide the old top card so it stops
    wrapping onto its own row below the 4 main cards. */
 .tabs .tab-btn[data-tab="audit"]{display:none !important;}
+
+/* The 4 main sections (Qoldiqlar, Ruxsatnomalar, Yangi yuklama, Eksport)
+   are now duplicated in the left sidebar, so hide the old top card row
+   entirely to avoid repeating the same navigation twice. */
+html.v12-shell-ready .tabs{display:none !important;}
 
 /* Top cards closer to approved reference */
 html.v12-shell-ready .tabs{
@@ -3247,12 +3279,14 @@ html.v12-shell-ready .stat-card{
 
 /* DARK MODE precision */
 html[data-theme="dark"].v12-shell-ready .brand-logo{
-  background:#c8e2f7 !important;
-  border-color:#d9e0e8 !important;
-  filter:none !important;
+  background:transparent !important;
+  filter:invert(1) !important;
   mix-blend-mode:normal !important;
   opacity:1 !important;
 }
+
+html[data-theme="dark"].v12-shell-ready .brand-mark{color:#f2f5f9 !important;}
+html[data-theme="dark"].v12-shell-ready .brand-sub{color:#9fb0c4 !important;}
 
 html[data-theme="dark"].v12-shell-ready .v12-sidebar{
   background:rgba(20,32,52,.98);
