@@ -307,7 +307,7 @@
       {id:'shipment', label:'Yangi yuklama', icon:'truck'},
       {id:'export', label:'Eksport', icon:'ship'},
       {id:'reports', label:'Hisobotlar', icon:'chart'},
-      {id:'audit', label:'Audit', icon:'audit'}
+      {id:'audit', label:'Tarix', icon:'audit'}
     ];
   }
 
