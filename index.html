@@ -177,7 +177,7 @@
   .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 
   .item-row-grid{
-    display:grid;grid-template-columns: 28px 2.2fr 1.1fr 0.9fr 1fr 1fr 32px;
+    display:grid;grid-template-columns: 28px 1.8fr 1.4fr 1.1fr 0.9fr 1fr 1fr 32px;
     gap:8px;align-items:center;padding:6px 0;
   }
   .item-row-grid input, .item-row-grid select{padding:6px 8px;font-size:12.5px;}
@@ -272,7 +272,7 @@
   @media (max-width:720px){
     .cards-row{grid-template-columns:repeat(2,1fr);}
     .field-row{grid-template-columns:1fr;}
-    .item-row-grid{grid-template-columns: 20px 1.6fr 1fr 0.8fr 0.8fr 0.8fr 26px;font-size:11.5px;}
+    .item-row-grid{grid-template-columns: 20px 1.3fr 1.2fr 0.9fr 0.8fr 0.8fr 0.8fr 26px;font-size:11.5px;}
     .dashboard-controls{width:100%;justify-content:stretch;}
     .dashboard-controls .search-input,.dashboard-controls .dashboard-select{width:100%;min-width:0;}
     .warehouse-values{width:100%;justify-content:space-between;gap:12px;}
@@ -812,11 +812,14 @@ function openPermitDetail(permitId){
   const itemRows = p.items.map(it=>{
     const used = itemUsage(p.id, it.id);
     const st = itemStatus(it, used);
+    const perUnit = it.qty ? (it.weight/it.qty) : 0;
     return `<tr>
       <td>${escapeHtml(it.name)}</td>
+      <td>${escapeHtml(it.material||'—')}</td>
       <td class="code-col">${escapeHtml(it.tnved||'—')}</td>
       <td class="num-col">${fmt(it.qty,0)} ${it.unit}</td>
       <td class="num-col">${fmt(it.weight,2)} кг</td>
+      <td class="num-col">${fmt(perUnit,3)} кг</td>
       <td class="num-col">${fmt(used.qty,0)}</td>
       <td class="num-col">${fmt(st.remQty,0)}</td>
       <td class="num-col">${fmt(st.remWeight,2)}</td>
@@ -844,7 +847,7 @@ function openPermitDetail(permitId){
     <div class="modal-body">
       <div class="subtle-note" style="margin-bottom:14px;">от ${p.date||'—'} ${p.note?(' · '+escapeHtml(p.note)):''} &middot; разрешено ${fmt(t.allowedQty,0)} шт / ${fmt(t.allowedW,2)} кг &middot; остаток ${fmt(t.remQty,0)} шт / ${fmt(t.remW,2)} кг</div>
       <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 8px 0;">Позиции</h3>
-      <table><thead><tr><th>Наименование</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
+      <table><thead><tr><th>Наименование</th><th>Мато</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
       <tbody>${itemRows}</tbody></table>
       <h3 style="font-family:var(--serif);font-size:14px;margin:20px 0 8px 0;">Отгрузки по этому разрешению</h3>
       ${shipments.length ? `<table><thead><tr><th>Инвойс</th><th>Дата</th><th>Строк</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead><tbody>${shipRows}</tbody></table>`
@@ -867,7 +870,7 @@ function openPermitDetail(permitId){
 }
 
 /* ============================= PERMIT ADD / EDIT MODAL ============================= */
-function blankItem(){ return { id: uid('it'), name:'', tnved:'', unit:'шт', qty:'', weight:'' }; }
+function blankItem(){ return { id: uid('it'), name:'', material:'', tnved:'', unit:'шт', qty:'', weight:'' }; }
 
 function openPermitModal(permitId){
   const editing = !!permitId;
@@ -879,6 +882,7 @@ function openPermitModal(permitId){
       <div class="item-row-grid" data-item-row="${it.id}">
         <div class="idx">${i+1}</div>
         <input type="text" placeholder="Наименование товара" value="${escapeAttr(it.name)}" data-field="name">
+        <input type="text" placeholder="Мато / material" value="${escapeAttr(it.material||'')}" data-field="material">
         <input type="text" placeholder="ТН ВЭД" value="${escapeAttr(it.tnved)}" data-field="tnved">
         <select data-field="unit">
           <option value="шт" ${it.unit==='шт'?'selected':''}>шт</option>
@@ -901,7 +905,7 @@ function openPermitModal(permitId){
       <div class="field"><label>Примечание (клиент / бренд, необязательно)</label><input type="text" id="fldNote" value="${escapeAttr(draft.note||'')}" placeholder="напр. ARYANCOM"></div>
       <div style="margin-top:16px;">
         <div class="item-row-grid" style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;">
-          <div></div><div>Наименование</div><div>ТН ВЭД</div><div>Ед.</div><div>Кол-во</div><div>Вес, кг</div><div></div>
+          <div></div><div>Наименование</div><div>Мато</div><div>ТН ВЭД</div><div>Ед.</div><div>Кол-во</div><div>Вес, кг</div><div></div>
         </div>
         <div id="itemsHost">${itemsHtml()}</div>
         <button class="btn secondary sm" id="btnAddItem" style="margin-top:8px;">+ Добавить позицию</button>
@@ -1383,7 +1387,7 @@ function exportWorkbook(){
     const shipments = state.shipments.filter(s=>s.permitId===p.id)
       .sort((a,b)=>(a.invoiceDate||'').localeCompare(b.invoiceDate||''));
 
-    const headerTitles = ['№','Наименование','Код ТН ВЭД','Количество разреш','Вес разрешение кг'];
+    const headerTitles = ['№','Наименование','Мато','Код ТН ВЭД','Количество разреш','Вес разрешение кг'];
     shipments.forEach(s=>{ headerTitles.push('Кол-во','Вес'); });
     headerTitles.push('Остаток количество','Остаток вес','Вес 1 единицы');
 
@@ -1394,14 +1398,14 @@ function exportWorkbook(){
     aoa.push(titleRow);
     // row2: invoice labels
     const invRow = new Array(headerTitles.length).fill('');
-    let c = 5;
+    let c = 6;
     shipments.forEach(s=>{ invRow[c] = `${s.invoiceNumber||''} от ${s.invoiceDate||''}`; c+=2; });
     aoa.push(invRow);
     // row3: column headers
     aoa.push(headerTitles);
     // item rows
     p.items.forEach((it,idx)=>{
-      const row = [idx+1, it.name, it.tnved, it.qty, it.weight];
+      const row = [idx+1, it.name, it.material||'', it.tnved, it.qty, it.weight];
       shipments.forEach(s=>{
         const line = s.lines.find(l=>l.itemId===it.id);
         row.push(line?line.qty:'', line?Number(line.weight).toFixed(3)*1:'');
@@ -1412,7 +1416,7 @@ function exportWorkbook(){
       aoa.push(row);
     });
     // totals row
-    const totals = ['', 'Итого', '', p.items.reduce((a,it)=>a+(Number(it.qty)||0),0), p.items.reduce((a,it)=>a+(Number(it.weight)||0),0)];
+    const totals = ['', 'Итого', '', '', p.items.reduce((a,it)=>a+(Number(it.qty)||0),0), p.items.reduce((a,it)=>a+(Number(it.weight)||0),0)];
     shipments.forEach(s=>{
       const qtySum = s.lines.reduce((a,l)=>a+(Number(l.qty)||0),0);
       const wSum = s.lines.reduce((a,l)=>a+(Number(l.weight)||0),0);
