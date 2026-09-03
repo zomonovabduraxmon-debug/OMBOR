@@ -486,11 +486,11 @@ function auditSummary(a){
     const oq=(oldD.items||[]).reduce((x,i)=>x+(Number(i.qty)||0),0), nq=(newD.items||[]).reduce((x,i)=>x+(Number(i.qty)||0),0);
     const ow=(oldD.items||[]).reduce((x,i)=>x+(Number(i.weight)||0),0), nw=(newD.items||[]).reduce((x,i)=>x+(Number(i.weight)||0),0);
     if(oq!==nq) changes.push(`${lab('qty')}: ${fmt(oq,0)} → ${fmt(nq,0)}`);
-    if(Math.abs(ow-nw)>1e-9) changes.push(`${lab('weight')}: ${fmt(ow,2)} → ${fmt(nw,2)} kg`);
+    if(Math.abs(ow-nw)>1e-9) changes.push(`${lab('weight')}: ${fmt(ow,2)} → ${fmt(nw,2)} ${uiT('кг')}`);
   }else if(a.entityType==='shipment'){
     const oq=(newD.lines||oldD.lines||[]).reduce((x,i)=>x+(Number(i.qty)||0),0);
     const ow=(newD.lines||oldD.lines||[]).reduce((x,i)=>x+(Number(i.weight)||0),0);
-    changes.push(`${lab('qty')}: ${fmt(oq,0)}, ${lab('weight')}: ${fmt(ow,2)} kg`);
+    changes.push(`${lab('qty')}: ${fmt(oq,0)}, ${lab('weight')}: ${fmt(ow,2)} ${uiT('кг')}`);
   }
   return changes.length ? changes.join('; ') : uiT('Данные изменены');
 }

@@ -232,7 +232,16 @@
     'локальный режим':{ru:'локальный режим',en:'local mode',uz:'lokal rejim',tr:'yerel mod'},
     'Мато':{ru:'Мато',en:'Fabric',uz:'Mato',tr:'Kumaş'},
     'Мато / material':{ru:'Мато / material',en:'Fabric / material',uz:'Mato / material',tr:'Kumaş / malzeme'},
-    'Вес 1 ед.':{ru:'Вес 1 ед.',en:'Weight per unit',uz:'1 dona og‘irligi',tr:'Birim ağırlığı'}
+    'Вес 1 ед.':{ru:'Вес 1 ед.',en:'Weight per unit',uz:'1 dona og‘irligi',tr:'Birim ağırlığı'},
+    'перерасход':{ru:'перерасход',en:'overdrawn',uz:'ortiqcha sarf',tr:'aşım'},
+    'закончено':{ru:'закончено',en:'finished',uz:'tugagan',tr:'bitti'},
+    'мало осталось':{ru:'мало осталось',en:'low remaining',uz:'kam qoldi',tr:'az kaldı'},
+    'в норме':{ru:'в норме',en:'normal',uz:'me’yorida',tr:'normal'},
+    'Удаление отгрузки':{ru:'Удаление отгрузки',en:'Shipment deleted',uz:'Yuklama o‘chirildi',tr:'Sevkiyat silindi'},
+    'и поиску':{ru:'и поиску',en:'and search',uz:'va qidiruvga',tr:'ve aramaya'},
+    'Сортировка':{ru:'Сортировка',en:'Sorting',uz:'Saralash',tr:'Sıralama'},
+    'шт':{ru:'шт',en:'pcs',uz:'dona',tr:'adet'},
+    'кг':{ru:'кг',en:'kg',uz:'kg',tr:'kg'}
   };
 
   const reverseText = new Map();
