@@ -659,7 +659,6 @@ function renderDashboard(){
       <td>${item.material ? `<span class="material-badge">${escapeHtml(item.material)}</span>` : '—'}</td>
       <td class="code-col">${escapeHtml(item.tnved||'—')}</td>
       <td class="num-col">${fmt(perUnit,3)} кг</td>
-      <td>${categoryBadge}</td>
       <td class="num-col">${fmt(item.qty,0)} ${item.unit}</td>
       <td class="num-col">${fmt(used.qty,0)}</td>
       <td class="num-col">${fmt(st.remQty,0)}</td>
@@ -722,12 +721,12 @@ function renderDashboard(){
       <div class="panel-body" style="padding:0;overflow-x:auto;">
         ${rows.length ? `<table>
           <thead><tr>
-            <th>Разрешение</th><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Вес 1 ед.</th><th>Категория</th>
+            <th>Разрешение</th><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Вес 1 ед.</th>
             <th>Разрешено</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th><th>Заполнение</th><th>Статус</th>
           </tr></thead>
           <tbody>${tableRows}</tbody>
           <tfoot><tr>
-            <td colspan="8" class="table-total-label">Итого по фильтру</td>
+            <td colspan="7" class="table-total-label">Итого по фильтру</td>
             <td class="num-col">${fmt(totalQty,0)}</td>
             <td class="num-col">${fmt(totalWeight,2)} кг</td>
             <td colspan="2"></td>
