@@ -120,7 +120,7 @@
   // Additional UI strings used by the core page, audit module and legacy visual layers.
   // These entries translate interface text only; product/item names and user data are never translated.
   const EXTRA_TEXT = {
-    'Аудит':{ru:'Аудит',en:'Audit',uz:'Audit',tr:'Denetim'},
+    'Аудит':{ru:'Аудит',en:'Audit',uz:'Tarix',tr:'Denetim'},
     'Hisobotlar':{ru:'Отчёты',en:'Reports',uz:'Hisobotlar',tr:'Raporlar'},
     'Ombor, ruxsatnomalar va qoldiqlar bo‘yicha joriy ko‘rsatkichlar':{ru:'Текущие показатели склада, разрешений и остатков',en:'Current warehouse, permit and balance indicators',uz:'Ombor, ruxsatnomalar va qoldiqlar bo‘yicha joriy ko‘rsatkichlar',tr:'Depo, izin ve bakiye göstergeleri'},
     'Excel hisobot':{ru:'Отчёт Excel',en:'Excel report',uz:'Excel hisoboti',tr:'Excel raporu'},
@@ -142,7 +142,7 @@
     'Tizim faol':{ru:'Система активна',en:'System active',uz:'Tizim faol',tr:'Sistem aktif'},
     'Записей пока нет':{ru:'Записей пока нет',en:'No records yet',uz:'Hozircha yozuvlar yo‘q',tr:'Henüz kayıt yok'},
     'Изменения будут записываться после включения аудита.':{ru:'Изменения будут записываться после включения аудита.',en:'Changes will be recorded after audit is enabled.',uz:'Audit yoqilgandan so‘ng o‘zgarishlar yozib boriladi.',tr:'Denetim etkinleştirildikten sonra değişiklikler kaydedilecektir.'},
-    'Журнал аудита':{ru:'Журнал аудита',en:'Audit log',uz:'Audit jurnali',tr:'Denetim günlüğü'},
+    'Журнал аудита':{ru:'Журнал аудита',en:'Audit log',uz:'Tarix jurnali',tr:'Denetim günlüğü'},
     'Кто, когда и что изменил':{ru:'Кто, когда и что изменил',en:'Who changed what and when',uz:'Kim, qachon va nimani o‘zgartirdi',tr:'Kim, neyi ve ne zaman değiştirdi'},
     'Поиск по пользователю, действию или объекту':{ru:'Поиск по пользователю, действию или объекту',en:'Search by user, action or object',uz:'Foydalanuvchi, amal yoki obyekt bo‘yicha qidirish',tr:'Kullanıcı, işlem veya nesneye göre ara'},
     'История изменений':{ru:'История изменений',en:'Change history',uz:'O‘zgarishlar tarixi',tr:'Değişiklik geçmişi'},
@@ -227,7 +227,7 @@
     'Удалено':{ru:'Удалено',en:'Deleted',uz:'O‘chirildi',tr:'Silindi'},
     'Создана отгрузка':{ru:'Создана отгрузка',en:'Shipment created',uz:'Yuklama yaratildi',tr:'Sevkiyat oluşturuldu'},
     'Данные изменены':{ru:'Данные изменены',en:'Data changed',uz:'Ma’lumot o‘zgartirildi',tr:'Veriler değiştirildi'},
-    'Для просмотра журнала войдите в аккаунт редактора.':{ru:'Для просмотра журнала войдите в аккаунт редактора.',en:'Sign in as an editor to view the audit log.',uz:'Audit jurnalini ko‘rish uchun tahrirlovchi akkauntiga kiring.',tr:'Denetim günlüğünü görüntülemek için editör olarak giriş yapın.'},
+    'Для просмотра журнала войдите в аккаунт редактора.':{ru:'Для просмотра журнала войдите в аккаунт редактора.',en:'Sign in as an editor to view the audit log.',uz:'Tarix jurnalini ko‘rish uchun tahrirlovchi akkauntiga kiring.',tr:'Denetim günlüğünü görüntülemek için editör olarak giriş yapın.'},
     'Загрузка…':{ru:'Загрузка…',en:'Loading…',uz:'Yuklanmoqda…',tr:'Yükleniyor…'},
     'локальный режим':{ru:'локальный режим',en:'local mode',uz:'lokal rejim',tr:'yerel mod'},
     'Мато':{ru:'Мато',en:'Fabric',uz:'Mato',tr:'Kumaş'},

@@ -3699,13 +3699,13 @@ html.v12-shell-ready .v11-warehouse-values.v13-warehouse-values{
   grid-template-columns:none !important;
   align-items:center !important;
   flex-wrap:nowrap !important;
-  gap:22px !important;
+  gap:52px !important;
   padding-right:20px !important;
 }
 
 html.v12-shell-ready .v13-warehouse-values .warehouse-value{
   min-width:0 !important;
-  padding-left:22px !important;
+  padding-left:32px !important;
 }
 
 html.v12-shell-ready .v13-metric{
@@ -3757,10 +3757,10 @@ html[data-theme="dark"].v12-shell-ready .v13-metric-label{
     min-height:70px !important;
   }
   html.v12-shell-ready .v13-warehouse-values{
-    gap:14px !important;
+    gap:26px !important;
   }
   html.v12-shell-ready .v13-warehouse-values .warehouse-value{
-    padding-left:14px !important;
+    padding-left:20px !important;
   }
   html.v12-shell-ready .v13-metric-number{
     font-size:26px !important;
