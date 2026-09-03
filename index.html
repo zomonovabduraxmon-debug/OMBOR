@@ -331,7 +331,7 @@
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="brand">
+    <div class="brand" id="brandLogo" style="cursor:pointer;" role="button" tabindex="0" aria-label="Dashboard">
       <img src="logo-mark.png" alt="Mengi Tekstil" class="brand-logo">
       <div class="brand-text">
         <span class="brand-mark">MENGI TEKSTIL</span>
@@ -598,6 +598,11 @@ function setTab(tab){
   render();
 }
 document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click', ()=>setTab(b.dataset.tab)));
+const brandLogoEl = document.getElementById('brandLogo');
+if(brandLogoEl){
+  brandLogoEl.addEventListener('click', ()=>setTab('dashboard'));
+  brandLogoEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); setTab('dashboard'); } });
+}
 
 function render(){
   const app = document.getElementById('app');
