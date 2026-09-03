@@ -120,7 +120,7 @@
   // Additional UI strings used by the core page, audit module and legacy visual layers.
   // These entries translate interface text only; product/item names and user data are never translated.
   const EXTRA_TEXT = {
-    'Аудит':{ru:'История',en:'History',uz:'Tarix',tr:'Geçmiş'},
+    'История':{ru:'История',en:'History',uz:'Tarix',tr:'Geçmiş'},
     'Hisobotlar':{ru:'Отчёты',en:'Reports',uz:'Hisobotlar',tr:'Raporlar'},
     'Ombor, ruxsatnomalar va qoldiqlar bo‘yicha joriy ko‘rsatkichlar':{ru:'Текущие показатели склада, разрешений и остатков',en:'Current warehouse, permit and balance indicators',uz:'Ombor, ruxsatnomalar va qoldiqlar bo‘yicha joriy ko‘rsatkichlar',tr:'Depo, izin ve bakiye göstergeleri'},
     'Excel hisobot':{ru:'Отчёт Excel',en:'Excel report',uz:'Excel hisoboti',tr:'Excel raporu'},
@@ -142,7 +142,7 @@
     'Tizim faol':{ru:'Система активна',en:'System active',uz:'Tizim faol',tr:'Sistem aktif'},
     'Записей пока нет':{ru:'Записей пока нет',en:'No records yet',uz:'Hozircha yozuvlar yo‘q',tr:'Henüz kayıt yok'},
     'Изменения будут записываться после включения аудита.':{ru:'Изменения будут записываться после включения аудита.',en:'Changes will be recorded after audit is enabled.',uz:'Audit yoqilgandan so‘ng o‘zgarishlar yozib boriladi.',tr:'Denetim etkinleştirildikten sonra değişiklikler kaydedilecektir.'},
-    'Журнал аудита':{ru:'Журнал истории',en:'History log',uz:'Tarix jurnali',tr:'Geçmiş günlüğü'},
+    'Журнал истории':{ru:'Журнал истории',en:'History log',uz:'Tarix jurnali',tr:'Geçmiş günlüğü'},
     'Кто, когда и что изменил':{ru:'Кто, когда и что изменил',en:'Who changed what and when',uz:'Kim, qachon va nimani o‘zgartirdi',tr:'Kim, neyi ve ne zaman değiştirdi'},
     'Поиск по пользователю, действию или объекту':{ru:'Поиск по пользователю, действию или объекту',en:'Search by user, action or object',uz:'Foydalanuvchi, amal yoki obyekt bo‘yicha qidirish',tr:'Kullanıcı, işlem veya nesneye göre ara'},
     'История изменений':{ru:'История изменений',en:'Change history',uz:'O‘zgarishlar tarixi',tr:'Değişiklik geçmişi'},

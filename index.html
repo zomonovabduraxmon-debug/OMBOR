@@ -348,7 +348,7 @@
     <button class="tab-btn" data-tab="permits">Разрешения</button>
     <button class="tab-btn" data-tab="shipment">Новая отгрузка</button>
     <button class="tab-btn" data-tab="export">Экспорт</button>
-    <button class="tab-btn" data-tab="audit">Аудит</button>
+    <button class="tab-btn" data-tab="audit">История</button>
   </div>
 </div>
 
@@ -496,14 +496,14 @@ function auditSummary(a){
 }
 
 function renderAuditTab(){
-  if(!isEditorMode) return `<div class="panel"><div class="panel-head"><h2>${uiT('Журнал аудита')}</h2></div><div class="panel-body"><div class="subtle-note">${uiT('Для просмотра журнала войдите в аккаунт редактора.')}</div></div></div>`;
+  if(!isEditorMode) return `<div class="panel"><div class="panel-head"><h2>${uiT('Журнал истории')}</h2></div><div class="panel-body"><div class="subtle-note">${uiT('Для просмотра журнала войдите в аккаунт редактора.')}</div></div></div>`;
   const rows=(state.audits||[]).slice().sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).filter(a=>{
     const hay=[a.actorEmail,auditActionLabel(a.action),auditEntityLabel(a.entityType),a.entityLabel,auditSummary(a)].join(' ').toLowerCase();
     return !auditSearch || hay.includes(auditSearch.toLowerCase());
   });
   const locale={ru:'ru-RU',en:'en-US',uz:'uz-UZ',tr:'tr-TR'}[uiLang()]||'ru-RU';
   const countLabel={ru:'записей',en:'records',uz:'ta yozuv',tr:'kayıt'}[uiLang()];
-  return `<div class="toolbar"><div><h1>${uiT('Журнал аудита')}</h1><div class="desc">${uiT('Кто, когда и что изменил')}</div></div><input id="auditSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по пользователю, действию или объекту'))}" value="${escapeAttr(auditSearch)}"></div>
+  return `<div class="toolbar"><div><h1>${uiT('Журнал истории')}</h1><div class="desc">${uiT('Кто, когда и что изменил')}</div></div><input id="auditSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по пользователю, действию или объекту'))}" value="${escapeAttr(auditSearch)}"></div>
     <div class="panel"><div class="panel-body">${rows.length?`<div style="overflow:auto"><table><thead><tr><th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}</div></div>`;
 }
 
