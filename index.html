@@ -160,6 +160,12 @@
   .badge.crit{background:var(--red-soft);color:var(--red);}
   .badge.neutral{background:var(--line-soft);color:var(--muted);}
 
+  .material-badge{
+    display:inline-block;max-width:220px;background:#eaf0fd;color:#3757c9;
+    border-radius:10px;padding:5px 10px;font-size:11.5px;font-weight:600;
+    line-height:1.35;white-space:normal;word-break:break-word;
+  }
+
   .gauge{width:120px;height:8px;background:var(--line-soft);border-radius:2px;overflow:hidden;display:flex;}
   .gauge-seg{height:100%;}
   .gauge-wrap{display:flex;align-items:center;gap:8px;}
@@ -619,7 +625,8 @@ function renderDashboard(){
     allRows = allRows.filter(r =>
       r.permit.number.toLowerCase().includes(q) ||
       r.item.name.toLowerCase().includes(q) ||
-      (r.item.tnved||'').toLowerCase().includes(q)
+      (r.item.tnved||'').toLowerCase().includes(q) ||
+      (r.item.material||'').toLowerCase().includes(q)
     );
   }
 
@@ -636,6 +643,7 @@ function renderDashboard(){
   const tableRows = rows.map(r=>{
     const {permit,item,used,st} = r;
     const pctShown = Math.round(Math.max(0,st.pct)*100);
+    const perUnit = item.qty ? (item.weight/item.qty) : 0;
     const color = st.level==='over' ? 'var(--red)' : st.level==='finished' ? 'var(--red)' : st.level==='warn' ? 'var(--amber)' : 'var(--teal)';
     const badge = st.level==='over' ? '<span class="badge crit">перерасход</span>'
       : st.level==='finished' ? '<span class="badge crit">закончено</span>'
@@ -648,7 +656,9 @@ function renderDashboard(){
     return `<tr>
       <td>${escapeHtml(permit.number)}<div class="subtle-note">${escapeHtml(permit.date||'')}</div></td>
       <td>${escapeHtml(item.name)}</td>
+      <td>${item.material ? `<span class="material-badge">${escapeHtml(item.material)}</span>` : '—'}</td>
       <td class="code-col">${escapeHtml(item.tnved||'—')}</td>
+      <td class="num-col">${fmt(perUnit,3)} кг</td>
       <td>${categoryBadge}</td>
       <td class="num-col">${fmt(item.qty,0)} ${item.unit}</td>
       <td class="num-col">${fmt(used.qty,0)}</td>
@@ -712,12 +722,12 @@ function renderDashboard(){
       <div class="panel-body" style="padding:0;overflow-x:auto;">
         ${rows.length ? `<table>
           <thead><tr>
-            <th>Разрешение</th><th>Наименование</th><th>ТН ВЭД</th><th>Категория</th>
+            <th>Разрешение</th><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Вес 1 ед.</th><th>Категория</th>
             <th>Разрешено</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th><th>Заполнение</th><th>Статус</th>
           </tr></thead>
           <tbody>${tableRows}</tbody>
           <tfoot><tr>
-            <td colspan="6" class="table-total-label">Итого по фильтру</td>
+            <td colspan="8" class="table-total-label">Итого по фильтру</td>
             <td class="num-col">${fmt(totalQty,0)}</td>
             <td class="num-col">${fmt(totalWeight,2)} кг</td>
             <td colspan="2"></td>
@@ -815,7 +825,7 @@ function openPermitDetail(permitId){
     const perUnit = it.qty ? (it.weight/it.qty) : 0;
     return `<tr>
       <td>${escapeHtml(it.name)}</td>
-      <td>${escapeHtml(it.material||'—')}</td>
+      <td>${it.material ? `<span class="material-badge">${escapeHtml(it.material)}</span>` : '—'}</td>
       <td class="code-col">${escapeHtml(it.tnved||'—')}</td>
       <td class="num-col">${fmt(it.qty,0)} ${it.unit}</td>
       <td class="num-col">${fmt(it.weight,2)} кг</td>
@@ -847,7 +857,7 @@ function openPermitDetail(permitId){
     <div class="modal-body">
       <div class="subtle-note" style="margin-bottom:14px;">от ${p.date||'—'} ${p.note?(' · '+escapeHtml(p.note)):''} &middot; разрешено ${fmt(t.allowedQty,0)} шт / ${fmt(t.allowedW,2)} кг &middot; остаток ${fmt(t.remQty,0)} шт / ${fmt(t.remW,2)} кг</div>
       <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 8px 0;">Позиции</h3>
-      <table><thead><tr><th>Наименование</th><th>Мато</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
+      <table><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
       <tbody>${itemRows}</tbody></table>
       <h3 style="font-family:var(--serif);font-size:14px;margin:20px 0 8px 0;">Отгрузки по этому разрешению</h3>
       ${shipments.length ? `<table><thead><tr><th>Инвойс</th><th>Дата</th><th>Строк</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead><tbody>${shipRows}</tbody></table>`

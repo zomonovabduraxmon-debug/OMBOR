@@ -229,7 +229,10 @@
     'Данные изменены':{ru:'Данные изменены',en:'Data changed',uz:'Ma’lumot o‘zgartirildi',tr:'Veriler değiştirildi'},
     'Для просмотра журнала войдите в аккаунт редактора.':{ru:'Для просмотра журнала войдите в аккаунт редактора.',en:'Sign in as an editor to view the audit log.',uz:'Audit jurnalini ko‘rish uchun tahrirlovchi akkauntiga kiring.',tr:'Denetim günlüğünü görüntülemek için editör olarak giriş yapın.'},
     'Загрузка…':{ru:'Загрузка…',en:'Loading…',uz:'Yuklanmoqda…',tr:'Yükleniyor…'},
-    'локальный режим':{ru:'локальный режим',en:'local mode',uz:'lokal rejim',tr:'yerel mod'}
+    'локальный режим':{ru:'локальный режим',en:'local mode',uz:'lokal rejim',tr:'yerel mod'},
+    'Мато':{ru:'Мато',en:'Fabric',uz:'Mato',tr:'Kumaş'},
+    'Мато / material':{ru:'Мато / material',en:'Fabric / material',uz:'Mato / material',tr:'Kumaş / malzeme'},
+    'Вес 1 ед.':{ru:'Вес 1 ед.',en:'Weight per unit',uz:'1 dona og‘irligi',tr:'Birim ağırlığı'}
   };
 
   const reverseText = new Map();
