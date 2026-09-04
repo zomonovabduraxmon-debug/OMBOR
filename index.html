@@ -349,6 +349,7 @@
     <button class="tab-btn active" data-tab="dashboard">Остатки</button>
     <button class="tab-btn" data-tab="permits">Разрешения</button>
     <button class="tab-btn" data-tab="shipment">Новая отгрузка</button>
+    <button class="tab-btn" data-tab="shipmentHistory">История отгрузок</button>
     <button class="tab-btn" data-tab="export">Экспорт</button>
     <button class="tab-btn" data-tab="audit">История</button>
   </div>
@@ -389,6 +390,8 @@ let dashboardFilter = 'all';
 let dashboardSort = 'remaining-desc';
 let uploadDraft = null; // holds in-progress upload mapping state
 let auditSearch = '';
+let shipmentHistorySearch = '';
+let editShipmentDraft = null; // { shipmentId, permitId, invoiceNumber, invoiceDate, lines }
 
 function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,10); }
 
@@ -472,7 +475,7 @@ function uiT(text){
   try{return window.EOMBOR_UI_V5?.translateText?.(String(text), uiLang()) || String(text);}catch(_){return String(text);}
 }
 function auditActionLabel(a){
-  const map={create:'Создание', update:'Изменение', delete:'Удаление', shipment_create:'Новая отгрузка', shipment_delete:'Удаление отгрузки'};
+  const map={create:'Создание', update:'Изменение', delete:'Удаление', shipment_create:'Новая отгрузка', shipment_delete:'Удаление отгрузки', shipment_update:'Отгрузка изменена'};
   return uiT(map[a] || a);
 }
 function auditEntityLabel(t){ return uiT(t==='permit' ? 'Разрешение' : t==='shipment' ? 'Отгрузка' : t); }
@@ -521,10 +524,11 @@ function renderAuditTab(){
 }
 
 /* ============================= CALCULATIONS ============================= */
-function itemUsage(permitId, itemId){
+function itemUsage(permitId, itemId, excludeShipmentId){
   let qty = 0, weight = 0;
   for(const sh of state.shipments){
     if(sh.permitId !== permitId) continue;
+    if(excludeShipmentId && sh.id === excludeShipmentId) continue;
     for(const ln of (Array.isArray(sh.lines)?sh.lines:[])){
       if(ln.itemId === itemId){
         qty += Math.max(0, Number(ln.qty)||0);
@@ -559,7 +563,7 @@ function permitTotals(permit){
   return { allowedQty, allowedW, usedQty, usedW, remQty: allowedQty-usedQty, remW: allowedW-usedW };
 }
 
-function validateShipmentLines(permit, lines){
+function validateShipmentLines(permit, lines, excludeShipmentId){
   if(!permit || !Array.isArray(permit.items)) return ['Разрешение не найдено'];
   const errors = [];
   const byItem = new Map();
@@ -581,7 +585,7 @@ function validateShipmentLines(permit, lines){
 
   for(const [itemId, v] of byItem){
     const it = permit.items.find(x=>x.id===itemId);
-    const used = itemUsage(permit.id, itemId);
+    const used = itemUsage(permit.id, itemId, excludeShipmentId);
     const allowedQty = Math.max(0, Number(it.qty)||0);
     const allowedWeight = Math.max(0, Number(it.weight)||0);
     if(used.qty + v.qty > allowedQty + 1e-9){
@@ -624,6 +628,7 @@ function render(){
   if(currentTab==='dashboard') app.innerHTML = renderDashboard();
   else if(currentTab==='permits') app.innerHTML = renderPermits();
   else if(currentTab==='shipment') app.innerHTML = renderShipmentTab();
+  else if(currentTab==='shipmentHistory') app.innerHTML = renderShipmentHistoryTab();
   else if(currentTab==='export') app.innerHTML = renderExportTab();
   else if(currentTab==='audit') app.innerHTML = renderAuditTab();
   bindTabEvents();
@@ -822,6 +827,9 @@ function bindTabEvents(){
   }
   if(currentTab==='shipment'){
     bindShipmentEvents();
+  }
+  if(currentTab==='shipmentHistory'){
+    bindShipmentHistoryEvents();
   }
   if(currentTab==='export'){
     document.getElementById('btnExportAll').addEventListener('click', exportWorkbook);
@@ -1172,6 +1180,194 @@ async function saveManualShipment(){
   shipmentDraft = { mode:'manual', permitId: permit.id, invoiceNumber:'', invoiceDate:'', lines:{} };
   render();
   toast('Отгрузка сохранена, остатки обновлены');
+}
+
+/* ============================= SHIPMENT HISTORY (barcha yuklamalar) ============================= */
+function shipmentLineTotals(sh){
+  const lines = Array.isArray(sh.lines) ? sh.lines : [];
+  return {
+    qty: lines.reduce((a,l)=>a+(Number(l.qty)||0),0),
+    weight: lines.reduce((a,l)=>a+(Number(l.weight)||0),0)
+  };
+}
+
+function renderShipmentHistoryTab(){
+  if(!isEditorMode){
+    return `<div class="toolbar"><div><h1>${uiT('История отгрузок')}</h1><div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div></div></div>
+    <div class="panel"><div class="empty"><div class="big">Режим просмотра</div>Ma'lumotni ko'rish uchun yuqoridagi «Войти» tugmasi orqali tizimga kiring.</div></div>`;
+  }
+
+  const q = shipmentHistorySearch.trim().toLowerCase();
+  let rows = state.shipments.slice();
+  if(q){
+    rows = rows.filter(sh=>{
+      const permit = state.permits.find(p=>p.id===sh.permitId);
+      const hay = `${sh.invoiceNumber||''} ${permit?permit.number:''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  rows.sort((a,b)=>(b.invoiceDate||'').localeCompare(a.invoiceDate||''));
+
+  const body = rows.map(sh=>{
+    const permit = state.permits.find(p=>p.id===sh.permitId);
+    const sum = shipmentLineTotals(sh);
+    return `<tr>
+      <td>${escapeHtml(sh.invoiceDate||'—')}</td>
+      <td>${permit ? `<a href="#" data-open-permit-h="${permit.id}">${escapeHtml(permit.number)}</a>` : '—'}</td>
+      <td>${escapeHtml(sh.invoiceNumber||'—')}</td>
+      <td class="num-col">${sh.lines.length}</td>
+      <td class="num-col">${fmt(sum.qty,0)}</td>
+      <td class="num-col">${fmt(sum.weight,2)}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn secondary sm" data-edit-shipment="${sh.id}">${uiT('Изменить')}</button>
+        <button class="btn danger sm" data-del-shipment-h="${sh.id}">${uiT('Удалить')}</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="toolbar">
+      <div><h1>${uiT('История отгрузок')}</h1><div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div></div>
+      <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по инвойсу или разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
+    </div>
+    <div class="panel">
+      <div class="panel-body" style="padding:0;">${rows.length ? `<div style="overflow:auto"><table><thead><tr>
+        <th>${uiT('Дата')}</th><th>${uiT('Разрешение')}</th><th>${uiT('Инвойс')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th><th></th>
+      </tr></thead><tbody>${body}</tbody></table></div>`
+      : `<div class="empty"><div class="big">${uiT('Записей пока нет')}</div></div>`}</div>
+    </div>
+  `;
+}
+
+function bindShipmentHistoryEvents(){
+  const q = document.getElementById('shipHistSearch');
+  if(q) q.addEventListener('input', e=>{ shipmentHistorySearch = e.target.value; render(); setTimeout(()=>{ const i=document.getElementById('shipHistSearch'); if(i){ i.focus(); i.selectionStart=i.selectionEnd=i.value.length; } },0); });
+
+  document.querySelectorAll('[data-open-permit-h]').forEach(el=>el.addEventListener('click', (e)=>{
+    e.preventDefault();
+    openPermitDetail(el.dataset.openPermitH);
+  }));
+
+  document.querySelectorAll('[data-edit-shipment]').forEach(el=>el.addEventListener('click', ()=>openEditShipmentModal(el.dataset.editShipment)));
+
+  document.querySelectorAll('[data-del-shipment-h]').forEach(el=>el.addEventListener('click', async ()=>{
+    if(!confirm('Удалить эту отгрузку? Остаток по разрешению будет пересчитан.')) return;
+    const oldShipment = state.shipments.find(s=>s.id===el.dataset.delShipmentH);
+    state.shipments = state.shipments.filter(s=>s.id!==el.dataset.delShipmentH);
+    await saveShipments();
+    if(oldShipment) await addAudit('shipment_delete', 'shipment', oldShipment.id, oldShipment.invoiceNumber||oldShipment.id, oldShipment, null);
+    render();
+    toast('Отгрузка удалена');
+  }));
+}
+
+function openEditShipmentModal(shipmentId){
+  const sh = state.shipments.find(s=>s.id===shipmentId);
+  if(!sh) return;
+  const permit = state.permits.find(p=>p.id===sh.permitId);
+  if(!permit){ toast('Разрешение не найдено'); return; }
+
+  editShipmentDraft = {
+    shipmentId: sh.id,
+    permitId: permit.id,
+    invoiceNumber: sh.invoiceNumber || '',
+    invoiceDate: sh.invoiceDate || '',
+    lines: {}
+  };
+  for(const ln of (Array.isArray(sh.lines)?sh.lines:[])){
+    editShipmentDraft.lines[ln.itemId] = { qty: ln.qty, weight: ln.weight };
+  }
+  renderEditShipmentModal();
+}
+
+function renderEditShipmentModal(){
+  const permit = state.permits.find(p=>p.id===editShipmentDraft.permitId);
+  if(!permit) return;
+
+  const rowsHtml = permit.items.map(it=>{
+    const used = itemUsage(permit.id, it.id, editShipmentDraft.shipmentId);
+    const st = itemStatus(it, used);
+    const perUnit = it.qty ? (it.weight/it.qty) : 0;
+    const currentQty = editShipmentDraft.lines[it.id]?.qty ?? '';
+    const currentW = editShipmentDraft.lines[it.id]?.weight ?? '';
+    return `<tr>
+      <td>${escapeHtml(it.name)}</td>
+      <td class="code-col">${escapeHtml(it.tnved||'—')}</td>
+      <td class="num-col ${st.remQty<0?'mismatch':''}">${fmt(st.remQty,0)} ${it.unit} / ${fmt(st.remWeight,2)} кг</td>
+      <td><input type="number" min="0" step="any" data-eline-qty="${it.id}" data-perunit="${perUnit}" value="${currentQty}" placeholder="0" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
+      <td><input type="number" min="0" step="0.001" data-eline-weight="${it.id}" value="${currentW}" placeholder="0.00" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
+    </tr>`;
+  }).join('');
+
+  showModal(`
+    <div class="modal-head">
+      <h2>${uiT('Изменить отгрузку')}</h2>
+      <button class="close-x" data-close>&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>${uiT('Инвойс')}</label><input type="text" id="editShipInvNum" value="${escapeAttr(editShipmentDraft.invoiceNumber)}"></div>
+        <div class="field"><label>${uiT('Дата')}</label><input type="date" id="editShipInvDate" value="${editShipmentDraft.invoiceDate||''}"></div>
+      </div>
+      <h3 style="font-family:var(--serif);font-size:14px;margin:14px 0 8px 0;">${escapeHtml(permit.number)}</h3>
+      <div style="overflow:auto"><table><thead><tr><th>Наименование</th><th>ТН ВЭД</th><th>Остаток</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')} (кг)</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn secondary" data-close>${uiT('Отмена')}</button>
+      <button class="btn" id="btnSaveEditShipment">${uiT('Сохранить изменения')}</button>
+    </div>
+  `);
+
+  document.getElementById('editShipInvNum').addEventListener('input', e=>editShipmentDraft.invoiceNumber = e.target.value);
+  document.getElementById('editShipInvDate').addEventListener('input', e=>editShipmentDraft.invoiceDate = e.target.value);
+
+  document.querySelectorAll('[data-eline-qty]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const id = inp.dataset.elineQty;
+      editShipmentDraft.lines[id] = editShipmentDraft.lines[id] || {};
+      editShipmentDraft.lines[id].qty = inp.value;
+    });
+  });
+  document.querySelectorAll('[data-eline-weight]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const id = inp.dataset.elineWeight;
+      editShipmentDraft.lines[id] = editShipmentDraft.lines[id] || {};
+      editShipmentDraft.lines[id].weight = inp.value;
+    });
+  });
+
+  document.getElementById('btnSaveEditShipment').addEventListener('click', saveEditedShipment);
+}
+
+async function saveEditedShipment(){
+  const permit = state.permits.find(p=>p.id===editShipmentDraft.permitId);
+  if(!permit){ toast('Разрешение не найдено'); return; }
+
+  const lines = Object.entries(editShipmentDraft.lines)
+    .map(([itemId,v])=>({itemId, qty:Number(v.qty), weight:Number(v.weight)}))
+    .filter(l=>Number.isFinite(l.qty) && l.qty>0);
+
+  if(!lines.length){ toast('Введите количество хотя бы по одной позиции'); return; }
+
+  const errors = validateShipmentLines(permit, lines, editShipmentDraft.shipmentId);
+  if(errors.length){
+    toast('Отгрузка не сохранена: ' + errors[0]);
+    alert('Отгрузка не может быть сохранена:\n\n' + errors.join('\n'));
+    return;
+  }
+
+  const sh = state.shipments.find(s=>s.id===editShipmentDraft.shipmentId);
+  if(!sh){ toast('Отгрузка не найдена'); return; }
+  const oldSnapshot = JSON.parse(JSON.stringify(sh));
+  sh.invoiceNumber = editShipmentDraft.invoiceNumber;
+  sh.invoiceDate = editShipmentDraft.invoiceDate;
+  sh.lines = lines;
+  await saveShipments();
+  await addAudit('shipment_update', 'shipment', sh.id, sh.invoiceNumber||sh.id, oldSnapshot, sh);
+  editShipmentDraft = null;
+  closeModal();
+  render();
+  toast(uiT('Отгрузка обновлена'));
 }
 
 /* ============================= UPLOAD / AUTO-MATCH FLOW ============================= */

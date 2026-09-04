@@ -143,6 +143,14 @@
     'Записей пока нет':{ru:'Записей пока нет',en:'No records yet',uz:'Hozircha yozuvlar yo‘q',tr:'Henüz kayıt yok'},
     'Изменения будут записываться после включения аудита.':{ru:'Изменения будут записываться после включения аудита.',en:'Changes will be recorded after audit is enabled.',uz:'Audit yoqilgandan so‘ng o‘zgarishlar yozib boriladi.',tr:'Denetim etkinleştirildikten sonra değişiklikler kaydedilecektir.'},
     'Журнал истории':{ru:'Журнал истории',en:'History log',uz:'Tarix jurnali',tr:'Geçmiş günlüğü'},
+    'История отгрузок':{ru:'История отгрузок',en:'Shipment history',uz:'Yuklamalar tarixi',tr:'Sevkiyat geçmişi'},
+    'Все отгрузки и возможность их редактирования':{ru:'Все отгрузки и возможность их редактирования',en:'All shipments, with the option to edit them',uz:'Barcha yuklamalar va ularni tahrirlash imkoniyati',tr:'Tüm sevkiyatlar ve düzenleme imkanı'},
+    'Поиск по инвойсу или разрешению':{ru:'Поиск по инвойсу или разрешению',en:'Search by invoice or permit',uz:'Invoys yoki ruxsatnoma bo‘yicha qidirish',tr:'Fatura veya izne göre ara'},
+    'Вес':{ru:'Вес',en:'Weight',uz:'Vazn',tr:'Ağırlık'},
+    'Изменить отгрузку':{ru:'Изменить отгрузку',en:'Edit shipment',uz:'Yuklamani tahrirlash',tr:'Sevkiyatı düzenle'},
+    'Сохранить изменения':{ru:'Сохранить изменения',en:'Save changes',uz:'O‘zgarishlarni saqlash',tr:'Değişiklikleri kaydet'},
+    'Отгрузка обновлена':{ru:'Отгрузка обновлена',en:'Shipment updated',uz:'Yuklama yangilandi',tr:'Sevkiyat güncellendi'},
+    'Отгрузка изменена':{ru:'Отгрузка изменена',en:'Shipment edited',uz:'Yuklama tahrirlandi',tr:'Sevkiyat düzenlendi'},
     'Нажмите, чтобы повторить попытку':{ru:'Нажмите, чтобы повторить попытку',en:'Click to retry',uz:'Qayta urinish uchun bosing',tr:'Yeniden denemek için tıklayın'},
     'Кто, когда и что изменил':{ru:'Кто, когда и что изменил',en:'Who changed what and when',uz:'Kim, qachon va nimani o‘zgartirdi',tr:'Kim, neyi ve ne zaman değiştirdi'},
     'Поиск по пользователю, действию или объекту':{ru:'Поиск по пользователю, действию или объекту',en:'Search by user, action or object',uz:'Foydalanuvchi, amal yoki obyekt bo‘yicha qidirish',tr:'Kullanıcı, işlem veya nesneye göre ara'},
@@ -318,6 +326,7 @@
       {id:'dashboard', label:'Qoldiqlar', icon:'spool'},
       {id:'permits', label:'Ruxsatnomalar', icon:'clipboard'},
       {id:'shipment', label:'Yangi yuklama', icon:'truck'},
+      {id:'shipmentHistory', label:'Yuklamalar tarixi', icon:'clock'},
       {id:'export', label:'Eksport', icon:'ship'},
       {id:'reports', label:'Hisobotlar', icon:'chart'},
       {id:'audit', label:'Tarix', icon:'audit'}
@@ -326,11 +335,11 @@
 
   function sidebarDestinationV12(id){
     if(id === 'reports') return {tab:'dashboard', mode:'reports'};
-    return {tab:['dashboard','permits','shipment','export','audit'].includes(id) ? id : 'dashboard', mode:'normal'};
+    return {tab:['dashboard','permits','shipment','shipmentHistory','export','audit'].includes(id) ? id : 'dashboard', mode:'normal'};
   }
 
   function resolveSidebarSelectionV12(activeTab, requested){
-    const tab = ['dashboard','permits','shipment','export','audit'].includes(activeTab) ? activeTab : 'dashboard';
+    const tab = ['dashboard','permits','shipment','shipmentHistory','export','audit'].includes(activeTab) ? activeTab : 'dashboard';
     if(tab !== 'dashboard') return tab;
     return requested === 'reports' ? 'reports' : 'dashboard';
   }
@@ -549,7 +558,7 @@
     }
 
     function navigateQuickTab(tab){
-      const allowed = new Set([...quickSections().map(x=>x.tab), 'audit']);
+      const allowed = new Set([...quickSections().map(x=>x.tab), 'audit', 'shipmentHistory']);
       if(!allowed.has(tab)) return false;
       try{
         const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
@@ -671,7 +680,8 @@
         gear:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.4 2.7a7 7 0 0 0-1.7 1L5 5.7 3 9.1 5 10.6a7 7 0 0 0 0 2.8L3 14.9l2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.7h5l.4-2.7a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5c.1-.5.1-.9.1-1.4Z"/>',
         logout:'<path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10"/>',
         bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
-        audit:'<path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M14 4v5h5"/><circle cx="11" cy="15.5" r="2.5"/><path d="m14.5 19 2 2"/>'
+        audit:'<path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M14 4v5h5"/><circle cx="11" cy="15.5" r="2.5"/><path d="m14.5 19 2 2"/>',
+        clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3.5 2"/>'
       };
       return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${icons[kind]||icons.home}</svg>`;
     }
