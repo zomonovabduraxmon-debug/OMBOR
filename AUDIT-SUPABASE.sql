@@ -37,7 +37,7 @@ drop policy if exists "audit_logs_insert_authenticated" on public.audit_logs;
 create policy "audit_logs_insert_authenticated"
 on public.audit_logs for insert
 to authenticated
-with check (actor_id is null or actor_id = auth.uid());
+with check (actor_id is null or actor_id::text = auth.uid()::text);
 
 -- Audit log should be append-only from the application.
 -- No UPDATE/DELETE policy is intentionally created.
