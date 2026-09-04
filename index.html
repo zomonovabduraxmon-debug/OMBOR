@@ -205,11 +205,26 @@
 
   .field{margin-bottom:12px;}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;letter-spacing:.2px;}
-  .field input, .field select{
-    width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);
+  .field input, .field select, .field textarea{
+    width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);font:inherit;
   }
-  .field input:focus, .field select:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(43,58,85,.08);}
+  .field textarea{resize:vertical;min-height:64px;}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(43,58,85,.08);}
   .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+  .reason-backdrop{
+    position:fixed;inset:0;background:rgba(20,26,36,0.55);display:flex;align-items:flex-start;justify-content:center;
+    padding:40px 16px;overflow:auto;z-index:9000;
+  }
+  .reason-error{font-size:12px;color:var(--red);margin-top:6px;display:none;}
+  .diff-table{width:100%;border-collapse:collapse;margin-bottom:14px;}
+  .diff-table th, .diff-table td{padding:6px 8px;border-bottom:1px solid var(--line-soft);text-align:left;font-size:13px;vertical-align:top;}
+  .diff-table th{font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);}
+  .diff-old{color:var(--muted);text-decoration:line-through;}
+  .diff-new{font-weight:600;}
+  .audit-meta-row{display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:14px;font-size:13px;}
+  .audit-meta-row div span{color:var(--muted);margin-right:4px;}
+  .audit-reason-box{background:var(--line-soft);border-radius:6px;padding:10px 12px;margin-bottom:14px;font-size:13px;}
 
   .item-row-grid{
     display:grid;grid-template-columns: 28px 1.8fr 1.4fr 1.1fr 0.9fr 1fr 1fr 32px;
@@ -348,6 +363,7 @@
     .modal{max-width:100%;width:100%;min-height:100vh;border-radius:0;}
     .modal-body{padding:14px;max-height:calc(100vh - 116px);}
     .modal-head,.modal-foot{padding:12px 14px;}
+    .reason-backdrop{padding:0;}
     .modal-foot{flex-wrap:wrap;}
     .modal-foot .btn{flex:1;}
   }
@@ -481,7 +497,7 @@ async function saveShipments(){
   }
 }
 
-async function addAudit(action, entityType, entityId, entityLabel, oldData, newData){
+async function addAudit(action, entityType, entityId, entityLabel, oldData, newData, reason, changes){
   try{
     if(!window.OfflineSync) return;
     const info = await OfflineSync.authInfo();
@@ -492,12 +508,149 @@ async function addAudit(action, entityType, entityId, entityLabel, oldData, newD
       action, entityType, entityId, entityLabel: String(entityLabel||''),
       oldData: oldData == null ? null : JSON.parse(JSON.stringify(oldData)),
       newData: newData == null ? null : JSON.parse(JSON.stringify(newData)),
+      reason: reason ? String(reason) : '',
+      changes: Array.isArray(changes) ? changes.map(c=>({
+        field: String(c.field||''),
+        label: String(c.label||''),
+        oldValue: c.oldValue===undefined ? null : c.oldValue,
+        newValue: c.newValue===undefined ? null : c.newValue
+      })) : [],
       createdAt: now
     };
     state.audits = Array.isArray(state.audits) ? state.audits : [];
     state.audits.push(audit);
     await OfflineSync.saveCollection('audit', state.audits);
   }catch(e){ console.error('AUDIT_LOG_FAILED', e); }
+}
+
+/* ============================= CHANGE-REASON / FIELD DIFF HELPERS ============================= */
+
+// Compare two permit records field-by-field (header fields + items list) and
+// return a flat list of {field,label,oldValue,newValue} for anything that
+// actually changed. Returns [] when the two records are equivalent.
+function diffPermitFields(oldP, newP){
+  const changes = [];
+  const push = (field, label, oldV, newV) => changes.push({field, label, oldValue: oldV, newValue: newV});
+  if(String(oldP.number||'') !== String(newP.number||'')) push('number', uiT('Номер разрешения'), oldP.number, newP.number);
+  if(String(oldP.date||'') !== String(newP.date||'')) push('date', uiT('Дата разрешения'), oldP.date, newP.date);
+  if(String(oldP.note||'') !== String(newP.note||'')) push('note', uiT('Примечание'), oldP.note, newP.note);
+
+  const oldItems = Array.isArray(oldP.items) ? oldP.items : [];
+  const newItems = Array.isArray(newP.items) ? newP.items : [];
+  const oldById = {}; oldItems.forEach(it=>{ if(it && it.id) oldById[it.id]=it; });
+  const newById = {}; newItems.forEach(it=>{ if(it && it.id) newById[it.id]=it; });
+  const allIds = Array.from(new Set([...Object.keys(oldById), ...Object.keys(newById)]));
+  const itemFieldLabels = { name:uiT('Наименование'), material:uiT('Мато'), tnved:uiT('ТН ВЭД'), unit:uiT('Ед.'), qty:uiT('Кол-во'), weight:uiT('Вес, кг') };
+
+  allIds.forEach(id=>{
+    const o = oldById[id], n = newById[id];
+    if(o && !n){
+      push('items.'+id, `${o.name||id} — ${uiT('Позиция удалена')}`, describeItemLine(o), '—');
+    }else if(!o && n){
+      push('items.'+id, `${n.name||id} — ${uiT('Новая позиция')}`, '—', describeItemLine(n));
+    }else if(o && n){
+      Object.keys(itemFieldLabels).forEach(f=>{
+        const ov = o[f], nv = n[f];
+        const equal = (f==='qty'||f==='weight') ? (Number(ov)||0)===(Number(nv)||0) : String(ov||'')===String(nv||'');
+        if(!equal) push('items.'+id+'.'+f, `${escapeForLabel(n.name||o.name||id)} — ${itemFieldLabels[f]}`, ov, nv);
+      });
+    }
+  });
+  return changes;
+}
+
+// Compare a shipment's saved lines/header against the edited draft values.
+function diffShipmentFields(oldSh, newInvoiceNumber, newInvoiceDate, newLines, permit){
+  const changes = [];
+  const push = (field, label, oldV, newV) => changes.push({field, label, oldValue: oldV, newValue: newV});
+  if(String(oldSh.invoiceNumber||'') !== String(newInvoiceNumber||'')) push('invoiceNumber', uiT('Инвойс'), oldSh.invoiceNumber, newInvoiceNumber);
+  if(String(oldSh.invoiceDate||'') !== String(newInvoiceDate||'')) push('invoiceDate', uiT('Дата'), oldSh.invoiceDate, newInvoiceDate);
+
+  const oldLines = Array.isArray(oldSh.lines) ? oldSh.lines : [];
+  const oldById = {}; oldLines.forEach(l=>{ if(l && l.itemId) oldById[l.itemId]=l; });
+  const newById = {}; (newLines||[]).forEach(l=>{ if(l && l.itemId) newById[l.itemId]=l; });
+  const allIds = Array.from(new Set([...Object.keys(oldById), ...Object.keys(newById)]));
+
+  allIds.forEach(id=>{
+    const item = permit && permit.items ? permit.items.find(it=>it.id===id) : null;
+    const label = item ? item.name : id;
+    const o = oldById[id], n = newById[id];
+    const oq = o ? (Number(o.qty)||0) : 0, nq = n ? (Number(n.qty)||0) : 0;
+    const ow = o ? (Number(o.weight)||0) : 0, nw = n ? (Number(n.weight)||0) : 0;
+    if(oq !== nq) push('lines.'+id+'.qty', `${escapeForLabel(label)} — ${uiT('Кол-во')}`, o?o.qty:0, n?n.qty:0);
+    if(Math.abs(ow-nw) > 1e-9) push('lines.'+id+'.weight', `${escapeForLabel(label)} — ${uiT('Вес, кг')}`, o?o.weight:0, n?n.weight:0);
+  });
+  return changes;
+}
+
+function describeItemLine(it){
+  if(!it) return '—';
+  return `${it.name||''} (${fmt(Number(it.qty)||0,0)} ${it.unit||''}, ${fmt(Number(it.weight)||0,2)} кг)`;
+}
+function escapeForLabel(s){ return String(s==null?'':s); }
+
+function formatDiffValue(v){
+  if(v === null || v === undefined || v === '') return '—';
+  return String(v);
+}
+
+// Shows a stand-alone overlay (independent from showModal/closeModal so it can
+// stack on top of an already-open modal) asking the user for a mandatory
+// reason. opts: {title, message, changes, confirmLabel, danger, onConfirm(reason), onCancel()}
+function showReasonPrompt(opts){
+  const changes = Array.isArray(opts.changes) ? opts.changes : null;
+  const changesHtml = (changes && changes.length) ? `
+    <table class="diff-table"><thead><tr>
+      <th>${escapeHtml(uiT('Поле'))}</th><th>${escapeHtml(uiT('Было'))}</th><th>${escapeHtml(uiT('Стало'))}</th>
+    </tr></thead><tbody>${changes.map(c=>`<tr>
+      <td>${escapeHtml(c.label)}</td>
+      <td class="diff-old">${escapeHtml(formatDiffValue(c.oldValue))}</td>
+      <td class="diff-new">${escapeHtml(formatDiffValue(c.newValue))}</td>
+    </tr>`).join('')}</tbody></table>` : '';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'reason-backdrop';
+  backdrop.innerHTML = `<div class="modal" style="max-width:560px;">
+    <div class="modal-head"><h2>${escapeHtml(opts.title||uiT('Причина изменения'))}</h2><button class="close-x" data-reason-close>&times;</button></div>
+    <div class="modal-body">
+      ${opts.message ? `<div class="subtle-note" style="margin-bottom:12px;">${escapeHtml(opts.message)}</div>` : ''}
+      ${changesHtml}
+      <div class="field">
+        <label>${escapeHtml(uiT('Причина изменения'))}</label>
+        <textarea id="reasonPromptInput" rows="3" placeholder="${escapeAttr(opts.placeholder||uiT('Укажите причину...'))}"></textarea>
+      </div>
+      <div class="reason-error" id="reasonPromptError">${escapeHtml(uiT('Укажите причину, чтобы сохранить изменения'))}</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn secondary" data-reason-cancel>${escapeHtml(uiT('Отмена'))}</button>
+      <button class="btn ${opts.danger?'danger':''}" id="reasonPromptConfirm">${escapeHtml(opts.confirmLabel||uiT('Сохранить'))}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+
+  let settled = false;
+  function cleanup(){ backdrop.remove(); }
+  function doCancel(){ if(settled) return; settled = true; cleanup(); if(opts.onCancel) opts.onCancel(); }
+
+  backdrop.addEventListener('click', e=>{ if(e.target===backdrop) doCancel(); });
+  backdrop.querySelectorAll('[data-reason-close],[data-reason-cancel]').forEach(el=>el.addEventListener('click', doCancel));
+
+  const input = backdrop.querySelector('#reasonPromptInput');
+  setTimeout(()=>{ if(input) input.focus(); }, 30);
+
+  backdrop.querySelector('#reasonPromptConfirm').addEventListener('click', ()=>{
+    const reason = (input.value||'').trim();
+    if(!reason){
+      const err = backdrop.querySelector('#reasonPromptError');
+      if(err) err.style.display = 'block';
+      input.focus();
+      return;
+    }
+    if(settled) return;
+    settled = true;
+    cleanup();
+    opts.onConfirm(reason);
+  });
 }
 
 function uiLang(){
@@ -550,8 +703,55 @@ function renderAuditTab(){
     return !auditSearch || hay.includes(auditSearch.toLowerCase());
   });
   const locale={ru:'ru-RU',en:'en-US',uz:'uz-UZ',tr:'tr-TR'}[uiLang()]||'ru-RU';
-  return `<div class="toolbar"><div><h1>${uiT('Журнал истории')}</h1><div class="desc">${uiT('Кто, когда и что изменил')}</div></div><input id="auditSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по пользователю, действию или объекту'))}" value="${escapeAttr(auditSearch)}"></div>
-    <div class="panel"><div class="panel-body">${rows.length?`<div style="overflow:auto"><table><thead><tr><th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}</div></div>`;
+  return `<div class="toolbar"><div><h1>${uiT('Журнал истории')}</h1><div class="desc">${uiT('Кто, когда и что изменил')} · ${escapeHtml(uiT('Нажмите на строку, чтобы увидеть детали'))}</div></div><input id="auditSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по пользователю, действию или объекту'))}" value="${escapeAttr(auditSearch)}"></div>
+    <div class="panel"><div class="panel-body">${rows.length?`<div style="overflow:auto"><table><thead><tr><th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th></tr></thead><tbody>${rows.map(a=>`<tr class="row-clickable" data-open-audit="${a.id}"><td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}</div></div>`;
+}
+
+// Detail modal for a single audit entry: who/when/what + a clean
+// field-by-field comparison table (falls back gracefully for legacy
+// entries saved before the `changes`/`reason` fields existed).
+function openAuditDetailModal(auditId){
+  const a = (state.audits||[]).find(x=>x.id===auditId);
+  if(!a) return;
+  const locale={ru:'ru-RU',en:'en-US',uz:'uz-UZ',tr:'tr-TR'}[uiLang()]||'ru-RU';
+  const changes = Array.isArray(a.changes) ? a.changes : [];
+
+  const diffHtml = changes.length ? `
+    <h3 style="font-family:var(--serif);font-size:14px;margin:14px 0 8px 0;">${escapeHtml(uiT('Изменённые поля'))}</h3>
+    <table class="diff-table"><thead><tr>
+      <th>${escapeHtml(uiT('Поле'))}</th><th>${escapeHtml(uiT('Было'))}</th><th>${escapeHtml(uiT('Стало'))}</th>
+    </tr></thead><tbody>${changes.map(c=>`<tr>
+      <td>${escapeHtml(c.label)}</td>
+      <td class="diff-old">${escapeHtml(formatDiffValue(c.oldValue))}</td>
+      <td class="diff-new">${escapeHtml(formatDiffValue(c.newValue))}</td>
+    </tr>`).join('')}</tbody></table>`
+    : (a.action==='create' || a.action==='shipment_create' || a.action==='delete' || a.action==='shipment_delete'
+        ? ''
+        : `<div class="subtle-note" style="margin-bottom:14px;">${escapeHtml(uiT('Детали недоступны для этой записи'))}</div>`);
+
+  const reasonHtml = a.reason
+    ? `<div class="audit-reason-box"><strong>${escapeHtml(uiT('Причина'))}:</strong> ${escapeHtml(a.reason)}</div>`
+    : (changes.length ? `<div class="audit-reason-box">${escapeHtml(uiT('Причина не указана'))}</div>` : '');
+
+  showModal(`
+    <div class="modal-head">
+      <h2>${escapeHtml(uiT('Детали изменения'))}</h2>
+      <button class="close-x" data-close>&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="audit-meta-row">
+        <div><span>${escapeHtml(uiT('Пользователь'))}:</span>${escapeHtml(a.actorEmail||'—')}</div>
+        <div><span>${escapeHtml(uiT('Дата/время'))}:</span>${escapeHtml(new Date(a.createdAt||Date.now()).toLocaleString(locale))}</div>
+        <div><span>${escapeHtml(uiT('Действие'))}:</span>${escapeHtml(auditActionLabel(a.action))}</div>
+        <div><span>${escapeHtml(uiT('Объект'))}:</span>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</div>
+      </div>
+      ${reasonHtml}
+      ${diffHtml}
+    </div>
+    <div class="modal-foot">
+      <button class="btn secondary" data-close>${escapeHtml(uiT('Закрыть'))}</button>
+    </div>
+  `);
 }
 
 /* ============================= CALCULATIONS ============================= */
@@ -869,6 +1069,7 @@ function bindTabEvents(){
   if(currentTab==='audit'){
     const q = document.getElementById('auditSearch');
     if(q) q.addEventListener('input', e=>{ auditSearch=e.target.value; render(); });
+    document.querySelectorAll('[data-open-audit]').forEach(el=>el.addEventListener('click', ()=>openAuditDetailModal(el.dataset.openAudit)));
   }
 }
 
@@ -926,15 +1127,23 @@ function openPermitDetail(permitId){
       <button class="btn secondary" data-close>Закрыть</button>
     </div>
   `);
-  document.querySelectorAll('[data-del-shipment]').forEach(el=>el.addEventListener('click', async ()=>{
-    if(!confirm('Удалить эту отгрузку? Остаток по разрешению будет пересчитан.')) return;
-    const oldShipment = state.shipments.find(s=>s.id===el.dataset.delShipment);
-    state.shipments = state.shipments.filter(s=>s.id!==el.dataset.delShipment);
-    await saveShipments();
-    if(oldShipment) await addAudit('shipment_delete', 'shipment', oldShipment.id, oldShipment.invoiceNumber||oldShipment.id, oldShipment, null);
-    closeModal();
-    render();
-    toast('Отгрузка удалена');
+  document.querySelectorAll('[data-del-shipment]').forEach(el=>el.addEventListener('click', ()=>{
+    showReasonPrompt({
+      title: uiT('Удалить отгрузку?'),
+      message: uiT('Остаток по разрешению будет пересчитан.'),
+      danger: true,
+      confirmLabel: uiT('Удалить'),
+      placeholder: uiT('Укажите причину удаления...'),
+      onConfirm: async (reason)=>{
+        const oldShipment = state.shipments.find(s=>s.id===el.dataset.delShipment);
+        state.shipments = state.shipments.filter(s=>s.id!==el.dataset.delShipment);
+        await saveShipments();
+        if(oldShipment) await addAudit('shipment_delete', 'shipment', oldShipment.id, oldShipment.invoiceNumber||oldShipment.id, oldShipment, null, reason, []);
+        closeModal();
+        render();
+        toast('Отгрузка удалена');
+      }
+    });
   }));
 }
 
@@ -1041,31 +1250,67 @@ function openPermitModal(permitId){
 
     const idx = state.permits.findIndex(x=>x.id===draft.id);
     const before = idx>=0 ? JSON.parse(JSON.stringify(state.permits[idx])) : null;
-    if(idx>=0) state.permits[idx] = draft; else state.permits.push(draft);
-    await savePermits();
-    await addAudit(idx>=0 ? 'update' : 'create', 'permit', draft.id, draft.number, before, draft);
-    closeModal();
-    render();
-    toast(editing?'Разрешение обновлено':'Разрешение добавлено');
+
+    async function finalizeSave(reason, changes){
+      if(idx>=0) state.permits[idx] = draft; else state.permits.push(draft);
+      await savePermits();
+      await addAudit(idx>=0 ? 'update' : 'create', 'permit', draft.id, draft.number, before, draft, reason, changes);
+      closeModal();
+      render();
+      toast(editing?'Разрешение обновлено':'Разрешение добавлено');
+    }
+
+    if(idx<0){
+      // Brand-new record: no reason required, but still recorded in the audit log.
+      await finalizeSave(null, []);
+      return;
+    }
+
+    const changes = diffPermitFields(before, draft);
+    if(!changes.length){
+      // Nothing actually changed: save silently, no reason prompt, no audit entry.
+      state.permits[idx] = draft;
+      await savePermits();
+      closeModal();
+      render();
+      toast('Разрешение обновлено');
+      return;
+    }
+
+    showReasonPrompt({
+      title: uiT('Причина изменения'),
+      changes,
+      confirmLabel: uiT('Сохранить'),
+      onConfirm: (reason)=>{ finalizeSave(reason, changes); },
+      onCancel: ()=>{ /* keep the permit edit modal open, no data changed */ }
+    });
   });
 }
 
 async function deletePermit(permitId){
   const hasShip = state.shipments.some(s=>s.permitId===permitId);
   const msg = hasShip
-    ? 'У этого разрешения есть отгрузки. Удалить разрешение и все связанные отгрузки?'
-    : 'Удалить это разрешение?';
-  if(!confirm(msg)) return;
-  const oldPermit = state.permits.find(p=>p.id===permitId);
-  const deletedShipments = state.shipments.filter(s=>s.permitId===permitId);
-  state.permits = state.permits.filter(p=>p.id!==permitId);
-  state.shipments = state.shipments.filter(s=>s.permitId!==permitId);
-  await savePermits();
-  await saveShipments();
-  if(oldPermit) await addAudit('delete', 'permit', permitId, oldPermit.number, oldPermit, null);
-  for(const sh of deletedShipments) await addAudit('shipment_delete', 'shipment', sh.id, sh.invoiceNumber||sh.id, sh, null);
-  render();
-  toast('Разрешение удалено');
+    ? uiT('У этого разрешения есть отгрузки. Удалить разрешение и все связанные отгрузки?')
+    : uiT('Удалить это разрешение?');
+  showReasonPrompt({
+    title: uiT('Удалить разрешение?'),
+    message: msg,
+    danger: true,
+    confirmLabel: uiT('Удалить'),
+    placeholder: uiT('Укажите причину удаления...'),
+    onConfirm: async (reason)=>{
+      const oldPermit = state.permits.find(p=>p.id===permitId);
+      const deletedShipments = state.shipments.filter(s=>s.permitId===permitId);
+      state.permits = state.permits.filter(p=>p.id!==permitId);
+      state.shipments = state.shipments.filter(s=>s.permitId!==permitId);
+      await savePermits();
+      await saveShipments();
+      if(oldPermit) await addAudit('delete', 'permit', permitId, oldPermit.number, oldPermit, null, reason, []);
+      for(const sh of deletedShipments) await addAudit('shipment_delete', 'shipment', sh.id, sh.invoiceNumber||sh.id, sh, null, reason, []);
+      render();
+      toast('Разрешение удалено');
+    }
+  });
 }
 
 /* ============================= SHIPMENT TAB ============================= */
@@ -1282,14 +1527,22 @@ function bindShipmentHistoryEvents(){
 
   document.querySelectorAll('[data-edit-shipment]').forEach(el=>el.addEventListener('click', ()=>openEditShipmentModal(el.dataset.editShipment)));
 
-  document.querySelectorAll('[data-del-shipment-h]').forEach(el=>el.addEventListener('click', async ()=>{
-    if(!confirm('Удалить эту отгрузку? Остаток по разрешению будет пересчитан.')) return;
-    const oldShipment = state.shipments.find(s=>s.id===el.dataset.delShipmentH);
-    state.shipments = state.shipments.filter(s=>s.id!==el.dataset.delShipmentH);
-    await saveShipments();
-    if(oldShipment) await addAudit('shipment_delete', 'shipment', oldShipment.id, oldShipment.invoiceNumber||oldShipment.id, oldShipment, null);
-    render();
-    toast('Отгрузка удалена');
+  document.querySelectorAll('[data-del-shipment-h]').forEach(el=>el.addEventListener('click', ()=>{
+    showReasonPrompt({
+      title: uiT('Удалить отгрузку?'),
+      message: uiT('Остаток по разрешению будет пересчитан.'),
+      danger: true,
+      confirmLabel: uiT('Удалить'),
+      placeholder: uiT('Укажите причину удаления...'),
+      onConfirm: async (reason)=>{
+        const oldShipment = state.shipments.find(s=>s.id===el.dataset.delShipmentH);
+        state.shipments = state.shipments.filter(s=>s.id!==el.dataset.delShipmentH);
+        await saveShipments();
+        if(oldShipment) await addAudit('shipment_delete', 'shipment', oldShipment.id, oldShipment.invoiceNumber||oldShipment.id, oldShipment, null, reason, []);
+        render();
+        toast('Отгрузка удалена');
+      }
+    });
   }));
 }
 
@@ -1391,15 +1644,42 @@ async function saveEditedShipment(){
   const sh = state.shipments.find(s=>s.id===editShipmentDraft.shipmentId);
   if(!sh){ toast('Отгрузка не найдена'); return; }
   const oldSnapshot = JSON.parse(JSON.stringify(sh));
-  sh.invoiceNumber = editShipmentDraft.invoiceNumber;
-  sh.invoiceDate = editShipmentDraft.invoiceDate;
-  sh.lines = lines;
-  await saveShipments();
-  await addAudit('shipment_update', 'shipment', sh.id, sh.invoiceNumber||sh.id, oldSnapshot, sh);
-  editShipmentDraft = null;
-  closeModal();
-  render();
-  toast(uiT('Отгрузка обновлена'));
+  const newInvoiceNumber = editShipmentDraft.invoiceNumber;
+  const newInvoiceDate = editShipmentDraft.invoiceDate;
+
+  function finalizeSave(reason, changes){
+    sh.invoiceNumber = newInvoiceNumber;
+    sh.invoiceDate = newInvoiceDate;
+    sh.lines = lines;
+    return saveShipments().then(()=>addAudit('shipment_update', 'shipment', sh.id, sh.invoiceNumber||sh.id, oldSnapshot, sh, reason, changes)).then(()=>{
+      editShipmentDraft = null;
+      closeModal();
+      render();
+      toast(uiT('Отгрузка обновлена'));
+    });
+  }
+
+  const changes = diffShipmentFields(oldSnapshot, newInvoiceNumber, newInvoiceDate, lines, permit);
+  if(!changes.length){
+    // Nothing actually changed: save silently, no reason prompt, no audit entry.
+    sh.invoiceNumber = newInvoiceNumber;
+    sh.invoiceDate = newInvoiceDate;
+    sh.lines = lines;
+    await saveShipments();
+    editShipmentDraft = null;
+    closeModal();
+    render();
+    toast(uiT('Отгрузка обновлена'));
+    return;
+  }
+
+  showReasonPrompt({
+    title: uiT('Причина изменения'),
+    changes,
+    confirmLabel: uiT('Сохранить'),
+    onConfirm: (reason)=>{ finalizeSave(reason, changes); },
+    onCancel: ()=>{ /* keep the shipment edit modal open, no data changed */ }
+  });
 }
 
 /* ============================= UPLOAD / AUTO-MATCH FLOW ============================= */

@@ -324,6 +324,7 @@
           id:r.id, actor_id:r.data?.actorId||null, actor_email:r.data?.actorEmail||null,
           action:r.data?.action||'unknown', entity_type:r.data?.entityType||null, entity_id:r.data?.entityId||null,
           entity_label:r.data?.entityLabel||null, old_data:r.data?.oldData||null, new_data:r.data?.newData||null,
+          reason:r.data?.reason||null, changes:Array.isArray(r.data?.changes)?r.data.changes:null,
           created_at:r.data?.createdAt||r.updated_at
         }));
         res = await apiFetch('/rest/v1/audit_logs?on_conflict=id', {
@@ -351,7 +352,7 @@
   async function fetchTable(entityType, useUserToken=false){
     const table = TABLES[entityType];
     const select = entityType === 'audit'
-      ? 'id,actor_id,actor_email,action,entity_type,entity_id,entity_label,old_data,new_data,created_at'
+      ? 'id,actor_id,actor_email,action,entity_type,entity_id,entity_label,old_data,new_data,reason,changes,created_at'
       : 'id,data,updated_at,deleted_at';
     const res = await apiFetch(`/rest/v1/${table}?select=${select}`, { method:'GET' }, useUserToken);
     if(!res.ok){
@@ -361,7 +362,7 @@
     const rows = await res.json();
     if(entityType === 'audit') return (rows || []).map(r=>({
       id:r.id, entity_type:'audit',
-      data:{ id:r.id, actorId:r.actor_id, actorEmail:r.actor_email, action:r.action, entityType:r.entity_type, entityId:r.entity_id, entityLabel:r.entity_label, oldData:r.old_data, newData:r.new_data, createdAt:r.created_at },
+      data:{ id:r.id, actorId:r.actor_id, actorEmail:r.actor_email, action:r.action, entityType:r.entity_type, entityId:r.entity_id, entityLabel:r.entity_label, oldData:r.old_data, newData:r.new_data, reason:r.reason||'', changes:Array.isArray(r.changes)?r.changes:[], createdAt:r.created_at },
       updated_at:r.created_at, deleted_at:null, dirty:false
     }));
     return (rows || []).map(r=>({ ...r, entity_type:entityType, dirty:false }));
