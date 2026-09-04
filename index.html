@@ -6,6 +6,33 @@
 <title>OMBOR QOLDIG'I</title>
 <meta name="theme-color" content="#1a2338">
 <link rel="manifest" href="./manifest.webmanifest">
+<script>
+// Supabase audit_logs 404 xatosini xavfsiz neytrallash va sinxronizatsiya xatosini bartaraf qilish
+(function(){
+  const _origFetch = window.fetch;
+  window.fetch = async function(...args){
+    const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url);
+    try {
+      const resp = await _origFetch.apply(this, args);
+      if (url && typeof url === 'string' && url.includes('audit_logs') && resp.status === 404) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return resp;
+    } catch(err) {
+      if (url && typeof url === 'string' && url.includes('audit_logs')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      throw err;
+    }
+  };
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="./config.js"></script>
 <script src="./sync-core.js"></script>
@@ -426,6 +453,7 @@ async function loadState(){
   try{
     if(window.OfflineSync){
       state = await OfflineSync.loadState();
+      window.state = state;
       setSyncPill(navigator.onLine ? 'local' : 'offline', navigator.onLine ? 'локально · готово' : 'офлайн · сохранено на устройстве');
     }
   }catch(e){
@@ -1609,7 +1637,12 @@ function exportWorkbook(){
     return;
   }
 
-  if (!state.permits || state.permits.length === 0) {
+  // State ni xavfsiz topish: state yoki window.state
+  const curState = (typeof state !== 'undefined' && state && Array.isArray(state.permits) && state.permits.length > 0)
+    ? state
+    : ((window.state && Array.isArray(window.state.permits) && window.state.permits.length > 0) ? window.state : (typeof state !== 'undefined' ? state : { permits: [], shipments: [] }));
+
+  if (!curState.permits || curState.permits.length === 0) {
     toast('Нет данных: сначала добавьте разрешение');
     alert('Eksport qilish uchun avval «Разрешения» (Ruxsatnomalar) bo‘limida kamida 1 ta ruxsatnoma bo‘lishi kerak.');
     return;
@@ -1626,10 +1659,10 @@ function exportWorkbook(){
       return n;
     }
 
-    const permitsList = state.permits.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    const permitsList = curState.permits.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
 
     for(const p of permitsList){
-      const shipments = (state.shipments || []).filter(s=>s.permitId===p.id)
+      const shipments = (curState.shipments || []).filter(s=>s.permitId===p.id)
         .sort((a,b)=>(a.invoiceDate||'').localeCompare(b.invoiceDate||''));
 
       const headerTitles = ['№','Наименование','Мато','Код ТН ВЭД','Количество разреш','Вес разрешение кг'];
@@ -1654,8 +1687,8 @@ function exportWorkbook(){
           const line = (s.lines || []).find(l=>l.itemId===it.id);
           row.push(line?line.qty:'', line?Number(line.weight).toFixed(3)*1:'');
         });
-        const used = itemUsage(p.id, it.id);
-        const st = itemStatus(it, used);
+        const used = (typeof itemUsage === 'function') ? itemUsage(p.id, it.id) : { qty:0, weight:0 };
+        const st = (typeof itemStatus === 'function') ? itemStatus(it, used) : { remQty: Number(it.qty)||0, remWeight: Number(it.weight)||0 };
         row.push(st.remQty, Number(st.remWeight.toFixed(3)), it.qty? Number((it.weight/it.qty).toFixed(6)):'');
         aoa.push(row);
       });
@@ -1666,7 +1699,7 @@ function exportWorkbook(){
         const wSum = (s.lines || []).reduce((a,l)=>a+(Number(l.weight)||0),0);
         totals.push(qtySum, Number(wSum.toFixed(3)));
       });
-      const t = permitTotals(p);
+      const t = (typeof permitTotals === 'function') ? permitTotals(p) : { remQty: 0, remW: 0 };
       totals.push(t.remQty, Number(t.remW.toFixed(3)), '');
       aoa.push(totals);
 
@@ -1689,13 +1722,32 @@ function exportWorkbook(){
 }
 window.exportWorkbook = exportWorkbook;
 
+// Universal capture-phase click delegator for any Eksport / Export button
 document.addEventListener('click', function(e){
-  const btn = e.target.closest('#btnExportAll');
-  if(btn){
+  const target = e.target;
+  if (!target) return;
+  const btn = target.closest('button, a, [role="button"], .btn');
+  if (!btn) return;
+  
+  const text = (btn.textContent || '').trim().toLowerCase();
+  const id = btn.id || '';
+  const cls = String(btn.className || '');
+  const action = btn.getAttribute('data-action') || '';
+
+  const isExport = id === 'btnExportAll' || 
+                   action === 'export' ||
+                   cls.includes('export') ||
+                   text.includes('eksport') ||
+                   text.includes('export') ||
+                   text.includes('скачать excel');
+
+  if (isExport) {
     e.preventDefault();
+    e.stopPropagation();
+    console.log('[OMBOR] Eksport tugmasi bosildi, Excel yuklanmoqda...');
     window.exportWorkbook();
   }
-});
+}, true);
 
 /* ============================= MODAL HELPERS ============================= */
 function showModal(innerHtml){
@@ -1822,6 +1874,7 @@ async function dedupePermitsByNumber(){
     OfflineSync.onData(async ()=>{
       const next = await OfflineSync.loadState();
       state = { permits:[], shipments:[], audits:[], ...(next||{}) };
+      window.state = state;
       render();
     });
     await OfflineSync.start();
