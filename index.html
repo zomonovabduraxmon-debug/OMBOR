@@ -384,19 +384,20 @@
 /* ============================= STATE & STORAGE ============================= */
 let state = { permits: [], shipments: [], audits: [] };
 let currentTab = 'dashboard';
-let isEditorMode = false; // true faqat tizimga kirgan (login qilgan) foydalanuvchi uchun
+let isEditorMode = false;
 let dashboardSearch = '';
 let dashboardFilter = 'all';
 let dashboardSort = 'remaining-desc';
-let uploadDraft = null; // holds in-progress upload mapping state
+let uploadDraft = null;
 let auditSearch = '';
 let shipmentHistorySearch = '';
-let editShipmentDraft = null; // { shipmentId, permitId, invoiceNumber, invoiceDate, lines }
+let editShipmentDraft = null;
 
 function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,10); }
 
 function toast(msg){
   const t = document.getElementById('toast');
+  if(!t) return;
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toast._t);
@@ -423,8 +424,10 @@ document.getElementById('syncPill')?.addEventListener('click', ()=>{
 
 async function loadState(){
   try{
-    state = await OfflineSync.loadState();
-    setSyncPill(navigator.onLine ? 'local' : 'offline', navigator.onLine ? 'локально · готово' : 'офлайн · сохранено на устройстве');
+    if(window.OfflineSync){
+      state = await OfflineSync.loadState();
+      setSyncPill(navigator.onLine ? 'local' : 'offline', navigator.onLine ? 'локально · готово' : 'офлайн · сохранено на устройстве');
+    }
   }catch(e){
     console.error(e);
     state = { permits:[], shipments:[], audits:[] };
@@ -434,7 +437,7 @@ async function loadState(){
 
 async function savePermits(){
   try{
-    await OfflineSync.saveCollection('permit', state.permits);
+    if(window.OfflineSync) await OfflineSync.saveCollection('permit', state.permits);
   }catch(e){
     console.error(e);
     toast('Не удалось сохранить разрешения');
@@ -443,7 +446,7 @@ async function savePermits(){
 
 async function saveShipments(){
   try{
-    await OfflineSync.saveCollection('shipment', state.shipments);
+    if(window.OfflineSync) await OfflineSync.saveCollection('shipment', state.shipments);
   }catch(e){
     console.error(e);
     toast('Не удалось сохранить отгрузку');
@@ -452,6 +455,7 @@ async function saveShipments(){
 
 async function addAudit(action, entityType, entityId, entityLabel, oldData, newData){
   try{
+    if(!window.OfflineSync) return;
     const info = await OfflineSync.authInfo();
     if(!info.loggedIn) return;
     const now = new Date().toISOString();
@@ -518,7 +522,6 @@ function renderAuditTab(){
     return !auditSearch || hay.includes(auditSearch.toLowerCase());
   });
   const locale={ru:'ru-RU',en:'en-US',uz:'uz-UZ',tr:'tr-TR'}[uiLang()]||'ru-RU';
-  const countLabel={ru:'записей',en:'records',uz:'ta yozuv',tr:'kayıt'}[uiLang()];
   return `<div class="toolbar"><div><h1>${uiT('Журнал истории')}</h1><div class="desc">${uiT('Кто, когда и что изменил')}</div></div><input id="auditSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по пользователю, действию или объекту'))}" value="${escapeAttr(auditSearch)}"></div>
     <div class="panel"><div class="panel-body">${rows.length?`<div style="overflow:auto"><table><thead><tr><th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}</div></div>`;
 }
@@ -655,7 +658,7 @@ function renderDashboard(){
     );
   }
 
-  const view = SyncCore.buildDashboardView(allRows, { filter:dashboardFilter, sort:dashboardSort });
+  const view = window.SyncCore ? SyncCore.buildDashboardView(allRows, { filter:dashboardFilter, sort:dashboardSort }) : { rows: allRows, totalQty: allRows.reduce((a,b)=>a+(Number(b.item.qty)||0),0), totalWeight: allRows.reduce((a,b)=>a+(Number(b.item.weight)||0),0) };
   const rows = view.rows;
   const totalQty = view.totalQty;
   const totalWeight = view.totalWeight;
@@ -663,7 +666,6 @@ function renderDashboard(){
 
   const critCount = rows.filter(r=>r.st.level==='finished'||r.st.level==='over').length;
   const warnCount = rows.filter(r=>r.st.level==='warn').length;
-  const activePermits = state.permits.filter(p=>permitTotals(p).remQty>0).length;
 
   const tableRows = rows.map(r=>{
     const {permit,item,used,st} = r;
@@ -674,10 +676,6 @@ function renderDashboard(){
       : st.level==='finished' ? '<span class="badge crit">закончено</span>'
       : st.level==='warn' ? '<span class="badge warn">мало осталось</span>'
       : '<span class="badge ok">в норме</span>';
-    const category = SyncCore.dashboardCategory(r);
-    const categoryBadge = category === 'accepted'
-      ? '<span class="badge accepted">Accepted</span>'
-      : '<span class="badge completed">Completed</span>';
     return `<tr>
       <td>${escapeHtml(permit.number)}<div class="subtle-note">${escapeHtml(permit.date||'')}</div></td>
       <td>${escapeHtml(item.name)}</td>
@@ -832,7 +830,13 @@ function bindTabEvents(){
     bindShipmentHistoryEvents();
   }
   if(currentTab==='export'){
-    document.getElementById('btnExportAll').addEventListener('click', exportWorkbook);
+    const btn = document.getElementById('btnExportAll');
+    if(btn) {
+      btn.onclick = function(e){
+        e.preventDefault();
+        exportWorkbook();
+      };
+    }
   }
   if(currentTab==='audit'){
     const q = document.getElementById('auditSearch');
@@ -1182,7 +1186,7 @@ async function saveManualShipment(){
   toast('Отгрузка сохранена, остатки обновлены');
 }
 
-/* ============================= SHIPMENT HISTORY (barcha yuklamalar) ============================= */
+/* ============================= SHIPMENT HISTORY ============================= */
 function shipmentLineTotals(sh){
   const lines = Array.isArray(sh.lines) ? sh.lines : [];
   return {
@@ -1494,7 +1498,6 @@ function matchItem(permit, rawName, rawTnved){
   if(name){
     const exact = permit.items.find(it=>normalizeStr(it.name)===name);
     if(exact) return exact;
-    // partial containment match
     const partial = permit.items.find(it=>{
       const n = normalizeStr(it.name);
       return n && (n.includes(name) || name.includes(n));
@@ -1512,7 +1515,6 @@ function handleUploadFile(file){
       const wb = XLSX.read(data, {type:'array'});
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
-      // guess header row: first row with >=2 non-empty cells among first 15 rows
       let headerRowIndex = 0;
       for(let i=0;i<Math.min(15,rows.length);i++){
         const nonEmpty = rows[i].filter(c=>String(c).trim()!=='').length;
@@ -1522,7 +1524,6 @@ function handleUploadFile(file){
       const dataRows = rows.slice(headerRowIndex+1).filter(r=>r.some(c=>String(c).trim()!==''));
       uploadDraft = { fileName:file.name, headerRow, headerRowIndex, dataRows, step:'map' };
 
-      // auto-guess column mapping after render, based on header text
       setTimeout(()=>{
         const guess = (keywords)=>{
           for(let i=0;i<headerRow.length;i++){
@@ -1568,7 +1569,7 @@ async function confirmUploadShipment(){
   const errors = validateShipmentLines(permit, lines);
   if(errors.length){
     toast('Отгрузка не сохранена: ' + errors[0]);
-    alert('Отгрузка из файла не может быть проведена:\n\n' + errors.join('\n'));
+    alert('Отгрузка не может быть проведена:\n\n' + errors.join('\n'));
     return;
   }
 
@@ -1588,81 +1589,113 @@ async function confirmUploadShipment(){
 
 /* ============================= EXPORT TAB ============================= */
 function renderExportTab(){
+  const count = (state.permits && state.permits.length) || 0;
   return `
     <div class="toolbar"><div><h1>Экспорт</h1><div class="desc">Выгрузка полного реестра в Excel — один лист на разрешение, с историей отгрузок</div></div></div>
     <div class="panel"><div class="panel-body">
-      <p>Файл будет содержать ${state.permits.length} лист(ов), по одному на каждое разрешение, с колонками по каждой отгрузке (как в исходных файлах учёта) и остатками.</p>
-      <button class="btn" id="btnExportAll" ${!state.permits.length?'disabled':''}>Скачать Excel</button>
+      <p>Файл содержит <strong>${count}</strong> лист(ов), по одному на каждое разрешение, с колонками по каждой отгрузке (как в исходных файлах учёта) и остатками.</p>
+      ${count === 0 ? `<div class="subtle-note" style="color:var(--amber);margin-bottom:14px;font-weight:600;background:var(--amber-soft);padding:8px 12px;border-radius:4px;">
+        ⚠️ Внимание: пока нет добавленных разрешений. Вы можете сначала внести разрешение в разделе «Разрешения». При нажатии кнопки будет выполнена проверка.
+      </div>` : ''}
+      <button class="btn" id="btnExportAll" type="button" onclick="exportWorkbook()">Скачать Excel</button>
     </div></div>
   `;
 }
 
 function exportWorkbook(){
-  const wb = XLSX.utils.book_new();
-  const usedNames = new Set();
-  function sheetName(base){
-    let name = base.replace(/[\\/*?:\[\]]/g,'_').slice(0,31);
-    let n=name, i=2;
-    while(usedNames.has(n)){ n = (name.slice(0,28)+'_'+i); i++; }
-    usedNames.add(n);
-    return n;
+  if (typeof XLSX === 'undefined') {
+    toast('Ошибка: Библиотека XLSX не загрузилась');
+    alert('Excel kutubxonasi (XLSX) yuklanmadi. Iltimos, internet aloqasini tekshiring yoki sahifani yangilang.');
+    return;
   }
 
-  for(const p of state.permits.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))){
-    const shipments = state.shipments.filter(s=>s.permitId===p.id)
-      .sort((a,b)=>(a.invoiceDate||'').localeCompare(b.invoiceDate||''));
+  if (!state.permits || state.permits.length === 0) {
+    toast('Нет данных: сначала добавьте разрешение');
+    alert('Eksport qilish uchun avval «Разрешения» (Ruxsatnomalar) bo‘limida kamida 1 ta ruxsatnoma bo‘lishi kerak.');
+    return;
+  }
 
-    const headerTitles = ['№','Наименование','Мато','Код ТН ВЭД','Количество разреш','Вес разрешение кг'];
-    shipments.forEach(s=>{ headerTitles.push('Кол-во','Вес'); });
-    headerTitles.push('Остаток количество','Остаток вес','Вес 1 единицы');
+  try {
+    const wb = XLSX.utils.book_new();
+    const usedNames = new Set();
+    function sheetName(base){
+      let name = String(base || 'Лист').replace(/[\\/*?:\[\]]/g,'_').slice(0,31);
+      let n=name, i=2;
+      while(usedNames.has(n)){ n = (name.slice(0,28)+'_'+i); i++; }
+      usedNames.add(n);
+      return n;
+    }
 
-    const aoa = [];
-    // row1: title
-    const titleRow = new Array(headerTitles.length).fill('');
-    titleRow[1] = `Разрешение №${escapeHtml(p.number)} от ${escapeHtml(p.date||'')}`;
-    aoa.push(titleRow);
-    // row2: invoice labels
-    const invRow = new Array(headerTitles.length).fill('');
-    let c = 6;
-    shipments.forEach(s=>{ invRow[c] = `${s.invoiceNumber||''} от ${s.invoiceDate||''}`; c+=2; });
-    aoa.push(invRow);
-    // row3: column headers
-    aoa.push(headerTitles);
-    // item rows
-    p.items.forEach((it,idx)=>{
-      const row = [idx+1, it.name, it.material||'', it.tnved, it.qty, it.weight];
-      shipments.forEach(s=>{
-        const line = s.lines.find(l=>l.itemId===it.id);
-        row.push(line?line.qty:'', line?Number(line.weight).toFixed(3)*1:'');
+    const permitsList = state.permits.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+
+    for(const p of permitsList){
+      const shipments = (state.shipments || []).filter(s=>s.permitId===p.id)
+        .sort((a,b)=>(a.invoiceDate||'').localeCompare(b.invoiceDate||''));
+
+      const headerTitles = ['№','Наименование','Мато','Код ТН ВЭД','Количество разреш','Вес разрешение кг'];
+      shipments.forEach(s=>{ headerTitles.push('Кол-во','Вес'); });
+      headerTitles.push('Остаток количество','Остаток вес','Вес 1 единицы');
+
+      const aoa = [];
+      const titleRow = new Array(headerTitles.length).fill('');
+      titleRow[1] = `Разрешение №${p.number || ''} от ${p.date||''}`;
+      aoa.push(titleRow);
+      
+      const invRow = new Array(headerTitles.length).fill('');
+      let c = 6;
+      shipments.forEach(s=>{ invRow[c] = `${s.invoiceNumber||''} от ${s.invoiceDate||''}`; c+=2; });
+      aoa.push(invRow);
+      
+      aoa.push(headerTitles);
+      
+      (p.items || []).forEach((it,idx)=>{
+        const row = [idx+1, it.name, it.material||'', it.tnved, Number(it.qty)||0, Number(it.weight)||0];
+        shipments.forEach(s=>{
+          const line = (s.lines || []).find(l=>l.itemId===it.id);
+          row.push(line?line.qty:'', line?Number(line.weight).toFixed(3)*1:'');
+        });
+        const used = itemUsage(p.id, it.id);
+        const st = itemStatus(it, used);
+        row.push(st.remQty, Number(st.remWeight.toFixed(3)), it.qty? Number((it.weight/it.qty).toFixed(6)):'');
+        aoa.push(row);
       });
-      const used = itemUsage(p.id, it.id);
-      const st = itemStatus(it, used);
-      row.push(st.remQty, Number(st.remWeight.toFixed(3)), it.qty? Number((it.weight/it.qty).toFixed(6)):'');
-      aoa.push(row);
-    });
-    // totals row
-    const totals = ['', 'Итого', '', '', p.items.reduce((a,it)=>a+(Number(it.qty)||0),0), p.items.reduce((a,it)=>a+(Number(it.weight)||0),0)];
-    shipments.forEach(s=>{
-      const qtySum = s.lines.reduce((a,l)=>a+(Number(l.qty)||0),0);
-      const wSum = s.lines.reduce((a,l)=>a+(Number(l.weight)||0),0);
-      totals.push(qtySum, Number(wSum.toFixed(3)));
-    });
-    const t = permitTotals(p);
-    totals.push(t.remQty, Number(t.remW.toFixed(3)), '');
-    aoa.push(totals);
+      
+      const totals = ['', 'Итого', '', '', (p.items || []).reduce((a,it)=>a+(Number(it.qty)||0),0), (p.items || []).reduce((a,it)=>a+(Number(it.weight)||0),0)];
+      shipments.forEach(s=>{
+        const qtySum = (s.lines || []).reduce((a,l)=>a+(Number(l.qty)||0),0);
+        const wSum = (s.lines || []).reduce((a,l)=>a+(Number(l.weight)||0),0);
+        totals.push(qtySum, Number(wSum.toFixed(3)));
+      });
+      const t = permitTotals(p);
+      totals.push(t.remQty, Number(t.remW.toFixed(3)), '');
+      aoa.push(totals);
 
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const merges = [{s:{r:0,c:1},e:{r:0,c:headerTitles.length-1}}];
-    let cc=5;
-    shipments.forEach(()=>{ merges.push({s:{r:1,c:cc},e:{r:1,c:cc+1}}); cc+=2; });
-    ws['!merges'] = merges;
-    ws['!cols'] = headerTitles.map((_,i)=> i===1 ? {wch:38} : {wch:14});
-    XLSX.utils.book_append_sheet(wb, ws, sheetName(p.number));
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const merges = [{s:{r:0,c:1},e:{r:0,c:headerTitles.length-1}}];
+      let cc = 6;
+      shipments.forEach(()=>{ merges.push({s:{r:1,c:cc},e:{r:1,c:cc+1}}); cc+=2; });
+      ws['!merges'] = merges;
+      ws['!cols'] = headerTitles.map((_,i)=> i===1 ? {wch:38} : {wch:14});
+      XLSX.utils.book_append_sheet(wb, ws, sheetName(p.number));
+    }
+
+    XLSX.writeFile(wb, 'Разрешения_учет.xlsx');
+    toast('Файл сформирован и скачан');
+  } catch(err) {
+    console.error('Export error:', err);
+    toast('Ошибка экспорта: ' + err.message);
+    alert('Eksportda xatolik yuz berdi: ' + err.message);
   }
-
-  XLSX.writeFile(wb, 'Разрешения_учет.xlsx');
-  toast('Файл сформирован');
 }
+window.exportWorkbook = exportWorkbook;
+
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('#btnExportAll');
+  if(btn){
+    e.preventDefault();
+    window.exportWorkbook();
+  }
+});
 
 /* ============================= MODAL HELPERS ============================= */
 function showModal(innerHtml){
@@ -1682,6 +1715,7 @@ function closeModal(){
 
 /* ============================= AUTH / SHARED EDITING ============================= */
 async function refreshAuthButton(){
+  if(!window.OfflineSync) return;
   const info = await OfflineSync.authInfo();
   isEditorMode = !!info.loggedIn;
   const btn = document.getElementById('authBtn');
@@ -1689,10 +1723,11 @@ async function refreshAuthButton(){
     btn.textContent = info.loggedIn ? (info.email || 'Аккаунт') : 'Войти';
     btn.title = info.loggedIn ? 'Аккаунт редактора / выйти' : 'Войти для редактирования';
   }
-  render(); // tugmalar (Добавить/Изменить/Удалить) holatini yangilash uchun qayta chizish
+  render();
 }
 
 async function openAuthModal(){
+  if(!window.OfflineSync) return;
   const info = await OfflineSync.authInfo();
   if(info.loggedIn){
     showModal(`
@@ -1754,12 +1789,6 @@ function escapeHtml(s){
 }
 function escapeAttr(s){ return escapeHtml(s); }
 
-/* ============================= DATA SAFETY / MIGRATION ============================= */
-/*
-  Production build: no hard-coded permit data is injected into the user's database.
-  Older versions of the app seeded demo/preset permits automatically. We deliberately
-  keep the migration helpers below only for deduplicating already-existing records.
-*/
 async function dedupePermitsByNumber(){
   const byNumber = new Map();
   state.permits.forEach(p=>{
@@ -1788,25 +1817,19 @@ async function dedupePermitsByNumber(){
 
 /* ============================= INIT ============================= */
 (async function init(){
-  OfflineSync.onStatus(({kind,message})=>setSyncPill(kind,message));
-  OfflineSync.onData(async ()=>{
-    const next = await OfflineSync.loadState();
-    state = { permits:[], shipments:[], audits:[], ...(next||{}) };
-    render();
-  });
-
-  await OfflineSync.start();
-  await loadState();
-
-  // Sync poygasi (race) natijasida bir xil raqamli ruxsatnoma ikki nusxada
-  // paydo bo'lgan bo'lsa, uni bittaga birlashtiramiz.
-  await dedupePermitsByNumber();
-
-  // Presetlardagi ruxsatnomalarni doim tekshiramiz: mavjud (number bo'yicha)
-  // bo'lsa tegilmaydi, kodda yangi qo'shilgan preset bo'lsa, u avtomatik qo'shiladi.
-
-  // Seed'dan keyin ham, ehtiyot uchun, yana bir bor tekshiramiz.
-  await dedupePermitsByNumber();
+  if(window.OfflineSync){
+    OfflineSync.onStatus(({kind,message})=>setSyncPill(kind,message));
+    OfflineSync.onData(async ()=>{
+      const next = await OfflineSync.loadState();
+      state = { permits:[], shipments:[], audits:[], ...(next||{}) };
+      render();
+    });
+    await OfflineSync.start();
+    await loadState();
+    await dedupePermitsByNumber();
+  } else {
+    setSyncPill('local', 'локальный режим');
+  }
 
   render();
   bindAuthButton();
