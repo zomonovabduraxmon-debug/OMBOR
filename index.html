@@ -59,7 +59,9 @@
     max-width:1180px;margin:0 auto;
     display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;
   }
-  .brand{display:flex;align-items:center;gap:12px;}
+  .brand{display:flex;align-items:center;gap:12px;transition:opacity .15s ease;}
+  .brand:hover{opacity:.82;}
+  .brand:focus-visible{outline:2px solid #2f6fed;outline-offset:4px;border-radius:10px;}
   .brand-logo{
     height:64px;width:auto;flex-shrink:0;display:block;
     background:#fff;border-radius:12px;padding:6px 12px;
@@ -331,7 +333,7 @@
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="brand" id="brandLogo" style="cursor:pointer;" role="button" tabindex="0" aria-label="Dashboard">
+    <div class="brand" id="brandHome" role="button" tabindex="0" style="cursor:pointer" title="Qoldiqlar">
       <img src="logo-mark.png" alt="Mengi Tekstil" class="brand-logo">
       <div class="brand-text">
         <span class="brand-mark">MENGI TEKSTIL</span>
@@ -403,7 +405,18 @@ function setSyncPill(kind, message){
   if(!pill) return;
   pill.dataset.kind = kind || 'local';
   pill.textContent = message || '';
+  if(kind === 'error'){
+    pill.style.cursor = 'pointer';
+    pill.title = uiT('Нажмите, чтобы повторить попытку');
+  }else{
+    pill.style.cursor = '';
+    pill.title = '';
+  }
 }
+document.getElementById('syncPill')?.addEventListener('click', ()=>{
+  const pill = document.getElementById('syncPill');
+  if(pill && pill.dataset.kind === 'error' && window.OfflineSync) OfflineSync.syncNow(true);
+});
 
 async function loadState(){
   try{
@@ -598,11 +611,13 @@ function setTab(tab){
   render();
 }
 document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click', ()=>setTab(b.dataset.tab)));
-const brandLogoEl = document.getElementById('brandLogo');
-if(brandLogoEl){
-  brandLogoEl.addEventListener('click', ()=>setTab('dashboard'));
-  brandLogoEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); setTab('dashboard'); } });
-}
+document.getElementById('brandHome')?.addEventListener('click', ()=>{
+  const btn = document.querySelector('.tab-btn[data-tab="dashboard"]');
+  if(btn) btn.click(); else setTab('dashboard');
+});
+document.getElementById('brandHome')?.addEventListener('keydown', (e)=>{
+  if(e.key==='Enter' || e.key===' '){ e.preventDefault(); document.getElementById('brandHome').click(); }
+});
 
 function render(){
   const app = document.getElementById('app');

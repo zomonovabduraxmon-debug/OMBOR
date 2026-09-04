@@ -143,6 +143,7 @@
     'Записей пока нет':{ru:'Записей пока нет',en:'No records yet',uz:'Hozircha yozuvlar yo‘q',tr:'Henüz kayıt yok'},
     'Изменения будут записываться после включения аудита.':{ru:'Изменения будут записываться после включения аудита.',en:'Changes will be recorded after audit is enabled.',uz:'Audit yoqilgandan so‘ng o‘zgarishlar yozib boriladi.',tr:'Denetim etkinleştirildikten sonra değişiklikler kaydedilecektir.'},
     'Журнал истории':{ru:'Журнал истории',en:'History log',uz:'Tarix jurnali',tr:'Geçmiş günlüğü'},
+    'Нажмите, чтобы повторить попытку':{ru:'Нажмите, чтобы повторить попытку',en:'Click to retry',uz:'Qayta urinish uchun bosing',tr:'Yeniden denemek için tıklayın'},
     'Кто, когда и что изменил':{ru:'Кто, когда и что изменил',en:'Who changed what and when',uz:'Kim, qachon va nimani o‘zgartirdi',tr:'Kim, neyi ve ne zaman değiştirdi'},
     'Поиск по пользователю, действию или объекту':{ru:'Поиск по пользователю, действию или объекту',en:'Search by user, action or object',uz:'Foydalanuvchi, amal yoki obyekt bo‘yicha qidirish',tr:'Kullanıcı, işlem veya nesneye göre ara'},
     'История изменений':{ru:'История изменений',en:'Change history',uz:'O‘zgarishlar tarixi',tr:'Değişiklik geçmişi'},

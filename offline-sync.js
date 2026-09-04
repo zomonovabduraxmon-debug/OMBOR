@@ -13,6 +13,8 @@
   let syncPromise = null;
   let syncTimer = null;
   let pollTimer = null;
+  let retryTimer = null;
+  let retryAttempt = 0;
   let channel = null;
 
   function config(){ return root.APP_CONFIG || {}; }
@@ -415,6 +417,8 @@
         }
         await pullRemote();
         emitData();
+        clearTimeout(retryTimer);
+        retryAttempt = 0;
         const pending = (await dirtyRecords()).length;
         if(pending){
           emitStatus(push.authRequired ? 'auth' : 'pending', push.authRequired ? `онлайн · ${pending} лок. изменений ждут входа` : `онлайн · ${pending} изменений ждут синхронизации`, { pending });
@@ -426,7 +430,13 @@
       }catch(err){
         console.error(err);
         if(String(err && err.message).includes('AUTH_REQUIRED')) emitStatus('auth','онлайн · войдите для отправки изменений');
-        else emitStatus('error','ошибка синхронизации · данные сохранены локально');
+        else{
+          emitStatus('error','ошибка синхронизации · данные сохранены локально');
+          clearTimeout(retryTimer);
+          retryAttempt = Math.min(retryAttempt + 1, 4);
+          const delay = [5000, 10000, 20000, 30000][retryAttempt - 1] || 30000;
+          retryTimer = setTimeout(()=>{ if(navigator.onLine) syncNow(false); }, delay);
+        }
         return { error:err };
       }
     })();
