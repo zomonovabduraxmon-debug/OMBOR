@@ -327,7 +327,6 @@
       {id:'permits', label:'Ruxsatnomalar', icon:'clipboard'},
       {id:'shipment', label:'Yangi yuklama', icon:'truck'},
       {id:'shipmentHistory', label:'Yuklamalar tarixi', icon:'clock'},
-      {id:'export', label:'Eksport', icon:'ship'},
       {id:'reports', label:'Hisobotlar', icon:'chart'},
       {id:'audit', label:'Tarix', icon:'audit'}
     ];
@@ -340,6 +339,9 @@
 
   function resolveSidebarSelectionV12(activeTab, requested){
     const tab = ['dashboard','permits','shipment','shipmentHistory','export','audit'].includes(activeTab) ? activeTab : 'dashboard';
+    // Eksport endi Hisobotlar bo'limining ichki kichik bo'limi — shu sabab
+    // eksport ochilganda ham yon panelda "Hisobotlar" band bo'lib qoladi.
+    if(tab === 'export') return 'reports';
     if(tab !== 'dashboard') return tab;
     return requested === 'reports' ? 'reports' : 'dashboard';
   }
@@ -977,7 +979,7 @@
       view.innerHTML = `
         <div class="v12-reports-head">
           <div><h1>Hisobotlar</h1><p>Omborning joriy holati va so‘nggi o‘zgarishlar</p></div>
-          <button type="button" class="v12-report-export-btn">Eksportga o‘tish</button>
+          <button type="button" class="v12-report-export-btn">Eksport <span aria-hidden="true">›</span></button>
         </div>
         <div class="v12-report-grid">
           ${values.map(v=>`
@@ -1585,9 +1587,37 @@
       }
     }
 
+    function styleExportPanelBreadcrumb(){
+      const app = document.getElementById('app');
+      const toolbar = app?.querySelector('.toolbar');
+      if(!app || !toolbar) return;
+      if(document.querySelector('.tab-btn.active')?.dataset.tab !== 'export') return;
+      if(!document.getElementById('btnExportAll')) return;
+      if(app.querySelector('.v12-export-crumb')) return;
+
+      const crumb = document.createElement('button');
+      crumb.type = 'button';
+      crumb.className = 'v12-export-crumb';
+      crumb.innerHTML = '<span aria-hidden="true">‹</span> Hisobotlar';
+      crumb.addEventListener('click', ()=>{
+        v12SideSelection = 'reports';
+        v12Navigating = true;
+        navigateQuickTab('dashboard');
+        v12Navigating = false;
+        setTimeout(()=>{
+          renderV12ReportsView();
+          updateV12SidebarActive();
+          scheduleEnhance();
+        },0);
+      });
+      app.insertBefore(crumb, toolbar);
+    }
+
     function styleExportPanel(){
       const btn = document.getElementById('btnExportAll');
       if(!btn) return;
+
+      styleExportPanelBreadcrumb();
 
       const panel = btn.closest('.panel');
       const body = btn.closest('.panel-body');

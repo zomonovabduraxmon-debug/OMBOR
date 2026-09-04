@@ -3222,6 +3222,31 @@ html.v12-shell-ready .stat-card{
   gap:13px;
 }
 
+.v12-export-crumb{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  margin:0 0 10px;
+  padding:6px 12px 6px 9px;
+  border:1px solid #dce5ef;
+  border-radius:9px;
+  background:#fff;
+  color:#4c6076;
+  font-size:11px;
+  font-weight:750;
+  cursor:pointer;
+}
+
+.v12-export-crumb:hover{
+  border-color:#0b4b9b;
+  color:#0b4b9b;
+}
+
+.v12-export-crumb span{
+  font-size:13px;
+  line-height:1;
+}
+
 .v12-report-card{
   min-height:125px;
   position:relative;
@@ -3585,6 +3610,17 @@ html[data-theme="dark"].v12-shell-ready .v12-reports-head p,
 html[data-theme="dark"].v12-shell-ready .v12-report-card span,
 html[data-theme="dark"].v12-shell-ready .v12-report-card small{
   color:#91a4bd;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-export-crumb{
+  background:#16273f;
+  border-color:#2a405d;
+  color:#91a4bd;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-export-crumb:hover{
+  border-color:#4c8ff0;
+  color:#eef4ff;
 }
 
 /* Responsive */
