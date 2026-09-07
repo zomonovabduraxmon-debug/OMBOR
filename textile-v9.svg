@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
+  <defs>
+    <pattern id="weave" width="18" height="18" patternUnits="userSpaceOnUse">
+      <path d="M0 4h18M0 13h18M4 0v18M13 0v18" stroke="#173f7c" stroke-opacity=".045" stroke-width=".7"/>
+      <path d="M-4 18 18-4M5 22 22 5" stroke="#5d7ca8" stroke-opacity=".025" stroke-width=".7"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" x2="1">
+      <stop offset="0" stop-color="#f8fbff" stop-opacity=".2"/>
+      <stop offset=".55" stop-color="#eef4fb" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#dbe7f4" stop-opacity=".72"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#weave)"/>
+  <g fill="none" stroke="#315c94" stroke-opacity=".09" stroke-width="2">
+    <path d="M-100 730C210 560 310 810 570 700S920 510 1180 650s350 40 520-80"/>
+    <path d="M-80 770C180 620 340 835 610 735s420-190 680-55 300 50 430-20"/>
+    <path d="M-30 810C230 680 390 865 650 770s410-165 690-45"/>
+  </g>
+  <g transform="translate(1240 175)" opacity=".16">
+    <path d="M20 310C115 250 230 230 350 258v185H20z" fill="url(#fade)"/>
+    <g fill="none" stroke="#244f87" stroke-width="3">
+      <ellipse cx="112" cy="330" rx="85" ry="85"/>
+      <ellipse cx="112" cy="330" rx="55" ry="55"/>
+      <ellipse cx="112" cy="330" rx="24" ry="24"/>
+      <path d="M112 245h170c48 0 87 39 87 87s-39 87-87 87H112"/>
+      <ellipse cx="282" cy="332" rx="87" ry="87"/>
+      <ellipse cx="282" cy="332" rx="58" ry="58"/>
+      <ellipse cx="282" cy="332" rx="26" ry="26"/>
+    </g>
+  </g>
+  <g transform="translate(-100 570)" opacity=".08" fill="none" stroke="#244f87" stroke-width="2.5">
+    <ellipse cx="180" cy="180" rx="90" ry="90"/><ellipse cx="180" cy="180" rx="60" ry="60"/><ellipse cx="180" cy="180" rx="26" ry="26"/>
+    <path d="M180 90h155c50 0 90 40 90 90s-40 90-90 90H180"/>
+  </g>
+</svg>

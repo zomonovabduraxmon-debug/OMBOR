@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1100">
+  <defs>
+    <pattern id="weave" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M0 6h24M0 18h24M6 0v24M18 0v24" stroke="#315e94" stroke-opacity=".105" stroke-width=".72"/>
+      <path d="M-5 24 24-5M7 29 29 7" stroke="#7190b6" stroke-opacity=".05" stroke-width=".7"/>
+    </pattern>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#b9d2ee" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#eaf1f8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1800" height="1100" fill="url(#weave)"/>
+  <ellipse cx="1420" cy="390" rx="500" ry="360" fill="url(#glow)"/>
+  <g fill="none" stroke="#35669f" stroke-opacity=".12" stroke-width="2">
+    <path d="M-120 210C160 80 370 300 650 165s475-150 780 5 360 70 500-40"/>
+    <path d="M-130 260C190 125 390 345 690 215s470-145 770 15 350 60 480-30"/>
+    <path d="M-80 860C220 680 420 925 720 785s480-155 770 8 330 65 430-5"/>
+  </g>
+  <g transform="translate(-110 705)" opacity=".14" fill="none" stroke="#315f96" stroke-width="2.6">
+    <ellipse cx="180" cy="170" rx="90" ry="90"/>
+    <ellipse cx="180" cy="170" rx="57" ry="57"/>
+    <ellipse cx="180" cy="170" rx="23" ry="23"/>
+    <path d="M180 80h150c50 0 90 40 90 90s-40 90-90 90H180"/>
+  </g>
+</svg>
