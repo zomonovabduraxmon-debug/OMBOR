@@ -3090,6 +3090,13 @@ html.v12-shell-ready .warehouse-summary.v12-textile-hero{
     url("./textile-bg-v11.svg") center / cover no-repeat !important;
 }
 
+/* PATCH: give the numbers column more room and shrink the decorative
+   rolls column, so all three metrics stay fully to the left and never
+   sit under the illustration. */
+html.v12-shell-ready .warehouse-summary.v13-textile-hero{
+  grid-template-columns:minmax(360px,1fr) minmax(520px,1.25fr) 190px !important;
+}
+
 html.v12-shell-ready .warehouse-summary.v12-textile-hero .warehouse-summary-main{
   grid-template-columns:88px minmax(0,1fr) !important;
   gap:20px !important;
@@ -3631,6 +3638,11 @@ html[data-theme="dark"].v12-shell-ready .v12-export-crumb:hover{
 
   html.v12-shell-ready .warehouse-summary.v12-textile-hero{
     grid-template-columns:minmax(330px,1fr) minmax(360px,.9fr) 220px !important;
+  }
+
+  /* PATCH: keep numbers column dominant over the shrinking rolls column. */
+  html.v12-shell-ready .warehouse-summary.v13-textile-hero{
+    grid-template-columns:minmax(300px,1fr) minmax(400px,1.2fr) 140px !important;
   }
 }
 
