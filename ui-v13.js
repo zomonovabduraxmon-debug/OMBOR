@@ -979,6 +979,118 @@
       document.querySelector('.tab-btn[data-tab="dashboard"]')?.classList.toggle('v12-under-reports', v12SideSelection === 'reports');
     }
 
+    function v12FmtNum(n){
+      n = Math.round(Number(n)||0);
+      return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    }
+
+    function v12DonutSvg(segments, centerLabel, centerSub){
+      const size = 108, r = 40, cx = 54, cy = 54, sw = 15;
+      const circumference = 2 * Math.PI * r;
+      const total = segments.reduce((a,s)=>a+Math.max(0,Number(s.value)||0), 0);
+      let offset = 0;
+      const arcs = total > 0 ? segments.map(s=>{
+        const val = Math.max(0, Number(s.value)||0);
+        const dash = (val/total) * circumference;
+        const circle = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${dash.toFixed(2)} ${(circumference-dash).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"></circle>`;
+        offset += dash;
+        return circle;
+      }).join('') : '';
+      return `<svg viewBox="0 0 ${size} ${size}" class="v12-donut-svg" role="img" aria-label="${centerSub||''} ${centerLabel||''}">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#eef2f8" stroke-width="${sw}"></circle>
+        ${arcs}
+        <text x="${cx}" y="${cy-3}" text-anchor="middle" class="v12-donut-num">${centerLabel}</text>
+        <text x="${cx}" y="${cy+15}" text-anchor="middle" class="v12-donut-sub">${centerSub||''}</text>
+      </svg>`;
+    }
+
+    function v12MaterialPalette(){
+      return ['#1768ff','#1fbf8f','#22c3c0','#7ed9a5','#c9d8ee','#f0a340','#e2574c','#8a7fe0'];
+    }
+
+    function v12GetLiveState(){
+      // State ni xavfsiz topish: state yoki window.state (index.html'dagi
+      // exportWorkbook() funksiyasidagi bir xil xavfsiz aniqlash naqshi).
+      return (typeof state !== 'undefined' && state && Array.isArray(state.permits) && state.permits.length > 0)
+        ? state
+        : ((window.state && Array.isArray(window.state.permits) && window.state.permits.length > 0) ? window.state : (typeof state !== 'undefined' && state ? state : { permits: [] }));
+    }
+
+    function v12ComputeMaterialBreakdown(){
+      const liveState = v12GetLiveState();
+      const permits = Array.isArray(liveState.permits) ? liveState.permits : [];
+
+      const byMaterial = new Map();
+      let totalWeight = 0;
+      let totalItems = 0;
+
+      permits.forEach(p=>{
+        (p.items || []).forEach(it=>{
+          const weight = Number(it.weight) || 0;
+          totalWeight += weight;
+          totalItems += 1;
+          const key = (it.material || '').trim();
+          const label = key || 'Boshqa';
+          byMaterial.set(label, (byMaterial.get(label) || 0) + weight);
+        });
+      });
+
+      const entries = Array.from(byMaterial.entries()).map(([label,weight])=>({label,weight}));
+      entries.sort((a,b)=>b.weight-a.weight);
+
+      const TOP_N = 4;
+      const top = entries.filter(e=>e.label !== 'Boshqa').slice(0, TOP_N);
+      const topLabels = new Set(top.map(e=>e.label));
+      const otherWeight = entries.reduce((sum,e)=> topLabels.has(e.label) ? sum : sum + e.weight, 0);
+
+      const palette = v12MaterialPalette();
+      const segments = [];
+      if(otherWeight > 0 || top.length === 0){
+        segments.push({label:'Boshqa', weight:otherWeight, color:palette[0]});
+      }
+      top.forEach((e,i)=>{
+        segments.push({label:e.label, weight:e.weight, color:palette[(i+1) % palette.length]});
+      });
+
+      return {segments, totalWeight, totalItems};
+    }
+
+    function renderV12MaterialCard(materialData){
+      const {segments, totalWeight, totalItems} = materialData;
+      const donut = v12DonutSvg(
+        segments.map(s=>({value:s.weight, color:s.color})),
+        v12FmtNum(totalItems),
+        'Pozitsiyalar'
+      );
+      const total = segments.reduce((a,s)=>a+Math.max(0,s.weight),0);
+
+      const rows = segments.map(s=>{
+        const pct = total > 0 ? Math.round((s.weight/total)*100) : 0;
+        return `
+          <div class="v12-material-row">
+            <span class="v12-material-dot" style="background:${s.color}"></span>
+            <span class="v12-material-name">${escapeHtmlV12(s.label)}</span>
+            <strong class="v12-material-pct">${pct}%</strong>
+          </div>`;
+      }).join('');
+
+      return `
+        <article class="v12-report-card v12-material-card">
+          <div class="v12-material-head">
+            <h2>Materiallar bo‘yicha ulush</h2>
+            <p>${v12FmtNum(totalWeight)} kg</p>
+          </div>
+          <div class="v12-material-body">
+            <div class="v12-chart-visual">${donut}</div>
+            <div class="v12-material-legend">${rows}</div>
+          </div>
+        </article>`;
+    }
+
+    function escapeHtmlV12(str){
+      return String(str==null?'':str).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+
     function renderV12ReportsView(){
       const app = document.getElementById('app');
       if(!app) return;
@@ -999,6 +1111,11 @@
         unit:v.querySelector('span')?.textContent?.trim() || '',
         label:v.querySelector('.v11-metric-label,.v12-metric-label')?.textContent?.trim() || ''
       }));
+      const warehouseValuesEl = app.querySelector('.warehouse-values');
+      const soldQty = Number(warehouseValuesEl?.dataset.soldQty) || 0;
+      const remainingQty = Number(warehouseValuesEl?.dataset.remainingQty) || 0;
+      const activeCount = Number(String(values[0]?.num||'0').replace(/\D/g,'')) || 0;
+      const finishedCount = Number(String(stats[2]?.num||'0').replace(/\D/g,'')) || 0;
 
       // Muhim: bu funksiya har bir scheduleEnhance() sikli (ya'ni har bir DOM
       // o'zgarishidan keyin, MutationObserver orqali) chaqiriladi. Agar u har
@@ -1009,10 +1126,29 @@
       // mousedown va mouseup orasida element allaqachon almashtirilgan bo'ladi).
       // Shu sababli, ma'lumot haqiqatan o'zgarmagan bo'lsa, qayta chizishni
       // butunlay o'tkazib yuboramiz.
-      const signature = JSON.stringify({stats, values});
+      const materialData = v12ComputeMaterialBreakdown();
+
+      const signature = JSON.stringify({stats, values, soldQty, remainingQty, materialData});
       if(existing && existing.dataset.v12ReportsSig === signature){
         return;
       }
+
+      const soldRemainingDonut = v12DonutSvg(
+        [
+          {value:soldQty, color:'#1768ff'},
+          {value:remainingQty, color:'#dbe6f8'}
+        ],
+        (soldQty+remainingQty) ? Math.round(soldQty/(soldQty+remainingQty)*100)+'%' : '0%',
+        'sotilgan'
+      );
+      const finishedActiveDonut = v12DonutSvg(
+        [
+          {value:finishedCount, color:'#e2574c'},
+          {value:activeCount, color:'#1fbf8f'}
+        ],
+        v12FmtNum(finishedCount),
+        'tugagan'
+      );
 
       const view = existing || document.createElement('section');
       view.className = 'v12-reports-view';
@@ -1033,6 +1169,23 @@
               <span>${s.lbl}</span><strong>${s.num}</strong>
             </article>`).join('')}
           <button type="button" class="v12-report-card v12-report-export-btn">Eksport <span aria-hidden="true">›</span></button>
+          <article class="v12-report-card v12-chart-card">
+            <div class="v12-chart-visual">${soldRemainingDonut}</div>
+            <div class="v12-chart-legend">
+              <div class="v12-chart-legend-title">Sotilgan / Qolgan</div>
+              <div class="v12-chart-legend-row"><span class="v12-chart-dot" style="background:#1768ff"></span>Sotilgan<strong>${v12FmtNum(soldQty)} dona</strong></div>
+              <div class="v12-chart-legend-row"><span class="v12-chart-dot" style="background:#dbe6f8"></span>Qolgan<strong>${v12FmtNum(remainingQty)} dona</strong></div>
+            </div>
+          </article>
+          <article class="v12-report-card v12-chart-card">
+            <div class="v12-chart-visual">${finishedActiveDonut}</div>
+            <div class="v12-chart-legend">
+              <div class="v12-chart-legend-title">Tugagan / Faol</div>
+              <div class="v12-chart-legend-row"><span class="v12-chart-dot" style="background:#e2574c"></span>Tugagan / ortiqcha<strong>${v12FmtNum(finishedCount)}</strong></div>
+              <div class="v12-chart-legend-row"><span class="v12-chart-dot" style="background:#1fbf8f"></span>Faol<strong>${v12FmtNum(activeCount)}</strong></div>
+            </div>
+          </article>
+          ${renderV12MaterialCard(materialData)}
         </div>`;
 
       if(!existing) app.appendChild(view);

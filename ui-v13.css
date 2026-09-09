@@ -3322,6 +3322,174 @@ html.v12-shell-ready .stat-card{
   height:21px;
 }
 
+.v12-report-card.v12-chart-card{
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  gap:16px;
+  min-height:150px;
+}
+
+.v12-donut-svg{
+  width:84px;
+  height:84px;
+  flex-shrink:0;
+}
+
+.v12-donut-num{
+  font-size:19px;
+  font-weight:850;
+  fill:#0b326b;
+  font-family:inherit;
+}
+
+.v12-donut-sub{
+  font-size:8.5px;
+  font-weight:700;
+  fill:#8797aa;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  font-family:inherit;
+}
+
+.v12-chart-legend{
+  min-width:0;
+  flex:1;
+}
+
+.v12-chart-legend-title{
+  color:#74869c;
+  font-size:10.5px;
+  font-weight:700;
+  margin-bottom:8px;
+}
+
+.v12-chart-legend-row{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  color:#4c6076;
+  font-size:11px;
+  font-weight:650;
+  margin-bottom:6px;
+  white-space:nowrap;
+}
+
+.v12-chart-legend-row strong{
+  margin-left:auto;
+  padding-left:8px;
+  color:#0b326b;
+  font-size:12.5px;
+  font-weight:840;
+}
+
+.v12-chart-dot{
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  flex-shrink:0;
+}
+
+.v12-material-card{
+  grid-column:1 / -1;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  min-height:0;
+  gap:0;
+  padding:20px 22px 22px;
+}
+
+.v12-material-head{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:12px;
+  padding-bottom:14px;
+  margin-bottom:16px;
+  border-bottom:1px solid #eef2f8;
+}
+
+.v12-material-head h2{
+  margin:0;
+  color:#0b3169;
+  font-size:15px;
+  font-weight:850;
+}
+
+.v12-material-head p{
+  margin:0;
+  color:#8797aa;
+  font-size:11px;
+  font-weight:700;
+}
+
+.v12-material-body{
+  display:flex;
+  align-items:center;
+  gap:24px;
+}
+
+.v12-material-body .v12-chart-visual{
+  flex-shrink:0;
+}
+
+.v12-material-body .v12-donut-svg{
+  width:112px;
+  height:112px;
+}
+
+.v12-material-legend{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.v12-material-row{
+  display:flex;
+  align-items:center;
+  gap:9px;
+}
+
+.v12-material-dot{
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  flex-shrink:0;
+}
+
+.v12-material-name{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#4c6076;
+  font-size:12px;
+  font-weight:650;
+}
+
+.v12-material-pct{
+  margin-left:auto;
+  padding-left:10px;
+  flex-shrink:0;
+  color:#0b326b;
+  font-size:12.5px;
+  font-weight:840;
+}
+
+@media (max-width:640px){
+  .v12-material-body{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:16px;
+  }
+  .v12-material-name{
+    white-space:normal;
+  }
+}
+
 /* ==========================================================
    LOGIN MODAL BRANDING (v15) — matches approved reference design
    ========================================================== */
@@ -3635,6 +3803,47 @@ html[data-theme="dark"].v12-shell-ready .v12-reports-head p,
 html[data-theme="dark"].v12-shell-ready .v12-report-card span,
 html[data-theme="dark"].v12-shell-ready .v12-report-card small{
   color:#91a4bd;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-donut-num{
+  fill:#eef4ff;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-donut-sub{
+  fill:#91a4bd;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-chart-legend-title{
+  color:#91a4bd;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-chart-legend-row{
+  color:#c7d3e2;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-chart-legend-row strong{
+  color:#eef4ff;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-donut-svg circle[stroke="#eef2f8"]{
+  stroke:#1f3350;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-material-head{
+  border-bottom-color:#2a405d;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-material-head h2{
+  color:#eef4ff;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-material-head p,
+html[data-theme="dark"].v12-shell-ready .v12-material-name{
+  color:#91a4bd;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-material-pct{
+  color:#eef4ff;
 }
 
 html[data-theme="dark"].v12-shell-ready .v12-export-crumb{

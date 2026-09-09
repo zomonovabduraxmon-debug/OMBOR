@@ -894,6 +894,8 @@ function renderDashboard(){
 
   const critCount = rows.filter(r=>r.st.level==='finished'||r.st.level==='over').length;
   const warnCount = rows.filter(r=>r.st.level==='warn').length;
+  const soldQtyTotal = rows.reduce((a,r)=>a+(Number(r.used.qty)||0),0);
+  const remQtyTotal = Math.max(0, totalQty - soldQtyTotal);
 
   const tableRows = rows.map(r=>{
     const {permit,item,used,st} = r;
@@ -955,7 +957,7 @@ function renderDashboard(){
         <div class="title">Остаток на складе</div>
         <div class="hint">Итого по текущему фильтру${dashboardSearch ? ' и поиску' : ''}</div>
       </div>
-      <div class="warehouse-values">
+      <div class="warehouse-values" data-sold-qty="${soldQtyTotal}" data-remaining-qty="${remQtyTotal}">
         <div class="warehouse-value"><strong>${fmt(modelCount,0)}</strong><span>модель</span></div>
         <div class="warehouse-value"><strong>${fmt(totalQty,0)}</strong><span>шт</span></div>
         <div class="warehouse-value"><strong>${fmt(totalWeight,2)}</strong><span>кг</span></div>
