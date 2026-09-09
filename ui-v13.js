@@ -1005,7 +1005,6 @@
       view.innerHTML = `
         <div class="v12-reports-head">
           <div><h1>Hisobotlar</h1><p>Omborning joriy holati va so‘nggi o‘zgarishlar</p></div>
-          <button type="button" class="v12-report-export-btn">Eksport <span aria-hidden="true">›</span></button>
         </div>
         <div class="v12-report-grid">
           ${values.map(v=>`
@@ -1018,6 +1017,7 @@
               <div class="v12-report-icon">${v9IconSvg(i===0?'clipboard':i===1?'spool':'chart')}</div>
               <span>${s.lbl}</span><strong>${s.num}</strong>
             </article>`).join('')}
+          <button type="button" class="v12-report-card v12-report-export-btn">Eksport <span aria-hidden="true">›</span></button>
         </div>`;
 
       if(!existing) app.appendChild(view);

@@ -3212,15 +3212,28 @@ html.v12-shell-ready .stat-card{
   font-size:11px;
 }
 
-.v12-report-export-btn{
-  min-height:42px;
-  padding:9px 15px;
+.v12-report-card.v12-report-export-btn{
+  min-height:125px;
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:18px;
   border:1px solid #0b4b9b;
-  border-radius:10px;
+  border-radius:14px;
   color:#fff;
   background:linear-gradient(180deg,#125db7,#0b438e);
-  font-size:11px;
+  font-size:15px;
   font-weight:800;
+  cursor:pointer;
+  box-shadow:0 7px 20px rgba(31,52,87,.045);
+}
+
+.v12-report-card.v12-report-export-btn span{
+  font-size:18px;
+  line-height:1;
+  color:#fff;
 }
 
 .v12-report-grid{
@@ -3606,6 +3619,11 @@ html[data-theme="dark"].v12-shell-ready .v12-report-card{
     url("./textile-bg-v11.svg") center/cover no-repeat;
   border-color:#2a405d;
   box-shadow:none;
+}
+
+html[data-theme="dark"].v12-shell-ready .v12-report-card.v12-report-export-btn{
+  background:linear-gradient(180deg,#125db7,#0b438e);
+  border-color:#0b4b9b;
 }
 
 html[data-theme="dark"].v12-shell-ready .v12-reports-head h1,
