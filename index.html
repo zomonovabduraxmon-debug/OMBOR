@@ -384,7 +384,6 @@
       </div>
     </div>
     <div class="topbar-actions">
-      <span class="sync-pill" id="syncPill" data-kind="local">локальный режим</span>
       <button class="auth-btn" id="authBtn" type="button">Войти</button>
     </div>
   </div>
@@ -447,7 +446,12 @@ function toast(msg){
   toast._t = setTimeout(()=>t.classList.remove('show'), 2600);
 }
 
+// Sinxronizatsiya holati asosiy oynada emas, "Sozlamalar" panelida ko'rsatiladi.
+// Holat shu yerda saqlanadi va sozlamalar oynasi ochilganda ui-v13.js shundan foydalanadi.
+window.__syncPillState = { kind:'local', message:'локальный режим' };
+
 function setSyncPill(kind, message){
+  window.__syncPillState = { kind: kind || 'local', message: message || '' };
   const pill = document.getElementById('syncPill');
   if(!pill) return;
   pill.dataset.kind = kind || 'local';
@@ -460,8 +464,9 @@ function setSyncPill(kind, message){
     pill.title = '';
   }
 }
-document.getElementById('syncPill')?.addEventListener('click', ()=>{
-  const pill = document.getElementById('syncPill');
+// Pill hozir "Sozlamalar" oynasi ichida chiqadi, shu sababli delegatsiya orqali bosishni ushlaymiz.
+document.addEventListener('click', (e)=>{
+  const pill = e.target.closest && e.target.closest('#syncPill');
   if(pill && pill.dataset.kind === 'error' && window.OfflineSync) OfflineSync.syncNow(true);
 });
 

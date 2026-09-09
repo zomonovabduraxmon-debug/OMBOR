@@ -113,7 +113,8 @@
     help:{ru:'Помощь',en:'Help',uz:'Yordam',tr:'Yardım'},
     helpMessage:{ru:'Выберите язык, тему или раздел в панели быстрых действий.',en:'Use the quick controls to choose language, theme, or a section.',uz:'Tezkor panel orqali til, mavzu yoki bo‘limni tanlang.',tr:'Hızlı panelden dil, tema veya bölüm seçin.'},
     lightMode:{ru:'Светлая тема',en:'Light mode',uz:'Yorug‘ rejim',tr:'Açık tema'},
-    darkMode:{ru:'Тёмная тема',en:'Dark mode',uz:'Qorong‘i rejim',tr:'Koyu tema'}
+    darkMode:{ru:'Тёмная тема',en:'Dark mode',uz:'Qorong‘i rejim',tr:'Koyu tema'},
+    syncStatusLabel:{ru:'Синхронизация',en:'Sync',uz:'Sinxronlash',tr:'Senkronizasyon'}
   };
 
 
@@ -670,6 +671,7 @@
     function openHelpModalV5(){
       closeHelpModalV5();
       const h = helpMarkupV5();
+      const syncState = (typeof window!=='undefined' && window.__syncPillState) ? window.__syncPillState : { kind:'local', message:'' };
       const backdrop = document.createElement('div');
       backdrop.className = 'help-backdrop-v5';
       backdrop.id = 'helpModalV5';
@@ -681,6 +683,10 @@
               <h2 id="helpTitleV5">${h.title}</h2>
             </div>
             <button type="button" class="help-close-v5" data-help-close-v5 aria-label="${getText('close')}">×</button>
+          </div>
+          <div class="help-sync-row-v5">
+            <span class="help-sync-label-v5">${getText('syncStatusLabel')}</span>
+            <span class="sync-pill" id="syncPill" data-kind="${syncState.kind}">${syncState.message}</span>
           </div>
           <p class="help-intro-v5">${h.intro}</p>
           <div class="help-list-v5">
@@ -694,6 +700,10 @@
           </div>
         </div>`;
       document.body.appendChild(backdrop);
+      const syncPillEl = backdrop.querySelector('#syncPill');
+      if(syncPillEl && syncState.kind === 'error'){
+        syncPillEl.style.cursor = 'pointer';
+      }
       backdrop.addEventListener('click', e=>{
         if(e.target===backdrop || e.target.closest('[data-help-close-v5]')) closeHelpModalV5();
       });
