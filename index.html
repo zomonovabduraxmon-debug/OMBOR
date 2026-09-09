@@ -1058,13 +1058,11 @@ function bindTabEvents(){
     bindShipmentHistoryEvents();
   }
   if(currentTab==='export'){
-    const btn = document.getElementById('btnExportAll');
-    if(btn) {
-      btn.onclick = function(e){
-        e.preventDefault();
-        exportWorkbook();
-      };
-    }
+    // Export tugmasining click hodisasi ui-v13.js dagi document-level
+    // delegated listener (hardenedExportWorkbook) orqali boshqariladi.
+    // Bu yerda alohida onclick ulamaymiz — aks holda bitta bosishda
+    // Excel fayli ikki marta yaratilib, brauzer buni "ko'p martalik
+    // avtomatik yuklab olish" deb hisoblab, PC'da bloklab qo'yadi.
   }
   if(currentTab==='audit'){
     const q = document.getElementById('auditSearch');
@@ -1905,7 +1903,7 @@ function renderExportTab(){
       ${count === 0 ? `<div class="subtle-note" style="color:var(--amber);margin-bottom:14px;font-weight:600;background:var(--amber-soft);padding:8px 12px;border-radius:4px;">
         ⚠️ Внимание: пока нет добавленных разрешений. Вы можете сначала внести разрешение в разделе «Разрешения». При нажатии кнопки будет выполнена проверка.
       </div>` : ''}
-      <button class="btn" id="btnExportAll" type="button" onclick="exportWorkbook()">Скачать Excel</button>
+      <button class="btn" id="btnExportAll" type="button">Скачать Excel</button>
     </div></div>
   `;
 }
@@ -2001,33 +1999,6 @@ function exportWorkbook(){
   }
 }
 window.exportWorkbook = exportWorkbook;
-
-// Universal capture-phase click delegator for any Eksport / Export button
-document.addEventListener('click', function(e){
-  const target = e.target;
-  if (!target) return;
-  const btn = target.closest('button, a, [role="button"], .btn');
-  if (!btn) return;
-  
-  const text = (btn.textContent || '').trim().toLowerCase();
-  const id = btn.id || '';
-  const cls = String(btn.className || '');
-  const action = btn.getAttribute('data-action') || '';
-
-  const isExport = id === 'btnExportAll' || 
-                   action === 'export' ||
-                   cls.includes('export') ||
-                   text.includes('eksport') ||
-                   text.includes('export') ||
-                   text.includes('скачать excel');
-
-  if (isExport) {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('[OMBOR] Eksport tugmasi bosildi, Excel yuklanmoqda...');
-    window.exportWorkbook();
-  }
-}, true);
 
 /* ============================= MODAL HELPERS ============================= */
 function showModal(innerHtml){
