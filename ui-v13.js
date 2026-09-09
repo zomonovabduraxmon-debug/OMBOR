@@ -1000,8 +1000,23 @@
         label:v.querySelector('.v11-metric-label,.v12-metric-label')?.textContent?.trim() || ''
       }));
 
+      // Muhim: bu funksiya har bir scheduleEnhance() sikli (ya'ni har bir DOM
+      // o'zgarishidan keyin, MutationObserver orqali) chaqiriladi. Agar u har
+      // safar innerHTML'ni qayta yozsa, bu o'zi yana DOM o'zgarishini hosil
+      // qilib, cheksiz qayta-chizish siklini keltirib chiqaradi — natijada
+      // "Eksport" tugmasi doim yangi elementga almashtirilib, foydalanuvchi
+      // bosgan click hodisasi brauzer tomonidan bekor qilinadi (chunki
+      // mousedown va mouseup orasida element allaqachon almashtirilgan bo'ladi).
+      // Shu sababli, ma'lumot haqiqatan o'zgarmagan bo'lsa, qayta chizishni
+      // butunlay o'tkazib yuboramiz.
+      const signature = JSON.stringify({stats, values});
+      if(existing && existing.dataset.v12ReportsSig === signature){
+        return;
+      }
+
       const view = existing || document.createElement('section');
       view.className = 'v12-reports-view';
+      view.dataset.v12ReportsSig = signature;
       view.innerHTML = `
         <div class="v12-reports-head">
           <div><h1>Hisobotlar</h1><p>Omborning joriy holati va so‘nggi o‘zgarishlar</p></div>
