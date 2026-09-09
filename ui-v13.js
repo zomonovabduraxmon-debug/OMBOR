@@ -123,6 +123,8 @@
     'История':{ru:'История',en:'History',uz:'Tarix',tr:'Geçmiş'},
     'Hisobotlar':{ru:'Отчёты',en:'Reports',uz:'Hisobotlar',tr:'Raporlar'},
     'Ombor, ruxsatnomalar va qoldiqlar bo‘yicha joriy ko‘rsatkichlar':{ru:'Текущие показатели склада, разрешений и остатков',en:'Current warehouse, permit and balance indicators',uz:'Ombor, ruxsatnomalar va qoldiqlar bo‘yicha joriy ko‘rsatkichlar',tr:'Depo, izin ve bakiye göstergeleri'},
+    'Materiallar bo‘yicha ulush':{ru:'Доля по материалам',en:'Share by material',uz:'Materiallar bo‘yicha ulush',tr:'Malzemeye göre pay'},
+    'Boshqa':{ru:'Прочее',en:'Other',uz:'Boshqa',tr:'Diğer'},
     'Excel hisobot':{ru:'Отчёт Excel',en:'Excel report',uz:'Excel hisoboti',tr:'Excel raporu'},
     'Jami miqdor':{ru:'Общее количество',en:'Total quantity',uz:'Jami miqdor',tr:'Toplam miktar'},
     'Jami vazn':{ru:'Общий вес',en:'Total weight',uz:'Jami vazn',tr:'Toplam ağırlık'},
@@ -1070,6 +1072,7 @@
           <div class="v12-material-row">
             <span class="v12-material-dot" style="background:${s.color}"></span>
             <span class="v12-material-name">${escapeHtmlV12(s.label)}</span>
+            <span class="v12-material-weight">${v12FmtNum(s.weight)} <span>kg</span></span>
             <strong class="v12-material-pct">${pct}%</strong>
           </div>`;
       }).join('');
@@ -1078,7 +1081,7 @@
         <article class="v12-report-card v12-material-card">
           <div class="v12-material-head">
             <h2>Materiallar bo‘yicha ulush</h2>
-            <p>${v12FmtNum(totalWeight)} kg</p>
+            <p>${v12FmtNum(totalWeight)} <span>kg</span></p>
           </div>
           <div class="v12-material-body">
             <div class="v12-chart-visual">${donut}</div>
@@ -1112,8 +1115,6 @@
         label:v.querySelector('.v11-metric-label,.v12-metric-label')?.textContent?.trim() || ''
       }));
       const warehouseValuesEl = app.querySelector('.warehouse-values');
-      const soldQty = Number(warehouseValuesEl?.dataset.soldQty) || 0;
-      const remainingQty = Number(warehouseValuesEl?.dataset.remainingQty) || 0;
       const activeCount = Number(String(values[0]?.num||'0').replace(/\D/g,'')) || 0;
       const finishedCount = Number(String(stats[2]?.num||'0').replace(/\D/g,'')) || 0;
 
@@ -1128,19 +1129,11 @@
       // butunlay o'tkazib yuboramiz.
       const materialData = v12ComputeMaterialBreakdown();
 
-      const signature = JSON.stringify({stats, values, soldQty, remainingQty, materialData});
+      const signature = JSON.stringify({stats, values, materialData});
       if(existing && existing.dataset.v12ReportsSig === signature){
         return;
       }
 
-      const soldRemainingDonut = v12DonutSvg(
-        [
-          {value:soldQty, color:'#1768ff'},
-          {value:remainingQty, color:'#dbe6f8'}
-        ],
-        (soldQty+remainingQty) ? Math.round(soldQty/(soldQty+remainingQty)*100)+'%' : '0%',
-        'sotilgan'
-      );
       const finishedActiveDonut = v12DonutSvg(
         [
           {value:finishedCount, color:'#e2574c'},
@@ -1169,14 +1162,6 @@
               <span>${s.lbl}</span><strong>${s.num}</strong>
             </article>`).join('')}
           <button type="button" class="v12-report-card v12-report-export-btn">Eksport <span aria-hidden="true">›</span></button>
-          <article class="v12-report-card v12-chart-card">
-            <div class="v12-chart-visual">${soldRemainingDonut}</div>
-            <div class="v12-chart-legend">
-              <div class="v12-chart-legend-title">Sotilgan / Qolgan</div>
-              <div class="v12-chart-legend-row"><span class="v12-chart-dot" style="background:#1768ff"></span>Sotilgan<strong>${v12FmtNum(soldQty)} dona</strong></div>
-              <div class="v12-chart-legend-row"><span class="v12-chart-dot" style="background:#dbe6f8"></span>Qolgan<strong>${v12FmtNum(remainingQty)} dona</strong></div>
-            </div>
-          </article>
           <article class="v12-report-card v12-chart-card">
             <div class="v12-chart-visual">${finishedActiveDonut}</div>
             <div class="v12-chart-legend">

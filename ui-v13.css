@@ -3470,10 +3470,21 @@ html.v12-shell-ready .stat-card{
   font-weight:650;
 }
 
-.v12-material-pct{
-  margin-left:auto;
-  padding-left:10px;
+.v12-material-weight{
   flex-shrink:0;
+  margin-left:auto;
+  padding-left:14px;
+  color:#8797aa;
+  font-size:11px;
+  font-weight:650;
+  white-space:nowrap;
+}
+
+.v12-material-pct{
+  flex-shrink:0;
+  padding-left:14px;
+  min-width:34px;
+  text-align:right;
   color:#0b326b;
   font-size:12.5px;
   font-weight:840;
@@ -3487,6 +3498,12 @@ html.v12-shell-ready .stat-card{
   }
   .v12-material-name{
     white-space:normal;
+  }
+  .v12-material-row{
+    flex-wrap:wrap;
+  }
+  .v12-material-weight{
+    margin-left:0;
   }
 }
 
@@ -3838,7 +3855,8 @@ html[data-theme="dark"].v12-shell-ready .v12-material-head h2{
 }
 
 html[data-theme="dark"].v12-shell-ready .v12-material-head p,
-html[data-theme="dark"].v12-shell-ready .v12-material-name{
+html[data-theme="dark"].v12-shell-ready .v12-material-name,
+html[data-theme="dark"].v12-shell-ready .v12-material-weight{
   color:#91a4bd;
 }
 
