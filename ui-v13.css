@@ -3391,7 +3391,7 @@ html.v12-shell-ready .stat-card{
 }
 
 .v12-material-card{
-  grid-column:1 / -1;
+  grid-column:span 2;
   flex-direction:column;
   align-items:stretch;
   justify-content:flex-start;
