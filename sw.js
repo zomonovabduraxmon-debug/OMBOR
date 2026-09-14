@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v13-fixed';
+const CACHE = 'permit-tracker-shell-v14-icons';
 const APP_SHELL = [
   './',
   './index.html',
@@ -10,6 +10,8 @@ const APP_SHELL = [
   './client-final-fixed.css',
   './manifest.webmanifest',
   './icon.svg',
+  './icon-192.png',
+  './icon-512.png',
   './bg-icon.png',
   'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
 ];
