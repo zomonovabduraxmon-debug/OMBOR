@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v14-icons';
+const CACHE = 'permit-tracker-shell-v15-orange-icon';
 const APP_SHELL = [
   './',
   './index.html',
