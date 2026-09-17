@@ -947,6 +947,7 @@ function renderDashboard(){
           <option value="warn" ${dashboardFilter==='warn'?'selected':''}>Мало осталось</option>
           <option value="finished" ${dashboardFilter==='finished'?'selected':''}>Закончено</option>
           <option value="over" ${dashboardFilter==='over'?'selected':''}>Перерасход</option>
+          <option value="critical" ${dashboardFilter==='critical'?'selected':''}>Закончено / Перерасход</option>
         </select>
         <select class="dashboard-select" id="dashboardSort" aria-label="Сортировка">
           <option value="remaining-desc" ${dashboardSort==='remaining-desc'?'selected':''}>Остаток: больше → меньше</option>
@@ -971,10 +972,10 @@ function renderDashboard(){
 
     <div class="cards-row">
       <div class="stat-card"><div class="num">${state.permits.length}</div><div class="lbl">Разрешений всего</div></div>
-      <div class="stat-card warn"><div class="num">${warnCount}</div><div class="lbl">Мало осталось</div></div>
-      <div class="stat-card crit"><div class="num">${critCount}</div><div class="lbl">Закончено / перерасход</div></div>
+      <div class="stat-card warn" id="kpiWarnCard" role="button" tabindex="0" title="Bosing — kam qolgan modellarni ko'rish"><div class="num">${warnCount}</div><div class="lbl">Мало осталось</div></div>
+      <div class="stat-card crit" id="kpiCritCard" role="button" tabindex="0" title="Bosing — tugagan / ortiqcha sarflangan modellarni ko'rish"><div class="num">${critCount}</div><div class="lbl">Закончено / перерасход</div></div>
     </div>
-    <div class="panel">
+    <div class="panel" id="positionsPanel">
       <div class="panel-head"><h2>Позиции</h2><span class="subtle-note">${rows.length} позиций</span></div>
       <div class="panel-body" style="padding:0;overflow-x:auto;">
         ${rows.length ? `<table>
@@ -1047,6 +1048,31 @@ function bindTabEvents(){
     if(filter) filter.addEventListener('change', e=>{ dashboardFilter = e.target.value; render(); });
     const sort = document.getElementById('dashboardSort');
     if(sort) sort.addEventListener('change', e=>{ dashboardSort = e.target.value; render(); });
+
+    const goToFilter = (value)=>{
+      const select = document.getElementById('dashboardFilter');
+      if(select){
+        select.value = value;
+        select.dispatchEvent(new Event('change', {bubbles:true}));
+      } else {
+        dashboardFilter = value;
+        render();
+      }
+      setTimeout(()=>{
+        const panel = document.getElementById('positionsPanel');
+        if(panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
+      },30);
+    };
+    const warnCard = document.getElementById('kpiWarnCard');
+    if(warnCard){
+      warnCard.addEventListener('click', ()=>goToFilter('warn'));
+      warnCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('warn'); } });
+    }
+    const critCard = document.getElementById('kpiCritCard');
+    if(critCard){
+      critCard.addEventListener('click', ()=>goToFilter('critical'));
+      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('critical'); } });
+    }
   }
   if(currentTab==='permits'){
     const newBtn = document.getElementById('btnNewPermit');

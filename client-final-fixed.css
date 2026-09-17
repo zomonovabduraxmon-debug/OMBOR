@@ -358,6 +358,22 @@ body{
 }
 .stat-card.warn .num{color:#cf790c !important;}
 .stat-card.crit .num{color:#cf4450 !important;}
+
+.stat-card.warn[role="button"],
+.stat-card.crit[role="button"]{
+  cursor:pointer;
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.stat-card.warn[role="button"]:hover,
+.stat-card.crit[role="button"]:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 20px rgba(20,30,50,.10);
+}
+.stat-card.warn[role="button"]:focus-visible,
+.stat-card.crit[role="button"]:focus-visible{
+  outline:2px solid #2d6fd1;
+  outline-offset:2px;
+}
 .stat-card .lbl{
   grid-column:2;
   margin-top:6px !important;

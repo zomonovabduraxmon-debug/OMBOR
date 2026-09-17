@@ -117,6 +117,8 @@
 
     if(filter === 'accepted' || filter === 'completed') {
       rows = rows.filter(row => dashboardCategory(row) === filter);
+    } else if(filter === 'critical') {
+      rows = rows.filter(row => row && row.st && (row.st.level === 'finished' || row.st.level === 'over'));
     } else if(['ok','warn','finished','over'].includes(filter)) {
       rows = rows.filter(row => row && row.st && row.st.level === filter);
     }
