@@ -1092,13 +1092,13 @@ function bindTabEvents(){
     };
     const warnCard = document.getElementById('kpiWarnCard');
     if(warnCard){
-      warnCard.addEventListener('click', ()=>goToFilter('warn', {onlyRecent:true}));
-      warnCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('warn', {onlyRecent:true}); } });
+      warnCard.addEventListener('click', ()=>goToFilter('warn', {onlyRecent:false}));
+      warnCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('warn', {onlyRecent:false}); } });
     }
     const critCard = document.getElementById('kpiCritCard');
     if(critCard){
-      critCard.addEventListener('click', ()=>goToFilter('critical', {onlyRecent:true}));
-      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('critical', {onlyRecent:true}); } });
+      critCard.addEventListener('click', ()=>goToFilter('critical', {onlyRecent:false}));
+      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('critical', {onlyRecent:false}); } });
     }
   }
   if(currentTab==='permits'){
