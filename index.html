@@ -430,6 +430,7 @@ let isEditorMode = false;
 let dashboardSearch = '';
 let dashboardFilter = 'all';
 let dashboardSort = 'remaining-desc';
+let dashboardOnlyRecent = false;
 let uploadDraft = null;
 let auditSearch = '';
 let shipmentHistorySearch = '';
@@ -892,7 +893,20 @@ function renderDashboard(){
   }
 
   const view = window.SyncCore ? SyncCore.buildDashboardView(allRows, { filter:dashboardFilter, sort:dashboardSort }) : { rows: allRows, totalQty: allRows.reduce((a,b)=>a+(Number(b.item.qty)||0),0), totalWeight: allRows.reduce((a,b)=>a+(Number(b.item.weight)||0),0) };
-  const rows = view.rows;
+  let rows = view.rows;
+
+  const recentKeysV12 = (typeof window!=='undefined' && window.__omborRecentKeysV12)
+    ? window.__omborRecentKeysV12
+    : { warnKeys:new Set(), critKeys:new Set() };
+  const isRecentRow = r => {
+    const key = `${r.permit.id}:${r.item.id}`;
+    return recentKeysV12.critKeys.has(key) || recentKeysV12.warnKeys.has(key);
+  };
+  const recentInCurrentView = rows.filter(isRecentRow).length;
+  if(dashboardOnlyRecent){
+    rows = rows.filter(isRecentRow);
+  }
+
   const totalQty = view.totalQty;
   const totalWeight = view.totalWeight;
   const modelCount = rows.filter(r=>r.st.level!=='finished' && r.st.level!=='over').length;
@@ -911,7 +925,8 @@ function renderDashboard(){
       : st.level==='finished' ? '<span class="badge crit">закончено</span>'
       : st.level==='warn' ? '<span class="badge warn">мало осталось</span>'
       : '<span class="badge ok">в норме</span>';
-    return `<tr>
+    const recentBadge = isRecentRow(r) ? ' <span class="badge new-24h" title="So\'nggi 24 soatda shu holatga o\'tdi">🆕 24 soat</span>' : '';
+    return `<tr${isRecentRow(r) ? ' class="row-recent-24h"' : ''}>
       <td>${escapeHtml(permit.number)}<div class="subtle-note">${escapeHtml(permit.date||'')}</div></td>
       <td>${escapeHtml(item.name)}</td>
       <td>${item.material ? `<span class="material-badge">${escapeHtml(item.material)}</span>` : '—'}</td>
@@ -927,7 +942,7 @@ function renderDashboard(){
           <span class="gauge-pct">${pctShown}%</span>
         </div>
       </td>
-      <td>${badge}</td>
+      <td>${badge}${recentBadge}</td>
     </tr>`;
   }).join('');
 
@@ -955,6 +970,10 @@ function renderDashboard(){
           <option value="date-desc" ${dashboardSort==='date-desc'?'selected':''}>Дата: новые → старые</option>
           <option value="date-asc" ${dashboardSort==='date-asc'?'selected':''}>Дата: старые → новые</option>
         </select>
+        <label class="recent-only-toggle" title="So'nggi 24 soatda 'kam qoldi' yoki 'tugagan/ortiqcha sarf' holatiga o'tgan pozitsiyalarni ko'rsatish">
+          <input type="checkbox" id="dashboardOnlyRecent" ${dashboardOnlyRecent?'checked':''}>
+          <span>So'nggi 24 soatda o'zgarganlar${recentInCurrentView ? ` (${recentInCurrentView})` : ''}</span>
+        </label>
       </div>
     </div>
 
@@ -1048,8 +1067,16 @@ function bindTabEvents(){
     if(filter) filter.addEventListener('change', e=>{ dashboardFilter = e.target.value; render(); });
     const sort = document.getElementById('dashboardSort');
     if(sort) sort.addEventListener('change', e=>{ dashboardSort = e.target.value; render(); });
+    const onlyRecent = document.getElementById('dashboardOnlyRecent');
+    if(onlyRecent) onlyRecent.addEventListener('change', e=>{ dashboardOnlyRecent = e.target.checked; render(); });
 
-    const goToFilter = (value)=>{
+    const goToFilter = (value, opts)=>{
+      opts = opts || {};
+      if(opts.onlyRecent !== undefined){
+        dashboardOnlyRecent = opts.onlyRecent;
+        const cb = document.getElementById('dashboardOnlyRecent');
+        if(cb) cb.checked = dashboardOnlyRecent;
+      }
       const select = document.getElementById('dashboardFilter');
       if(select){
         select.value = value;
@@ -1065,13 +1092,13 @@ function bindTabEvents(){
     };
     const warnCard = document.getElementById('kpiWarnCard');
     if(warnCard){
-      warnCard.addEventListener('click', ()=>goToFilter('warn'));
-      warnCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('warn'); } });
+      warnCard.addEventListener('click', ()=>goToFilter('warn', {onlyRecent:true}));
+      warnCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('warn', {onlyRecent:true}); } });
     }
     const critCard = document.getElementById('kpiCritCard');
     if(critCard){
-      critCard.addEventListener('click', ()=>goToFilter('critical'));
-      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('critical'); } });
+      critCard.addEventListener('click', ()=>goToFilter('critical', {onlyRecent:true}));
+      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('critical', {onlyRecent:true}); } });
     }
   }
   if(currentTab==='permits'){
@@ -2153,6 +2180,8 @@ async function dedupePermitsByNumber(){
 
 /* ============================= INIT ============================= */
 (async function init(){
+  window.__omborOnRecentKeysUpdated = ()=>{ if(currentTab==='dashboard') render(); };
+
   if(window.OfflineSync){
     OfflineSync.onStatus(({kind,message})=>setSyncPill(kind,message));
     OfflineSync.onData(async ()=>{

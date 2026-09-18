@@ -467,6 +467,40 @@ tfoot td{
 .badge.warn{color:#bb7110 !important;background:#fff2dc !important;}
 .badge.crit{color:#c53d49 !important;background:#ffe8eb !important;}
 .badge.completed,.badge.neutral{color:#66758a !important;background:#edf1f5 !important;}
+.badge.new-24h{
+  color:#0a5fc4 !important;
+  background:#e5f1ff !important;
+  margin-left:6px;
+}
+tr.row-recent-24h{background:rgba(10,95,196,.035);}
+tr.row-recent-24h:hover{background:rgba(10,95,196,.06);}
+
+.recent-only-toggle{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:8px 12px;
+  border:1px solid #d7deE8;
+  border-radius:10px;
+  background:#fff;
+  font-size:12.5px;
+  font-weight:650;
+  color:#42536b;
+  cursor:pointer;
+  user-select:none;
+  white-space:nowrap;
+}
+.recent-only-toggle input{
+  width:15px;
+  height:15px;
+  accent-color:#0a5fc4;
+  cursor:pointer;
+}
+.recent-only-toggle:has(input:checked){
+  border-color:#a9c8f0;
+  background:#eef5ff;
+  color:#0a5fc4;
+}
 
 .gauge{
   width:118px !important;

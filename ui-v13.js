@@ -415,6 +415,53 @@
     };
   }
 
+  function computeRecentlyCriticalV12(permits, shipments, recentShipmentIds){
+    const ps = Array.isArray(permits) ? permits : [];
+    const ss = Array.isArray(shipments) ? shipments : [];
+    const recent = recentShipmentIds instanceof Set ? recentShipmentIds : new Set(recentShipmentIds || []);
+
+    function levelsByItem(excludeRecent){
+      const usage = new Map();
+      for(const sh of ss){
+        if(excludeRecent && recent.has(sh && sh.id)) continue;
+        if(!sh || !Array.isArray(sh.lines)) continue;
+        for(const ln of sh.lines){
+          const key = `${sh.permitId}:${ln.itemId}`;
+          usage.set(key, (usage.get(key)||0) + (Number(ln.qty)||0));
+        }
+      }
+      const levels = new Map();
+      for(const permit of ps){
+        for(const item of (permit && Array.isArray(permit.items) ? permit.items : [])){
+          const key = `${permit.id}:${item.id}`;
+          const allowed = Number(item.qty)||0;
+          const used = usage.get(key)||0;
+          const rem = allowed - used;
+          const pct = allowed ? Math.max(0,rem)/allowed : 0;
+          let level = 'ok';
+          if(rem < 0) level = 'over';
+          else if(rem === 0) level = 'finished';
+          else if(pct <= .25) level = 'warn';
+          levels.set(key, level);
+        }
+      }
+      return levels;
+    }
+
+    const before = levelsByItem(true);
+    const current = levelsByItem(false);
+    const newWarnKeys = new Set();
+    const newCritKeys = new Set();
+    for(const [key, level] of current){
+      const prevLevel = before.get(key) || 'ok';
+      const wasCrit = prevLevel === 'finished' || prevLevel === 'over';
+      const isCrit = level === 'finished' || level === 'over';
+      if(isCrit && !wasCrit) newCritKeys.add(key);
+      if(level === 'warn' && prevLevel !== 'warn' && !wasCrit) newWarnKeys.add(key);
+    }
+    return { warnKeys:newWarnKeys, critKeys:newCritKeys };
+  }
+
   function formatDeltaV12(value){
     const n = Number(value)||0;
     if(n > 0) return `+${n} ↑`;
@@ -1507,6 +1554,14 @@
         if(cards.length < 3) return;
 
         const deltas = computeKpiDeltasV12(state.permits,state.shipments,meta.recentShipmentIds);
+        const recentKeys = computeRecentlyCriticalV12(state.permits,state.shipments,meta.recentShipmentIds);
+        const signature = JSON.stringify([Array.from(recentKeys.warnKeys).sort(), Array.from(recentKeys.critKeys).sort()]);
+        const changed = window.__omborRecentKeysSigV12 !== signature;
+        window.__omborRecentKeysV12 = recentKeys;
+        window.__omborRecentKeysSigV12 = signature;
+        if(changed && typeof window.__omborOnRecentKeysUpdated === 'function'){
+          try{ window.__omborOnRecentKeysUpdated(); }catch(e){}
+        }
         const values = [meta.recentPermitIds.size,deltas.deltaWarn,deltas.deltaCrit];
         const titles = [
           'So‘nggi 24 soatda yangilangan ruxsatnomalar',
@@ -2042,5 +2097,5 @@
     else initBrowser();
   }
 
-  return { paginate, translateText, translateDynamicText, safeSheetName, nextTheme, quickSections, sidebarSectionsV9, resolveSidebarSelectionV10, sidebarSectionsV11, sidebarDestinationV11, resolveSidebarSelectionV11, sidebarSectionsV12, sidebarDestinationV12, resolveSidebarSelectionV12, computeKpiDeltasV12, formatDeltaV12, UI_TEXT, LANGUAGES, PAGE_SIZE, getCurrentLanguage:()=> (typeof localStorage!=='undefined' ? normalizeLang(localStorage.getItem(LANG_KEY)||'ru') : 'ru'), extraText:EXTRA_TEXT };
+  return { paginate, translateText, translateDynamicText, safeSheetName, nextTheme, quickSections, sidebarSectionsV9, resolveSidebarSelectionV10, sidebarSectionsV11, sidebarDestinationV11, resolveSidebarSelectionV11, sidebarSectionsV12, sidebarDestinationV12, resolveSidebarSelectionV12, computeKpiDeltasV12, computeRecentlyCriticalV12, formatDeltaV12, UI_TEXT, LANGUAGES, PAGE_SIZE, getCurrentLanguage:()=> (typeof localStorage!=='undefined' ? normalizeLang(localStorage.getItem(LANG_KEY)||'ru') : 'ru'), extraText:EXTRA_TEXT };
 });
