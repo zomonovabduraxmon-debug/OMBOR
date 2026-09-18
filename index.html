@@ -970,16 +970,6 @@ function renderDashboard(){
       </div>
       <div class="dashboard-controls">
         <input class="search-input" id="dashSearch" placeholder="Поиск: номер, товар, ТН ВЭД…" value="${escapeHtml(dashboardSearch)}">
-        <select class="dashboard-select" id="dashboardFilter" aria-label="Фильтр">
-          <option value="all" ${dashboardFilter==='all'?'selected':''}>Фильтр: Все</option>
-          <option value="accepted" ${dashboardFilter==='accepted'?'selected':''}>Accepted</option>
-          <option value="completed" ${dashboardFilter==='completed'?'selected':''}>Completed</option>
-          <option value="ok" ${dashboardFilter==='ok'?'selected':''}>В норме</option>
-          <option value="warn" ${dashboardFilter==='warn'?'selected':''}>Мало осталось</option>
-          <option value="finished" ${dashboardFilter==='finished'?'selected':''}>Закончено</option>
-          <option value="over" ${dashboardFilter==='over'?'selected':''}>Перерасход</option>
-          <option value="critical" hidden ${dashboardFilter==='critical'?'selected':''}>Закончено / перерасход</option>
-        </select>
         <select class="dashboard-select" id="dashboardSort" aria-label="Сортировка">
           <option value="remaining-desc" ${dashboardSort==='remaining-desc'?'selected':''}>Остаток: больше → меньше</option>
           <option value="remaining-asc" ${dashboardSort==='remaining-asc'?'selected':''}>Остаток: меньше → больше</option>
@@ -1007,7 +997,16 @@ function renderDashboard(){
       <div class="stat-card crit" id="kpiCritCard" role="button" tabindex="0" title="Bosing — tugagan / ortiqcha sarflangan modellarni ko'rish"><div class="num">${critCount}</div><div class="lbl">Закончено / перерасход</div></div>
     </div>
     <div class="panel" id="positionsPanel">
-      <div class="panel-head"><h2>Позиции</h2><span class="subtle-note">${rows.length} позиций</span></div>
+      <div class="panel-head">
+        <h2>Позиции</h2>
+        <div class="panel-head-right">
+          <span class="subtle-note">${rows.length} позиций</span>
+          ${dashboardFilter!=='all' ? `<span class="active-filter-chip" id="activeFilterChip">
+            ${escapeHtml({accepted:'Accepted',completed:'Completed',ok:'В норме',warn:'Мало осталось',finished:'Закончено',over:'Перерасход',critical:'Закончено / перерасход'}[dashboardFilter] || dashboardFilter)}
+            <button type="button" id="clearDashboardFilter" title="Filtrni tozalash">&times;</button>
+          </span>` : ''}
+        </div>
+      </div>
       <div class="panel-body" style="padding:0;overflow-x:auto;">
         ${rows.length ? `<table>
           <thead><tr>
@@ -1075,36 +1074,21 @@ function bindTabEvents(){
   if(currentTab==='dashboard'){
     const inp = document.getElementById('dashSearch');
     if(inp) inp.addEventListener('input', e=>{ dashboardSearch = e.target.value; render(); setTimeout(()=>{ const i=document.getElementById('dashSearch'); if(i){ i.focus(); i.selectionStart=i.selectionEnd=i.value.length; } },0); });
-    const filter = document.getElementById('dashboardFilter');
-    if(filter) filter.addEventListener('change', e=>{ dashboardFilter = e.target.value; render(); });
     const sort = document.getElementById('dashboardSort');
     if(sort) sort.addEventListener('change', e=>{ dashboardSort = e.target.value; render(); });
 
-    const goToFilter = (value)=>{
-      const select = document.getElementById('dashboardFilter');
-      const hasOption = select && Array.from(select.options).some(o=>o.value===value);
-      if(select && hasOption){
-        select.value = value;
-        select.dispatchEvent(new Event('change', {bubbles:true}));
-      } else {
-        dashboardFilter = value;
-        render();
-      }
-      setTimeout(()=>{
-        const panel = document.getElementById('positionsPanel');
-        if(panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
-      },30);
-    };
     const warnCard = document.getElementById('kpiWarnCard');
     if(warnCard){
-      warnCard.addEventListener('click', ()=>goToFilter('warn'));
-      warnCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('warn'); } });
+      warnCard.addEventListener('click', ()=>openStatusModal('warn'));
+      warnCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openStatusModal('warn'); } });
     }
     const critCard = document.getElementById('kpiCritCard');
     if(critCard){
-      critCard.addEventListener('click', ()=>goToFilter('critical'));
-      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('critical'); } });
+      critCard.addEventListener('click', ()=>openStatusModal('critical'));
+      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openStatusModal('critical'); } });
     }
+    const clearFilterBtn = document.getElementById('clearDashboardFilter');
+    if(clearFilterBtn) clearFilterBtn.addEventListener('click', ()=>{ dashboardFilter = 'all'; render(); document.dispatchEvent(new CustomEvent('ombor:dashboardfilterchange')); });
   }
   if(currentTab==='permits'){
     const newBtn = document.getElementById('btnNewPermit');
@@ -2079,6 +2063,70 @@ function showModal(innerHtml){
 function closeModal(){
   const b = document.getElementById('modalBackdrop');
   if(b) b.remove();
+}
+
+/* ============================= STATUS LIST MODAL (Kam qoldi / Tugagan) ============================= */
+function computeAllStatusRows(){
+  const rows = [];
+  for(const p of state.permits){
+    for(const it of p.items){
+      const used = itemUsage(p.id, it.id);
+      const st = itemStatus(it, used);
+      rows.push({permit:p, item:it, used, st});
+    }
+  }
+  return rows;
+}
+
+function openStatusModal(kind){
+  const all = computeAllStatusRows();
+  const rows = (kind === 'critical'
+    ? all.filter(r=>r.st.level==='finished'||r.st.level==='over')
+    : all.filter(r=>r.st.level==='warn')
+  ).sort((a,b)=>String(b.permit.date||'').localeCompare(String(a.permit.date||'')));
+
+  const recentKeysV12 = (typeof window!=='undefined' && window.__omborRecentKeysV12)
+    ? window.__omborRecentKeysV12
+    : { warnKeys:new Set(), critKeys:new Set() };
+  const isRecentRow = r => {
+    const key = `${r.permit.id}:${r.item.id}`;
+    return recentKeysV12.critKeys.has(key) || recentKeysV12.warnKeys.has(key);
+  };
+
+  const title = kind === 'critical' ? 'Tugagan / ortiqcha sarf' : 'Kam qoldi';
+
+  const bodyRows = rows.map(r=>{
+    const {permit,item,used,st} = r;
+    const badge = st.level==='over' ? '<span class="badge crit">перерасход</span>'
+      : st.level==='finished' ? '<span class="badge crit">закончено</span>'
+      : '<span class="badge warn">мало осталось</span>';
+    const recentBadge = isRecentRow(r) ? ' <span class="badge new-24h" title="So\'nggi 24 soatda shu holatga o\'tdi">🆕 24 soat</span>' : '';
+    return `<tr>
+      <td>${escapeHtml(permit.number)}<div class="subtle-note">${escapeHtml(permit.date||'')}</div></td>
+      <td>${escapeHtml(item.name)}</td>
+      <td class="code-col">${escapeHtml(item.tnved||'—')}</td>
+      <td class="num-col">${fmt(item.qty,0)} ${item.unit}</td>
+      <td class="num-col">${fmt(used.qty,0)}</td>
+      <td class="num-col">${fmt(st.remQty,0)}</td>
+      <td class="num-col">${fmt(st.remWeight,2)} кг</td>
+      <td>${badge}${recentBadge}</td>
+    </tr>`;
+  }).join('');
+
+  showModal(`
+    <div class="modal-head"><h2>${escapeHtml(title)} — ${rows.length} ta pozitsiya</h2><button class="close-x" data-close>&times;</button></div>
+    <div class="modal-body" style="padding:0;max-height:68vh;overflow:auto;">
+      ${rows.length ? `<table>
+        <thead><tr>
+          <th>Разрешение</th><th>Наименование</th><th>ТН ВЭД</th><th>Разрешено</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th><th>Статус</th>
+        </tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>` : `<div class="empty" style="padding:28px;text-align:center;">Bu holatda pozitsiya yo'q</div>`}
+    </div>
+    <div class="modal-foot"><button class="btn secondary" data-close>Yopish</button></div>
+  `);
+  const modalEl = document.querySelector('#modalBackdrop .modal');
+  if(modalEl) modalEl.classList.add('status-modal-wide');
 }
 
 /* ============================= AUTH / SHARED EDITING ============================= */
