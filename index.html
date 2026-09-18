@@ -274,6 +274,22 @@
   }
   .toast.show{opacity:1;}
 
+  .update-banner{
+    position:fixed; left:50%; bottom:20px; transform:translateX(-50%) translateY(12px);
+    display:flex; align-items:center; gap:12px;
+    background:#0b1830; color:#fff; padding:11px 14px 11px 16px; border-radius:11px;
+    box-shadow:0 14px 34px rgba(10,20,40,.28); z-index:1200;
+    opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease;
+    font-size:13px;
+  }
+  .update-banner.show{opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0);}
+  .update-banner button{
+    border:none; border-radius:8px; padding:7px 13px; font-size:12.5px; font-weight:700;
+    cursor:pointer; white-space:nowrap;
+  }
+  .update-banner .btn-reload{background:#2d78e8; color:#fff;}
+  .update-banner .btn-dismiss{background:transparent; color:#c7d3e6;}
+
   select.map-select{font-size:12px;}
   .mismatch{color:var(--red);}
   .search-input{padding:8px 10px;border:1px solid var(--line);border-radius:3px;width:240px;}
@@ -421,6 +437,11 @@
 </div>
 <footer>Offline-first: изменения сначала сохраняются на этом устройстве. При появлении интернета они автоматически синхронизируются с общей базой Supabase.</footer>
 <div class="toast" id="toast">Отгрузка сохранена, остатки обновлены</div>
+<div class="update-banner" id="updateBanner">
+  <span>Sayt yangilandi — yangi versiyani yuklash</span>
+  <button class="btn-reload" id="updateBannerReload">Yangilash</button>
+  <button class="btn-dismiss" id="updateBannerDismiss">&times;</button>
+</div>
 
 <script>
 /* ============================= STATE & STORAGE ============================= */
@@ -430,7 +451,6 @@ let isEditorMode = false;
 let dashboardSearch = '';
 let dashboardFilter = 'all';
 let dashboardSort = 'remaining-desc';
-let dashboardOnlyRecent = false;
 let uploadDraft = null;
 let auditSearch = '';
 let shipmentHistorySearch = '';
@@ -893,7 +913,7 @@ function renderDashboard(){
   }
 
   const view = window.SyncCore ? SyncCore.buildDashboardView(allRows, { filter:dashboardFilter, sort:dashboardSort }) : { rows: allRows, totalQty: allRows.reduce((a,b)=>a+(Number(b.item.qty)||0),0), totalWeight: allRows.reduce((a,b)=>a+(Number(b.item.weight)||0),0) };
-  let rows = view.rows;
+  const rows = view.rows;
 
   const recentKeysV12 = (typeof window!=='undefined' && window.__omborRecentKeysV12)
     ? window.__omborRecentKeysV12
@@ -902,10 +922,6 @@ function renderDashboard(){
     const key = `${r.permit.id}:${r.item.id}`;
     return recentKeysV12.critKeys.has(key) || recentKeysV12.warnKeys.has(key);
   };
-  const recentInCurrentView = rows.filter(isRecentRow).length;
-  if(dashboardOnlyRecent){
-    rows = rows.filter(isRecentRow);
-  }
 
   const totalQty = view.totalQty;
   const totalWeight = view.totalWeight;
@@ -962,7 +978,7 @@ function renderDashboard(){
           <option value="warn" ${dashboardFilter==='warn'?'selected':''}>Мало осталось</option>
           <option value="finished" ${dashboardFilter==='finished'?'selected':''}>Закончено</option>
           <option value="over" ${dashboardFilter==='over'?'selected':''}>Перерасход</option>
-          <option value="critical" ${dashboardFilter==='critical'?'selected':''}>Закончено / Перерасход</option>
+          <option value="critical" hidden ${dashboardFilter==='critical'?'selected':''}>Закончено / перерасход</option>
         </select>
         <select class="dashboard-select" id="dashboardSort" aria-label="Сортировка">
           <option value="remaining-desc" ${dashboardSort==='remaining-desc'?'selected':''}>Остаток: больше → меньше</option>
@@ -970,10 +986,6 @@ function renderDashboard(){
           <option value="date-desc" ${dashboardSort==='date-desc'?'selected':''}>Дата: новые → старые</option>
           <option value="date-asc" ${dashboardSort==='date-asc'?'selected':''}>Дата: старые → новые</option>
         </select>
-        <label class="recent-only-toggle" title="So'nggi 24 soatda 'kam qoldi' yoki 'tugagan/ortiqcha sarf' holatiga o'tgan pozitsiyalarni ko'rsatish">
-          <input type="checkbox" id="dashboardOnlyRecent" ${dashboardOnlyRecent?'checked':''}>
-          <span>So'nggi 24 soatda o'zgarganlar${recentInCurrentView ? ` (${recentInCurrentView})` : ''}</span>
-        </label>
       </div>
     </div>
 
@@ -1067,18 +1079,11 @@ function bindTabEvents(){
     if(filter) filter.addEventListener('change', e=>{ dashboardFilter = e.target.value; render(); });
     const sort = document.getElementById('dashboardSort');
     if(sort) sort.addEventListener('change', e=>{ dashboardSort = e.target.value; render(); });
-    const onlyRecent = document.getElementById('dashboardOnlyRecent');
-    if(onlyRecent) onlyRecent.addEventListener('change', e=>{ dashboardOnlyRecent = e.target.checked; render(); });
 
-    const goToFilter = (value, opts)=>{
-      opts = opts || {};
-      if(opts.onlyRecent !== undefined){
-        dashboardOnlyRecent = opts.onlyRecent;
-        const cb = document.getElementById('dashboardOnlyRecent');
-        if(cb) cb.checked = dashboardOnlyRecent;
-      }
+    const goToFilter = (value)=>{
       const select = document.getElementById('dashboardFilter');
-      if(select){
+      const hasOption = select && Array.from(select.options).some(o=>o.value===value);
+      if(select && hasOption){
         select.value = value;
         select.dispatchEvent(new Event('change', {bubbles:true}));
       } else {
@@ -1092,13 +1097,13 @@ function bindTabEvents(){
     };
     const warnCard = document.getElementById('kpiWarnCard');
     if(warnCard){
-      warnCard.addEventListener('click', ()=>goToFilter('warn', {onlyRecent:false}));
-      warnCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('warn', {onlyRecent:false}); } });
+      warnCard.addEventListener('click', ()=>goToFilter('warn'));
+      warnCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('warn'); } });
     }
     const critCard = document.getElementById('kpiCritCard');
     if(critCard){
-      critCard.addEventListener('click', ()=>goToFilter('critical', {onlyRecent:false}));
-      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('critical', {onlyRecent:false}); } });
+      critCard.addEventListener('click', ()=>goToFilter('critical'));
+      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); goToFilter('critical'); } });
     }
   }
   if(currentTab==='permits'){
@@ -2201,15 +2206,31 @@ async function dedupePermitsByNumber(){
   bindAuthButton();
 
   if('serviceWorker' in navigator){
+    const hadController = !!navigator.serviceWorker.controller;
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', ()=>{
       if(refreshing) return;
       refreshing = true;
-      location.reload();
+      // Faqat sayt OLDIN allaqachon ochilgan (eski versiya ishlagan) bo'lsa,
+      // yangi versiya haqida yumshoq bildirishnoma ko'rsatamiz — sahifani
+      // shu zahoti majburan qayta yuklab, ekranni "chaqnatib" yubormaymiz.
+      // Birinchi marta tashrif buyurilganda (hech qanday eski controller
+      // bo'lmaganda) hech narsa ko'rsatilmaydi.
+      if(hadController) showUpdateBanner();
     });
     navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('SW registration failed',err));
   }
 })();
+
+function showUpdateBanner(){
+  const banner = document.getElementById('updateBanner');
+  if(!banner) { location.reload(); return; }
+  banner.classList.add('show');
+  const reloadBtn = document.getElementById('updateBannerReload');
+  const dismissBtn = document.getElementById('updateBannerDismiss');
+  if(reloadBtn) reloadBtn.onclick = ()=>location.reload();
+  if(dismissBtn) dismissBtn.onclick = ()=>banner.classList.remove('show');
+}
 </script>
 <script src="./ui-v13.js"></script>
 
