@@ -157,6 +157,10 @@
   .stat-card .lbl{color:var(--muted);font-size:14px;margin-top:4px;letter-spacing:.2px;}
   .stat-card.warn .num{color:var(--amber);}
   .stat-card.crit .num{color:var(--red);}
+  .stat-card.warn, .stat-card.crit{cursor:pointer; transition:box-shadow .15s ease, border-color .15s ease, transform .1s ease;}
+  .stat-card.warn:hover, .stat-card.crit:hover{box-shadow:0 4px 14px rgba(22,32,44,0.1); border-color:rgba(22,32,44,0.3);}
+  .stat-card.warn:active, .stat-card.crit:active{transform:translateY(1px);}
+  .stat-card.warn:focus-visible, .stat-card.crit:focus-visible{outline:2px solid #1768ff; outline-offset:2px;}
 
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;}
   .panel + .panel{margin-top:16px;}
@@ -1380,7 +1384,7 @@ function renderShipmentTab(){
 
   let manualTable = '';
   if(permit){
-    manualTable = `<table><thead><tr><th>Наименование</th><th>ТН ВЭД</th><th>Остаток</th><th>Отгружаем, кол-во</th><th>Отгружаем, вес (кг)</th></tr></thead><tbody>
+    manualTable = `<table><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Остаток</th><th>Отгружаем, кол-во</th><th>Отгружаем, вес (кг)</th></tr></thead><tbody>
       ${permit.items.map(it=>{
         const used = itemUsage(permit.id, it.id);
         const st = itemStatus(it, used);
@@ -1389,6 +1393,7 @@ function renderShipmentTab(){
         const currentW = shipmentDraft.lines[it.id]?.weight ?? '';
         return `<tr>
           <td>${escapeHtml(it.name)}</td>
+          <td>${it.material ? `<span class="material-badge">${escapeHtml(it.material)}</span>` : '—'}</td>
           <td class="code-col">${escapeHtml(it.tnved||'—')}</td>
           <td class="num-col ${st.remQty<0?'mismatch':''}">${fmt(st.remQty,0)} ${it.unit} / ${fmt(st.remWeight,2)} кг</td>
           <td><input type="number" min="0" step="any" data-line-qty="${it.id}" data-perunit="${perUnit}" value="${currentQty}" placeholder="0" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
@@ -1772,9 +1777,12 @@ function renderUploadFlow(permit){
     const rows = uploadDraft.matched.map((r,i)=>{
       const options = permit.items.map(it=>`<option value="${it.id}" ${r.itemId===it.id?'selected':''}>${escapeHtml(it.name)}</option>`).join('');
       const matchBadge = r.autoMatched ? '<span class="badge ok">найдено</span>' : '<span class="badge warn">проверьте</span>';
+      const matchedItem = permit.items.find(it=>it.id===r.itemId);
+      const materialCell = matchedItem && matchedItem.material ? `<span class="material-badge">${escapeHtml(matchedItem.material)}</span>` : '—';
       return `<tr>
         <td>${escapeHtml(String(r.rawName??''))}<div class="subtle-note">${escapeHtml(String(r.rawTnved??''))}</div></td>
         <td><select data-match-select="${i}" style="width:100%;padding:6px;border:1px solid var(--line);border-radius:3px;">${options}</select></td>
+        <td data-material-cell="${i}">${materialCell}</td>
         <td class="num-col">${fmt(r.qty,0)}</td>
         <td class="num-col">${r.weight!==null?fmt(r.weight,2):'<span class="subtle-note">авто</span>'}</td>
         <td>${matchBadge}</td>
@@ -1784,7 +1792,7 @@ function renderUploadFlow(permit){
       <div class="panel">
         <div class="panel-head"><h2>Проверьте распределение по позициям</h2></div>
         <div class="panel-body" style="padding:0;">
-          <table><thead><tr><th>Из файла</th><th>Позиция разрешения</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead>
+          <table><thead><tr><th>Из файла</th><th>Позиция разрешения</th><th>Мато / material</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead>
           <tbody>${rows}</tbody></table>
         </div>
       </div>
@@ -1832,8 +1840,13 @@ function bindUploadEvents(){
 
   document.querySelectorAll('[data-match-select]').forEach(sel=>{
     sel.addEventListener('change', ()=>{
-      uploadDraft.matched[Number(sel.dataset.matchSelect)].itemId = sel.value;
-      uploadDraft.matched[Number(sel.dataset.matchSelect)].autoMatched = true;
+      const idx = Number(sel.dataset.matchSelect);
+      uploadDraft.matched[idx].itemId = sel.value;
+      uploadDraft.matched[idx].autoMatched = true;
+      const permit = state.permits.find(p=>p.id===shipmentDraft.permitId);
+      const matchedItem = permit ? permit.items.find(it=>it.id===sel.value) : null;
+      const materialCell = document.querySelector(`[data-material-cell="${idx}"]`);
+      if(materialCell) materialCell.innerHTML = matchedItem && matchedItem.material ? `<span class="material-badge">${escapeHtml(matchedItem.material)}</span>` : '—';
     });
   });
 
