@@ -149,6 +149,8 @@
     'История отгрузок':{ru:'История отгрузок',en:'Shipment history',uz:'Yuklamalar tarixi',tr:'Sevkiyat geçmişi'},
     'Все отгрузки и возможность их редактирования':{ru:'Все отгрузки и возможность их редактирования',en:'All shipments, with the option to edit them',uz:'Barcha yuklamalar va ularni tahrirlash imkoniyati',tr:'Tüm sevkiyatlar ve düzenleme imkanı'},
     'Поиск по инвойсу или разрешению':{ru:'Поиск по инвойсу или разрешению',en:'Search by invoice or permit',uz:'Invoys yoki ruxsatnoma bo‘yicha qidirish',tr:'Fatura veya izne göre ara'},
+    'Поиск по разрешению':{ru:'Поиск по разрешению',en:'Search by permit',uz:'Ruxsatnoma bo‘yicha qidirish',tr:'İzne göre ara'},
+    'Назад к инвойсам':{ru:'Назад к инвойсам',en:'Back to invoices',uz:'Invoyslarga qaytish',tr:'Faturalara geri dön'},
     'Вес':{ru:'Вес',en:'Weight',uz:'Vazn',tr:'Ağırlık'},
     'Изменить отгрузку':{ru:'Изменить отгрузку',en:'Edit shipment',uz:'Yuklamani tahrirlash',tr:'Sevkiyatı düzenle'},
     'Сохранить изменения':{ru:'Сохранить изменения',en:'Save changes',uz:'O‘zgarishlarni saqlash',tr:'Değişiklikleri kaydet'},

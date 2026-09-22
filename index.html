@@ -458,6 +458,7 @@ let dashboardSort = 'remaining-desc';
 let uploadDraft = null;
 let auditSearch = '';
 let shipmentHistorySearch = '';
+let shipmentHistoryOpenInvoice = null; // null = папка-список инвойсов; string = открытая папка конкретного инвойса
 let editShipmentDraft = null;
 
 function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,10); }
@@ -871,6 +872,12 @@ function fmt(n, dec){
 
 /* ============================= RENDER: TABS ============================= */
 function setTab(tab){
+  if(tab==='shipmentHistory' && currentTab!=='shipmentHistory'){
+    // Har safar "Yuklamalar tarixi" bo'limiga qaytadan kirilganda
+    // invoyslar ro'yxatidan (papkalar) boshlaymiz.
+    shipmentHistoryOpenInvoice = null;
+    shipmentHistorySearch = '';
+  }
   currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   render();
@@ -1520,18 +1527,82 @@ function shipmentLineTotals(sh){
   };
 }
 
-function renderShipmentHistoryTab(){
-  if(!isEditorMode){
-    return `<div class="toolbar"><div><h1>${uiT('История отгрузок')}</h1><div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div></div></div>
-    <div class="panel"><div class="empty"><div class="big">Режим просмотра</div>Ma'lumotni ko'rish uchun yuqoridagi «Войти» tugmasi orqali tizimga kiring.</div></div>`;
+function shipmentHistoryInvoiceKey(sh){ return (sh.invoiceNumber||'').trim(); }
+
+function shipmentHistoryFolderData(){
+  const map = new Map();
+  for(const sh of state.shipments){
+    const key = shipmentHistoryInvoiceKey(sh);
+    if(!map.has(key)) map.set(key, []);
+    map.get(key).push(sh);
+  }
+  const folders = [];
+  for(const [key, shipments] of map.entries()){
+    const permitIds = new Set(shipments.map(s=>s.permitId));
+    let totalLines=0, totalQty=0, totalWeight=0, latestDate='';
+    for(const sh of shipments){
+      const sum = shipmentLineTotals(sh);
+      totalLines += Array.isArray(sh.lines) ? sh.lines.length : 0;
+      totalQty += sum.qty;
+      totalWeight += sum.weight;
+      if((sh.invoiceDate||'') > latestDate) latestDate = sh.invoiceDate||'';
+    }
+    folders.push({ key, invoiceNumber: key || '—', shipments, permitCount: permitIds.size, recordCount: shipments.length, totalLines, totalQty, totalWeight, latestDate });
+  }
+  folders.sort((a,b)=>(b.latestDate||'').localeCompare(a.latestDate||''));
+  return folders;
+}
+
+const FOLDER_ICON_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto;color:var(--teal,#2b8a7d)"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path></svg>`;
+
+function renderShipmentHistoryFolders(){
+  const q = shipmentHistorySearch.trim().toLowerCase();
+  let folders = shipmentHistoryFolderData();
+  if(q){
+    folders = folders.filter(f=>{
+      const permitNumbers = f.shipments.map(s=>{ const p=state.permits.find(pp=>pp.id===s.permitId); return p?p.number:''; }).join(' ');
+      const hay = `${f.invoiceNumber} ${permitNumbers}`.toLowerCase();
+      return hay.includes(q);
+    });
   }
 
+  const rows = folders.map(f=>`<tr class="row-clickable" data-open-invoice-folder="${escapeAttr(f.key)}">
+      <td>
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${FOLDER_ICON_SVG}
+          <div>
+            <strong>${escapeHtml(f.invoiceNumber)}</strong>
+            <div class="subtle-note">${f.permitCount} ${escapeHtml(uiT('Разрешение'))} &middot; ${f.recordCount} ${escapeHtml(uiT('записей'))}</div>
+          </div>
+        </div>
+      </td>
+      <td class="num-col">${escapeHtml(f.latestDate||'—')}</td>
+      <td class="num-col">${f.totalLines}</td>
+      <td class="num-col">${fmt(f.totalQty,0)}</td>
+      <td class="num-col">${fmt(f.totalWeight,2)}</td>
+    </tr>`).join('');
+
+  return `
+    <div class="toolbar">
+      <div><h1>${uiT('История отгрузок')}</h1><div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div></div>
+      <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по инвойсу или разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
+    </div>
+    <div class="panel">
+      <div class="panel-body" style="padding:0;">${folders.length ? `<div style="overflow:auto"><table><thead><tr>
+        <th>${uiT('Инвойс')}</th><th>${uiT('Дата')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`
+      : `<div class="empty"><div class="big">${uiT('Записей пока нет')}</div></div>`}</div>
+    </div>
+  `;
+}
+
+function renderShipmentHistoryInvoiceFolder(key){
   const q = shipmentHistorySearch.trim().toLowerCase();
-  let rows = state.shipments.slice();
+  let rows = state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)===key);
   if(q){
     rows = rows.filter(sh=>{
       const permit = state.permits.find(p=>p.id===sh.permitId);
-      const hay = `${sh.invoiceNumber||''} ${permit?permit.number:''}`.toLowerCase();
+      const hay = `${permit?permit.number:''}`.toLowerCase();
       return hay.includes(q);
     });
   }
@@ -1543,7 +1614,6 @@ function renderShipmentHistoryTab(){
     return `<tr>
       <td>${escapeHtml(sh.invoiceDate||'—')}</td>
       <td>${permit ? `<a href="#" data-open-permit-h="${permit.id}">${escapeHtml(permit.number)}</a>` : '—'}</td>
-      <td>${escapeHtml(sh.invoiceNumber||'—')}</td>
       <td class="num-col">${sh.lines.length}</td>
       <td class="num-col">${fmt(sum.qty,0)}</td>
       <td class="num-col">${fmt(sum.weight,2)}</td>
@@ -1556,21 +1626,50 @@ function renderShipmentHistoryTab(){
 
   return `
     <div class="toolbar">
-      <div><h1>${uiT('История отгрузок')}</h1><div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div></div>
-      <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по инвойсу или разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
+      <div>
+        <button class="btn secondary sm" id="shipHistBack" style="margin-bottom:10px;">&larr; ${uiT('Назад к инвойсам')}</button>
+        <h1>${escapeHtml(key || '—')}</h1>
+        <div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div>
+      </div>
+      <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
     </div>
     <div class="panel">
       <div class="panel-body" style="padding:0;">${rows.length ? `<div style="overflow:auto"><table><thead><tr>
-        <th>${uiT('Дата')}</th><th>${uiT('Разрешение')}</th><th>${uiT('Инвойс')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th><th></th>
+        <th>${uiT('Дата')}</th><th>${uiT('Разрешение')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th><th></th>
       </tr></thead><tbody>${body}</tbody></table></div>`
       : `<div class="empty"><div class="big">${uiT('Записей пока нет')}</div></div>`}</div>
     </div>
   `;
 }
 
+function renderShipmentHistoryTab(){
+  if(!isEditorMode){
+    return `<div class="toolbar"><div><h1>${uiT('История отгрузок')}</h1><div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div></div></div>
+    <div class="panel"><div class="empty"><div class="big">Режим просмотра</div>Ma'lumotni ko'rish uchun yuqoridagi «Войти» tugmasi orqali tizimga kiring.</div></div>`;
+  }
+
+  if(shipmentHistoryOpenInvoice !== null){
+    return renderShipmentHistoryInvoiceFolder(shipmentHistoryOpenInvoice);
+  }
+  return renderShipmentHistoryFolders();
+}
+
 function bindShipmentHistoryEvents(){
   const q = document.getElementById('shipHistSearch');
   if(q) q.addEventListener('input', e=>{ shipmentHistorySearch = e.target.value; render(); setTimeout(()=>{ const i=document.getElementById('shipHistSearch'); if(i){ i.focus(); i.selectionStart=i.selectionEnd=i.value.length; } },0); });
+
+  document.querySelectorAll('[data-open-invoice-folder]').forEach(el=>el.addEventListener('click', ()=>{
+    shipmentHistoryOpenInvoice = el.dataset.openInvoiceFolder;
+    shipmentHistorySearch = '';
+    render();
+  }));
+
+  const backBtn = document.getElementById('shipHistBack');
+  if(backBtn) backBtn.addEventListener('click', ()=>{
+    shipmentHistoryOpenInvoice = null;
+    shipmentHistorySearch = '';
+    render();
+  });
 
   document.querySelectorAll('[data-open-permit-h]').forEach(el=>el.addEventListener('click', (e)=>{
     e.preventDefault();
@@ -1591,6 +1690,11 @@ function bindShipmentHistoryEvents(){
         state.shipments = state.shipments.filter(s=>s.id!==el.dataset.delShipmentH);
         await saveShipments();
         if(oldShipment) await addAudit('shipment_delete', 'shipment', oldShipment.id, oldShipment.invoiceNumber||oldShipment.id, oldShipment, null, reason, []);
+        // Agar shu papkada boshqa yozuv qolmagan bo'lsa, ro'yxatga qaytamiz.
+        if(shipmentHistoryOpenInvoice !== null){
+          const stillHas = state.shipments.some(s=>shipmentHistoryInvoiceKey(s)===shipmentHistoryOpenInvoice);
+          if(!stillHas) shipmentHistoryOpenInvoice = null;
+        }
         render();
         toast('Отгрузка удалена');
       }
