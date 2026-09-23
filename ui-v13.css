@@ -3472,6 +3472,17 @@ html.v12-shell-ready .stat-card{
   display:flex;
   flex-direction:column;
   gap:10px;
+  max-height:280px;
+  overflow-y:auto;
+  padding-right:6px;
+}
+
+.v12-material-legend::-webkit-scrollbar{
+  width:6px;
+}
+.v12-material-legend::-webkit-scrollbar-thumb{
+  background:#dbe4f0;
+  border-radius:6px;
 }
 
 .v12-material-row{

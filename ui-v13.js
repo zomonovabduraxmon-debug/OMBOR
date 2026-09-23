@@ -1081,9 +1081,13 @@
       const liveState = v12GetLiveState();
       const permits = Array.isArray(liveState.permits) ? liveState.permits : [];
 
+      // "Boshqa" endi faqat mato tarkibi (material) umuman kiritilmagan
+      // pozitsiyalarni jamlaydi. Mato tarkibi ko'rsatilgan har bir model
+      // — nechta bo'lishidan qat'i nazar — o'z alohida qatorida chiqadi.
       const byMaterial = new Map();
       let totalWeight = 0;
       let totalItems = 0;
+      let otherWeight = 0; // mato tarkibi kiritilmagan pozitsiyalar
 
       permits.forEach(p=>{
         (p.items || []).forEach(it=>{
@@ -1091,25 +1095,23 @@
           totalWeight += weight;
           totalItems += 1;
           const key = (it.material || '').trim();
-          const label = key || 'Boshqa';
-          byMaterial.set(label, (byMaterial.get(label) || 0) + weight);
+          if(!key){
+            otherWeight += weight;
+            return;
+          }
+          byMaterial.set(key, (byMaterial.get(key) || 0) + weight);
         });
       });
 
       const entries = Array.from(byMaterial.entries()).map(([label,weight])=>({label,weight}));
       entries.sort((a,b)=>b.weight-a.weight);
 
-      const TOP_N = 4;
-      const top = entries.filter(e=>e.label !== 'Boshqa').slice(0, TOP_N);
-      const topLabels = new Set(top.map(e=>e.label));
-      const otherWeight = entries.reduce((sum,e)=> topLabels.has(e.label) ? sum : sum + e.weight, 0);
-
       const palette = v12MaterialPalette();
       const segments = [];
-      if(otherWeight > 0 || top.length === 0){
+      if(otherWeight > 0 || entries.length === 0){
         segments.push({label:'Boshqa', weight:otherWeight, color:palette[0]});
       }
-      top.forEach((e,i)=>{
+      entries.forEach((e,i)=>{
         segments.push({label:e.label, weight:e.weight, color:palette[(i+1) % palette.length]});
       });
 
