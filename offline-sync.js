@@ -387,13 +387,19 @@
         }, true);
       }else if(entityType === 'comment'){
         // Izohlar ham audit kabi to'g'ridan-to'g'ri jadvalga yoziladi (sync_records
-        // RPC orqali EMAS) — shu sababli "faqat editorlar yoza oladi" cheklovi
-        // izohlarga taalluqli emas: tizimga kirgan har qanday foydalanuvchi
-        // izoh qoldira oladi (Supabase RLS: comments_insert_authenticated).
+        // RPC orqali EMAS). Yangi izoh qo'shish (INSERT): tizimga kirgan har
+        // qanday foydalanuvchi qoldira oladi (Supabase RLS: comments_insert_authenticated).
+        // Mavjud izohni tahrirlash/o'chirish esa upsert ichida UPDATE shoxobchasi
+        // orqali amalga oshadi va faqat "editors" jadvalidagilarga ruxsat
+        // etilgan (Supabase RLS: comments_update_editors — COMMENTS-EDIT-DELETE.sql).
+        // O'chirish "soft delete": deleted_at ustuniga vaqt yoziladi, qator
+        // jadvaldan olib tashlanmaydi (boshqa qurilmalarga tombstone sifatida
+        // tarqalishi uchun).
         const commentPayload = batch.map(r=>({
           id:r.id, entity_type:r.data?.entityType||null, entity_id:r.data?.entityId||null,
           author_id:r.data?.authorId||null, author_email:r.data?.authorEmail||null,
-          text:r.data?.text||'', created_at:r.data?.createdAt||r.updated_at
+          text:r.data?.text||'', created_at:r.data?.createdAt||r.updated_at,
+          updated_at:r.data?.updatedAt||r.updated_at, deleted_at:r.deleted_at||null
         }));
         res = await apiFetch('/rest/v1/comments?on_conflict=id', {
           method:'POST',
@@ -422,7 +428,7 @@
     const select = entityType === 'audit'
       ? 'id,actor_id,actor_email,action,entity_type,entity_id,entity_label,old_data,new_data,reason,changes,created_at'
       : entityType === 'comment'
-      ? 'id,entity_type,entity_id,author_id,author_email,text,created_at'
+      ? 'id,entity_type,entity_id,author_id,author_email,text,created_at,updated_at,deleted_at'
       : 'id,data,updated_at,deleted_at';
     const res = await apiFetch(`/rest/v1/${table}?select=${select}`, { method:'GET' }, useUserToken);
     if(!res.ok){
@@ -437,8 +443,8 @@
     }));
     if(entityType === 'comment') return (rows || []).map(r=>({
       id:r.id, entity_type:'comment',
-      data:{ id:r.id, entityType:r.entity_type, entityId:r.entity_id, authorId:r.author_id, authorEmail:r.author_email, text:r.text||'', createdAt:r.created_at },
-      updated_at:r.created_at, deleted_at:null, dirty:false
+      data:{ id:r.id, entityType:r.entity_type, entityId:r.entity_id, authorId:r.author_id, authorEmail:r.author_email, text:r.text||'', createdAt:r.created_at, updatedAt:r.updated_at||null },
+      updated_at:r.updated_at||r.created_at, deleted_at:r.deleted_at||null, dirty:false
     }));
     return (rows || []).map(r=>({ ...r, entity_type:entityType, dirty:false }));
   }

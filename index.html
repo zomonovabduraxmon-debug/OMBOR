@@ -574,21 +574,60 @@ async function addComment(entityType, entityId, text){
   const comment = {
     id: uid('comment'), entityType, entityId, text: String(text).trim(),
     authorId: info.userId || null, authorEmail: info.email || '',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(), updatedAt: null
   };
   state.comments = Array.isArray(state.comments) ? state.comments : [];
   state.comments.push(comment);
   await OfflineSync.saveCollection('comment', state.comments);
 }
 
+/* Izohni tahrirlash va o'chirish — FAQAT editor (isEditorMode) uchun.
+   Frontendda tugmalar shu shart bilan yashirilgan, orqa tomonda esa
+   Supabase RLS ("comments_update_editors" siyosati, COMMENTS-EDIT-DELETE.sql)
+   ham buni majburlaydi, shuning uchun izoh muallifi o'zgacha bo'lsa ham
+   faqat editor tahrirlay/o'chira oladi. */
+async function updateComment(commentId, newText, reason){
+  if(!isEditorMode) throw new Error('EDITOR_REQUIRED');
+  const c = (state.comments||[]).find(x=>x.id===commentId);
+  if(!c) throw new Error('COMMENT_NOT_FOUND');
+  const oldText = c.text;
+  const trimmed = String(newText).trim();
+  if(trimmed === oldText) return; // hech narsa o'zgarmagan
+  c.text = trimmed;
+  c.updatedAt = new Date().toISOString();
+  await OfflineSync.saveCollection('comment', state.comments);
+  await addAudit('comment_edit', 'comment', commentId, oldText.slice(0,60), {text:oldText}, {text:trimmed}, reason || '',
+    [{field:'text', label: uiT('Izoh matni'), oldValue: oldText, newValue: trimmed}]);
+}
+
+async function deleteComment(commentId, reason){
+  if(!isEditorMode) throw new Error('EDITOR_REQUIRED');
+  const c = (state.comments||[]).find(x=>x.id===commentId);
+  if(!c) return;
+  state.comments = (state.comments||[]).filter(x=>x.id!==commentId);
+  await OfflineSync.saveCollection('comment', state.comments);
+  await addAudit('comment_delete', 'comment', commentId, c.text.slice(0,60), c, null, reason || '', []);
+}
+
 function openCommentsModal(entityType, entityId, title){
   const list = commentsFor(entityType, entityId);
-  const itemsHtml = list.length ? list.map(c=>`
-    <div class="comment-item" style="padding:8px 0;border-bottom:1px solid var(--border,#e5e5e5);">
-      <div class="subtle-note"><strong>${escapeHtml(c.authorEmail||'—')}</strong> · ${escapeHtml((c.createdAt||'').replace('T',' ').slice(0,16))}</div>
-      <div>${escapeHtml(c.text)}</div>
+  const itemsHtml = list.length ? list.map(c=>{
+    const edited = c.updatedAt ? ` · <em>${uiT('tahrirlangan')} ${escapeHtml(String(c.updatedAt).replace('T',' ').slice(0,16))}</em>` : '';
+    const actions = isEditorMode ? `
+      <span style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="btn secondary sm" data-edit-comment="${c.id}" title="${escapeAttr(uiT('Tahrirlash'))}">✎</button>
+        <button class="btn danger sm" data-del-comment="${c.id}" title="${escapeAttr(uiT('O\'chirish'))}">🗑</button>
+      </span>` : '';
+    return `
+    <div class="comment-item" data-comment-item="${c.id}" style="padding:8px 0;border-bottom:1px solid var(--border,#e5e5e5);">
+      <div class="subtle-note" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <span><strong>${escapeHtml(c.authorEmail||'—')}</strong> · ${escapeHtml((c.createdAt||'').replace('T',' ').slice(0,16))}${edited}</span>
+        ${actions}
+      </div>
+      <div data-comment-text="${c.id}">${escapeHtml(c.text)}</div>
     </div>
-  `).join('') : `<div class="subtle-note">${uiT('Izohlar hali yo\'q')}</div>`;
+  `;
+  }).join('') : `<div class="subtle-note">${uiT('Izohlar hali yo\'q')}</div>`;
 
   showModal(`
     <div class="modal-head"><h2>${uiT('Izohlar')} — ${escapeHtml(title||'')}</h2><button class="close-x" data-close>&times;</button></div>
@@ -624,6 +663,72 @@ function openCommentsModal(entityType, entityId, title){
       btn.textContent = uiT('Yuborish');
     }
   });
+
+  if(isEditorMode){
+    document.querySelectorAll('[data-edit-comment]').forEach(el=>el.addEventListener('click', ()=>{
+      const id = el.dataset.editComment;
+      const c = list.find(x=>x.id===id);
+      const box = document.querySelector(`[data-comment-text="${id}"]`);
+      if(!c || !box) return;
+      box.innerHTML = `
+        <textarea id="editCommentText_${id}" rows="3" style="width:100%;">${escapeHtml(c.text)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button class="btn sm" data-save-comment="${id}">${uiT('Saqlash')}</button>
+          <button class="btn secondary sm" data-cancel-comment="${id}">${uiT('Bekor qilish')}</button>
+        </div>`;
+      box.querySelector(`[data-save-comment="${id}"]`).addEventListener('click', async ()=>{
+        const ta = document.getElementById('editCommentText_'+id);
+        const newText = (ta && ta.value || '').trim();
+        if(!newText){ toast(uiT('Izoh matnini kiriting')); return; }
+        if(newText === c.text){ openCommentsModal(entityType, entityId, title); return; }
+        showReasonPrompt({
+          title: uiT('Izohni tahrirlash'),
+          message: uiT('Izoh matnini o\'zgartirish sababini kiriting.'),
+          confirmLabel: uiT('Saqlash'),
+          placeholder: uiT('Sababini yozing...'),
+          changes: [{field:'text', label: uiT('Izoh matni'), oldValue: c.text, newValue: newText}],
+          onConfirm: async (reason)=>{
+            try{
+              await updateComment(id, newText, reason);
+              closeModal();
+              openCommentsModal(entityType, entityId, title);
+              render();
+              toast(uiT('Izoh tahrirlandi'));
+            }catch(e){
+              console.error(e);
+              toast(uiT('Izohni saqlab bo\'lmadi'));
+            }
+          }
+        });
+      });
+      box.querySelector(`[data-cancel-comment="${id}"]`).addEventListener('click', ()=>{
+        openCommentsModal(entityType, entityId, title);
+      });
+    }));
+
+    document.querySelectorAll('[data-del-comment]').forEach(el=>el.addEventListener('click', ()=>{
+      const id = el.dataset.delComment;
+      showReasonPrompt({
+        title: uiT('Izohni o\'chirish?'),
+        message: uiT('Bu izoh butunlay o\'chiriladi. Bu amalni bekor qilib bo\'lmaydi.'),
+        danger: true,
+        confirmLabel: uiT('O\'chirish'),
+        placeholder: uiT('O\'chirish sababini yozing...'),
+        onConfirm: async (reason)=>{
+          try{
+            await deleteComment(id, reason);
+            closeModal();
+            openCommentsModal(entityType, entityId, title);
+            render();
+            toast(uiT('Izoh o\'chirildi'));
+          }catch(e){
+            console.error(e);
+            toast(uiT('Izohni o\'chirib bo\'lmadi'));
+          }
+        }
+      });
+    }));
+  }
 }
 
 /* ============================= CHANGE-REASON / FIELD DIFF HELPERS ============================= */
@@ -873,6 +978,24 @@ function itemUsage(permitId, itemId, excludeShipmentId){
   return { qty, weight };
 }
 
+/* Shu pozitsiya (ruxsatnoma+model) bo'yicha har bir yuklamadan qancha
+   dona/kg sarflanganini alohida-alohida qaytaradi (jamlanmagan holda). */
+function itemUsageBreakdown(permitId, itemId){
+  const rows = [];
+  for(const sh of state.shipments){
+    if(sh.permitId !== permitId) continue;
+    let qty = 0, weight = 0;
+    for(const ln of (Array.isArray(sh.lines)?sh.lines:[])){
+      if(ln.itemId === itemId){
+        qty += Math.max(0, Number(ln.qty)||0);
+        weight += Math.max(0, Number(ln.weight)||0);
+      }
+    }
+    if(qty > 0 || weight > 0) rows.push({ shipment: sh, qty, weight });
+  }
+  return rows.sort((a,b)=>String(a.shipment.invoiceDate||'').localeCompare(String(b.shipment.invoiceDate||'')));
+}
+
 function itemStatus(item, used){
   const allowedQty = Math.max(0, Number(item.qty)||0);
   const allowedWeight = Math.max(0, Number(item.weight)||0);
@@ -1025,7 +1148,7 @@ function renderDashboard(){
       : st.level==='warn' ? '<span class="badge warn">мало осталось</span>'
       : '<span class="badge ok">в норме</span>';
     const recentBadge = isRecentRow(r) ? ' <span class="badge new-24h" title="So\'nggi 24 soatda shu holatga o\'tdi">🆕 24 soat</span>' : '';
-    return `<tr${isRecentRow(r) ? ' class="row-recent-24h"' : ''}>
+    return `<tr class="row-clickable${isRecentRow(r) ? ' row-recent-24h' : ''}" data-open-position="${permit.id}::${item.id}" tabindex="0" role="button" title="${escapeAttr(uiT('Нажмите — посмотреть, из каких отгрузок расходовалась эта модель'))}">
       <td>${escapeHtml(permit.number)}<div class="subtle-note">${escapeHtml(permit.date||'')}</div></td>
       <td>${escapeHtml(item.name)}</td>
       <td>${item.material ? `<span class="material-badge">${escapeHtml(item.material)}</span>` : '—'}</td>
@@ -1173,6 +1296,15 @@ function bindTabEvents(){
     }
     const clearFilterBtn = document.getElementById('clearDashboardFilter');
     if(clearFilterBtn) clearFilterBtn.addEventListener('click', ()=>{ dashboardFilter = 'all'; render(); document.dispatchEvent(new CustomEvent('ombor:dashboardfilterchange')); });
+
+    document.querySelectorAll('[data-open-position]').forEach(el=>{
+      const openIt = ()=>{
+        const [permitId, itemId] = String(el.dataset.openPosition).split('::');
+        openPositionUsageModal(permitId, itemId);
+      };
+      el.addEventListener('click', openIt);
+      el.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openIt(); } });
+    });
   }
   if(currentTab==='permits'){
     const newBtn = document.getElementById('btnNewPermit');
@@ -1206,6 +1338,58 @@ function bindTabEvents(){
     if(q) q.addEventListener('input', e=>{ auditSearch=e.target.value; render(); });
     document.querySelectorAll('[data-open-audit]').forEach(el=>el.addEventListener('click', ()=>openAuditDetailModal(el.dataset.openAudit)));
   }
+}
+
+/* ============================= POZITSIYA BO'YICHA YUKLAMALAR (modal) =============================
+   Qoldiqlar (dashboard) jadvalidagi bitta qatorga (ruxsatnoma + model) bosilganda
+   ochiladi: shu aniq model qaysi yuklamalar orqali qancha dona/kg sarflangani
+   — boshqa modellarni aralashtirmasdan, faqat shu pozitsiya bo'yicha. */
+function openPositionUsageModal(permitId, itemId){
+  const permit = state.permits.find(p=>p.id===permitId);
+  if(!permit) return;
+  const item = (permit.items||[]).find(i=>i.id===itemId);
+  if(!item) return;
+
+  const used = itemUsage(permitId, itemId);
+  const st = itemStatus(item, used);
+  const breakdown = itemUsageBreakdown(permitId, itemId);
+
+  const rowsHtml = breakdown.length ? breakdown.map(r=>`
+    <tr>
+      <td><strong>${escapeHtml(r.shipment.invoiceNumber||'—')}</strong></td>
+      <td>${escapeHtml(r.shipment.invoiceDate||'—')}</td>
+      <td class="num-col">${fmt(r.qty,0)} ${escapeHtml(item.unit||'')}</td>
+      <td class="num-col">${fmt(r.weight,2)} ${uiT('кг')}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="4"><div class="subtle-note">${uiT('По этой модели пока нет отгрузок')}</div></td></tr>`;
+
+  showModal(`
+    <div class="modal-head">
+      <h2>${escapeHtml(item.name)}</h2>
+      <button class="close-x" data-close>&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="subtle-note" style="margin-bottom:14px;">
+        ${escapeHtml(permit.number)} (${escapeHtml(permit.date||'—')})
+        &middot; ${uiT('Разрешено')}: ${fmt(item.qty,0)} ${escapeHtml(item.unit||'')} / ${fmt(item.weight,2)} ${uiT('кг')}
+        &middot; ${uiT('Отгружено')}: ${fmt(used.qty,0)} ${escapeHtml(item.unit||'')} / ${fmt(used.weight,2)} ${uiT('кг')}
+        &middot; ${uiT('Остаток')}: ${fmt(st.remQty,0)} ${escapeHtml(item.unit||'')} / ${fmt(st.remWeight,2)} ${uiT('кг')}
+      </div>
+      <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 8px 0;">${uiT('Разбивка по отгрузкам')}</h3>
+      <table>
+        <thead><tr><th>${uiT('Инвойс')}</th><th>${uiT('Дата')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot><tr>
+          <td colspan="2" class="table-total-label">${uiT('Итого')}</td>
+          <td class="num-col">${fmt(used.qty,0)} ${escapeHtml(item.unit||'')}</td>
+          <td class="num-col">${fmt(used.weight,2)} ${uiT('кг')}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="modal-foot">
+      <button class="btn secondary" data-close>${uiT('Закрыть')}</button>
+    </div>
+  `);
 }
 
 /* ============================= PERMIT DETAIL VIEW (modal) ============================= */

@@ -281,7 +281,11 @@
     'и поиску':{ru:'и поиску',en:'and search',uz:'va qidiruvga',tr:'ve aramaya'},
     'Сортировка':{ru:'Сортировка',en:'Sorting',uz:'Saralash',tr:'Sıralama'},
     'шт':{ru:'шт',en:'pcs',uz:'dona',tr:'adet'},
-    'кг':{ru:'кг',en:'kg',uz:'kg',tr:'kg'}
+    'кг':{ru:'кг',en:'kg',uz:'kg',tr:'kg'},
+    'Итого':{ru:'Итого',en:'Total',uz:'Jami',tr:'Toplam'},
+    'Разбивка по отгрузкам':{ru:'Разбивка по отгрузкам',en:'Breakdown by shipments',uz:'Yuklamalar bo‘yicha taqsimot',tr:'Sevkiyatlara göre dağılım'},
+    'По этой модели пока нет отгрузок':{ru:'По этой модели пока нет отгрузок',en:'No shipments yet for this model',uz:'Ushbu model bo‘yicha hali yuklama qilinmagan',tr:'Bu model için henüz sevkiyat yok'},
+    'Нажмите — посмотреть, из каких отгрузок расходовалась эта модель':{ru:'Нажмите — посмотреть, из каких отгрузок расходовалась эта модель',en:'Click to see which shipments used this model',uz:'Bosing — bu model qaysi yuklamalardan sarflanganini ko‘rish',tr:'Bu modelin hangi sevkiyatlardan kullanıldığını görmek için tıklayın'}
   };
 
   const reverseText = new Map();
