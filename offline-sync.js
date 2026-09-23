@@ -255,6 +255,37 @@
     return session;
   }
 
+  // O'z-o'zidan ro'yxatdan o'tish. Taklif kodi (invite code) config.js'da
+  // saqlanadi va faqat brauzer tomonida solishtiriladi — bu server-side
+  // himoya EMAS (texnik bilimli odam kodni ko'rishi mumkin), balki
+  // tasodifiy/bilmasdan ro'yxatdan o'tishni to'xtatadigan oddiy filtr.
+  async function signup(email, password, inviteCode){
+    if(!configured()) throw new Error('Supabase ещё не настроен');
+    if(!navigator.onLine) throw new Error('Ro\'yxatdan o\'tish uchun internet kerak');
+    const expected = String(config().editorInviteCode || '');
+    if(!expected) throw new Error('Taklif kodi sozlanmagan (config.js)');
+    if(String(inviteCode||'').trim() !== expected) throw new Error('Taklif kodi noto\'g\'ri');
+
+    const res = await fetch(baseUrl() + '/auth/v1/signup', {
+      method:'POST',
+      headers:{ 'apikey':anonKey(), 'Content-Type':'application/json' },
+      body:JSON.stringify({ email, password }),
+    });
+    const body = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(body.msg || body.error_description || body.message || 'Ro\'yxatdan o\'tib bo\'lmadi');
+
+    if(body.access_token){
+      // Supabase loyihasida email tasdiqlash o'chirilgan — session darhol keladi.
+      const session = await saveSession(body);
+      emitStatus('pending','ro\'yxatdan o\'tildi · sinxronizatsiya…');
+      await syncNow(true);
+      return { session, needsEmailConfirm:false };
+    }
+    // Email tasdiqlash yoqilgan bo'lsa, session qaytmaydi — foydalanuvchi
+    // emailidagi havolani bosishi kerak.
+    return { session:null, needsEmailConfirm:true };
+  }
+
   async function logout(){
     const session = await getSession(false);
     if(session && session.access_token && configured() && navigator.onLine){
@@ -503,6 +534,7 @@
     hasAnyRecords,
     configured,
     login,
+    signup,
     logout,
     authInfo,
     onStatus(fn){ root.addEventListener(STATUS_EVENT, e=>fn(e.detail)); },

@@ -2281,33 +2281,88 @@ async function openAuthModal(){
   }
 
   showModal(`
-    <div class="modal-head"><h2>Вход для редактирования</h2><button class="close-x" data-close>&times;</button></div>
-    <div class="modal-body">
+    <div class="modal-head"><h2 id="authModalTitle">Вход для редактирования</h2><button class="close-x" data-close>&times;</button></div>
+    <div class="modal-body" id="authModalBody"></div>
+    <div class="modal-foot" id="authModalFoot"></div>
+  `);
+
+  function renderLoginForm(){
+    document.getElementById('authModalTitle').textContent = 'Вход для редактирования';
+    document.getElementById('authModalBody').innerHTML = `
       <div class="field"><label>Email</label><input type="email" id="authEmail" autocomplete="username" placeholder="name@company.uz"></div>
       <div class="field"><label>Пароль</label><input type="password" id="authPassword" autocomplete="current-password" placeholder="Пароль"></div>
       <div class="subtle-note">Просматривать данные можно без входа. Вход нужен, чтобы локальные изменения попали в общую базу.</div>
-    </div>
-    <div class="modal-foot"><button class="btn secondary" data-close>Отмена</button><button class="btn" id="btnLogin">Войти</button></div>
-  `);
-  document.getElementById('btnLogin').addEventListener('click', async ()=>{
-    const email = document.getElementById('authEmail').value.trim();
-    const password = document.getElementById('authPassword').value;
-    if(!email || !password){ toast('Введите email и пароль'); return; }
-    const btn = document.getElementById('btnLogin');
-    btn.disabled = true;
-    btn.textContent = 'Вход…';
-    try{
-      await OfflineSync.login(email,password);
-      closeModal();
-      await refreshAuthButton();
-      toast('Вход выполнен, синхронизация запущена');
-    }catch(err){
-      console.error(err);
-      btn.disabled = false;
-      btn.textContent = 'Войти';
-      toast(err.message || 'Не удалось войти');
-    }
-  });
+      <div class="subtle-note" style="margin-top:10px;">Нет аккаунта? <a href="#" id="switchToSignup">Ro'yxatdan o'tish</a></div>
+    `;
+    document.getElementById('authModalFoot').innerHTML = `
+      <button class="btn secondary" id="authCancelBtn">Отмена</button><button class="btn" id="btnLogin">Войти</button>
+    `;
+    document.getElementById('authCancelBtn').addEventListener('click', closeModal);
+    document.getElementById('switchToSignup').addEventListener('click', (e)=>{ e.preventDefault(); renderSignupForm(); });
+    document.getElementById('btnLogin').addEventListener('click', async ()=>{
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      if(!email || !password){ toast('Введите email и пароль'); return; }
+      const btn = document.getElementById('btnLogin');
+      btn.disabled = true;
+      btn.textContent = 'Вход…';
+      try{
+        await OfflineSync.login(email,password);
+        closeModal();
+        await refreshAuthButton();
+        toast('Вход выполнен, синхронизация запущена');
+      }catch(err){
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = 'Войти';
+        toast(err.message || 'Не удалось войти');
+      }
+    });
+  }
+
+  function renderSignupForm(){
+    document.getElementById('authModalTitle').textContent = "Ro'yxatdan o'tish";
+    document.getElementById('authModalBody').innerHTML = `
+      <div class="field"><label>Email</label><input type="email" id="signupEmail" autocomplete="username" placeholder="name@company.uz"></div>
+      <div class="field"><label>Parol</label><input type="password" id="signupPassword" autocomplete="new-password" placeholder="Kamida 6 belgi"></div>
+      <div class="field"><label>Taklif kodi</label><input type="text" id="signupCode" placeholder="Sizga aytilgan kod"></div>
+      <div class="subtle-note">Taklif kodini administratordan so'rang.</div>
+      <div class="subtle-note" style="margin-top:10px;">Hisobingiz bor? <a href="#" id="switchToLogin">Kirish</a></div>
+    `;
+    document.getElementById('authModalFoot').innerHTML = `
+      <button class="btn secondary" id="authCancelBtn">Отмена</button><button class="btn" id="btnSignup">Ro'yxatdan o'tish</button>
+    `;
+    document.getElementById('authCancelBtn').addEventListener('click', closeModal);
+    document.getElementById('switchToLogin').addEventListener('click', (e)=>{ e.preventDefault(); renderLoginForm(); });
+    document.getElementById('btnSignup').addEventListener('click', async ()=>{
+      const email = document.getElementById('signupEmail').value.trim();
+      const password = document.getElementById('signupPassword').value;
+      const code = document.getElementById('signupCode').value;
+      if(!email || !password){ toast('Email va parolni kiriting'); return; }
+      if(password.length < 6){ toast('Parol kamida 6 belgidan iborat bo\'lishi kerak'); return; }
+      const btn = document.getElementById('btnSignup');
+      btn.disabled = true;
+      btn.textContent = 'Yaratilmoqda…';
+      try{
+        const result = await OfflineSync.signup(email, password, code);
+        if(result.needsEmailConfirm){
+          closeModal();
+          toast("Hisob yaratildi. Emailingizga kelgan havolani bosib tasdiqlang, so'ng kiring.");
+        }else{
+          closeModal();
+          await refreshAuthButton();
+          toast('Xush kelibsiz! Hisob yaratildi va kirish amalga oshirildi.');
+        }
+      }catch(err){
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = "Ro'yxatdan o'tish";
+        toast(err.message || "Ro'yxatdan o'tib bo'lmadi");
+      }
+    });
+  }
+
+  renderLoginForm();
 }
 
 function bindAuthButton(){
