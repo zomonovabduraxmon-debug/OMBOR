@@ -7,7 +7,7 @@
   const META = 'meta';
   const LEGACY_PERMITS = 'ur_permits_v1';
   const LEGACY_SHIPMENTS = 'ur_shipments_v1';
-  const TABLES = { permit:'permits', shipment:'shipments', audit:'audit_logs' };
+  const TABLES = { permit:'permits', shipment:'shipments', audit:'audit_logs', comment:'comments' };
   const STATUS_EVENT = 'permit-sync-status';
   const DATA_EVENT = 'permit-sync-data';
   let syncPromise = null;
@@ -169,6 +169,7 @@
       permits: root.SyncCore.recordsToCollection(records,'permit'),
       shipments: root.SyncCore.recordsToCollection(records,'shipment'),
       audits: root.SyncCore.recordsToCollection(records,'audit'),
+      comments: root.SyncCore.recordsToCollection(records,'comment'),
     };
   }
 
@@ -309,6 +310,27 @@
     };
   }
 
+  // Foydalanuvchi ro'yxatdan o'tgan/kirgan bo'lishi mumkin, lekin bu unga
+  // ma'lumotlarni o'zgartirish huquqini bermaydi. Tahrirlash huquqi faqat
+  // admin "editors" jadvaliga qo'lda qo'shgan userlarga beriladi.
+  // Bu funksiya shu jadvalda joriy foydalanuvchi bor-yo'qligini tekshiradi.
+  async function isEditor(){
+    const session = await getSession(true);
+    if(!session || !session.access_token || !session.user) return false;
+    try{
+      const res = await apiFetch(
+        `/rest/v1/editors?select=user_id&user_id=eq.${encodeURIComponent(session.user.id)}`,
+        { method:'GET' },
+        true
+      );
+      if(!res.ok) return false;
+      const rows = await res.json().catch(()=>[]);
+      return Array.isArray(rows) && rows.length > 0;
+    }catch(_){
+      return false;
+    }
+  }
+
   async function apiFetch(path, options, useUserToken){
     const headers = { 'apikey':anonKey(), ...(options && options.headers || {}) };
     if(useUserToken){
@@ -345,7 +367,7 @@
     if(!dirty.length) return { pushed:0, authRequired:false };
 
     let pushed = 0;
-    for(const entityType of ['permit','shipment','audit']){
+    for(const entityType of ['permit','shipment','audit','comment']){
       const batch = dirty.filter(r=>r.entity_type===entityType);
       if(!batch.length) continue;
       const payload = batch.map(r=>({ id:r.id, data:r.data, updated_at:r.updated_at, deleted_at:r.deleted_at }));
@@ -362,6 +384,21 @@
           method:'POST',
           headers:{ 'Content-Type':'application/json', 'Prefer':'resolution=merge-duplicates,return=minimal' },
           body:JSON.stringify(auditPayload),
+        }, true);
+      }else if(entityType === 'comment'){
+        // Izohlar ham audit kabi to'g'ridan-to'g'ri jadvalga yoziladi (sync_records
+        // RPC orqali EMAS) — shu sababli "faqat editorlar yoza oladi" cheklovi
+        // izohlarga taalluqli emas: tizimga kirgan har qanday foydalanuvchi
+        // izoh qoldira oladi (Supabase RLS: comments_insert_authenticated).
+        const commentPayload = batch.map(r=>({
+          id:r.id, entity_type:r.data?.entityType||null, entity_id:r.data?.entityId||null,
+          author_id:r.data?.authorId||null, author_email:r.data?.authorEmail||null,
+          text:r.data?.text||'', created_at:r.data?.createdAt||r.updated_at
+        }));
+        res = await apiFetch('/rest/v1/comments?on_conflict=id', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Prefer':'resolution=merge-duplicates,return=minimal' },
+          body:JSON.stringify(commentPayload),
         }, true);
       }else{
         res = await apiFetch('/rest/v1/rpc/sync_records', {
@@ -384,6 +421,8 @@
     const table = TABLES[entityType];
     const select = entityType === 'audit'
       ? 'id,actor_id,actor_email,action,entity_type,entity_id,entity_label,old_data,new_data,reason,changes,created_at'
+      : entityType === 'comment'
+      ? 'id,entity_type,entity_id,author_id,author_email,text,created_at'
       : 'id,data,updated_at,deleted_at';
     const res = await apiFetch(`/rest/v1/${table}?select=${select}`, { method:'GET' }, useUserToken);
     if(!res.ok){
@@ -396,18 +435,23 @@
       data:{ id:r.id, actorId:r.actor_id, actorEmail:r.actor_email, action:r.action, entityType:r.entity_type, entityId:r.entity_id, entityLabel:r.entity_label, oldData:r.old_data, newData:r.new_data, reason:r.reason||'', changes:Array.isArray(r.changes)?r.changes:[], createdAt:r.created_at },
       updated_at:r.created_at, deleted_at:null, dirty:false
     }));
+    if(entityType === 'comment') return (rows || []).map(r=>({
+      id:r.id, entity_type:'comment',
+      data:{ id:r.id, entityType:r.entity_type, entityId:r.entity_id, authorId:r.author_id, authorEmail:r.author_email, text:r.text||'', createdAt:r.created_at },
+      updated_at:r.created_at, deleted_at:null, dirty:false
+    }));
     return (rows || []).map(r=>({ ...r, entity_type:entityType, dirty:false }));
   }
 
 
   async function fetchRemoteRecords(){
-    const [permits, shipments] = await Promise.all([fetchTable('permit'), fetchTable('shipment')]);
+    const [permits, shipments, comments] = await Promise.all([fetchTable('permit'), fetchTable('shipment'), fetchTable('comment')]);
     let audits = [];
     const session = await getSession(true);
     if(session && session.access_token){
       try{ audits = await fetchTable('audit', true); }catch(_){ audits = []; }
     }
-    return permits.concat(shipments, audits);
+    return permits.concat(shipments, comments, audits);
   }
 
   async function pullRemote(){
@@ -537,6 +581,7 @@
     signup,
     logout,
     authInfo,
+    isEditor,
     onStatus(fn){ root.addEventListener(STATUS_EVENT, e=>fn(e.detail)); },
     onData(fn){ root.addEventListener(DATA_EVENT, fn); },
   };

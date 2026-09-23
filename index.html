@@ -449,9 +449,10 @@
 
 <script>
 /* ============================= STATE & STORAGE ============================= */
-let state = { permits: [], shipments: [], audits: [] };
+let state = { permits: [], shipments: [], audits: [], comments: [] };
 let currentTab = 'dashboard';
-let isEditorMode = false;
+let isEditorMode = false; // haqiqiy tahrirlash huquqi (faqat "editors" jadvalidagilar)
+let isLoggedIn = false;   // tizimga kirgan — hammasini ko'ra oladi, lekin o'zgartira olmaydi
 let dashboardSearch = '';
 let dashboardFilter = 'all';
 let dashboardSort = 'remaining-desc';
@@ -505,7 +506,7 @@ async function loadState(){
     }
   }catch(e){
     console.error(e);
-    state = { permits:[], shipments:[], audits:[] };
+    state = { permits:[], shipments:[], audits:[], comments:[] };
     setSyncPill('error','ошибка локального хранилища');
   }
 }
@@ -552,6 +553,77 @@ async function addAudit(action, entityType, entityId, entityLabel, oldData, newD
     state.audits.push(audit);
     await OfflineSync.saveCollection('audit', state.audits);
   }catch(e){ console.error('AUDIT_LOG_FAILED', e); }
+}
+
+/* ============================= COMMENTS (ruxsatnoma / yuklama izohlari) =============================
+   Izohlar tahrirlash huquqidan (isEditorMode) MUSTAQIL: tizimga kirgan har
+   qanday foydalanuvchi (editor bo'lmasa ham) izoh qoldira oladi. Bu comments
+   jadvaliga to'g'ridan-to'g'ri yoziladi (audit_logs kabi), permits/shipments
+   yozish cheklovi (faqat editorlar) unga taalluqli emas. */
+
+function commentsFor(entityType, entityId){
+  return (Array.isArray(state.comments) ? state.comments : [])
+    .filter(c=>c.entityType===entityType && c.entityId===entityId)
+    .sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+}
+
+async function addComment(entityType, entityId, text){
+  if(!window.OfflineSync) throw new Error('OFFLINE_SYNC_MISSING');
+  const info = await OfflineSync.authInfo();
+  if(!info.loggedIn) throw new Error('AUTH_REQUIRED');
+  const comment = {
+    id: uid('comment'), entityType, entityId, text: String(text).trim(),
+    authorId: info.userId || null, authorEmail: info.email || '',
+    createdAt: new Date().toISOString()
+  };
+  state.comments = Array.isArray(state.comments) ? state.comments : [];
+  state.comments.push(comment);
+  await OfflineSync.saveCollection('comment', state.comments);
+}
+
+function openCommentsModal(entityType, entityId, title){
+  const list = commentsFor(entityType, entityId);
+  const itemsHtml = list.length ? list.map(c=>`
+    <div class="comment-item" style="padding:8px 0;border-bottom:1px solid var(--border,#e5e5e5);">
+      <div class="subtle-note"><strong>${escapeHtml(c.authorEmail||'—')}</strong> · ${escapeHtml((c.createdAt||'').replace('T',' ').slice(0,16))}</div>
+      <div>${escapeHtml(c.text)}</div>
+    </div>
+  `).join('') : `<div class="subtle-note">${uiT('Izohlar hali yo\'q')}</div>`;
+
+  showModal(`
+    <div class="modal-head"><h2>${uiT('Izohlar')} — ${escapeHtml(title||'')}</h2><button class="close-x" data-close>&times;</button></div>
+    <div class="modal-body">
+      <div id="commentsListBox" style="max-height:40vh;overflow:auto;margin-bottom:14px;">${itemsHtml}</div>
+      ${isLoggedIn
+        ? `<div class="field"><label>${uiT('Yangi izoh')}</label><textarea id="newCommentText" rows="3" placeholder="${escapeAttr(uiT('Izoh yozing...'))}"></textarea></div>`
+        : `<div class="subtle-note">${uiT('Izoh yozish uchun tizimga kiring (istalgan hisob bilan — tahrirlash huquqi shart emas).')}</div>`}
+    </div>
+    <div class="modal-foot">
+      <button class="btn secondary" data-close>${uiT('Yopish')}</button>
+      ${isLoggedIn ? `<button class="btn" id="btnAddComment">${uiT('Yuborish')}</button>` : ''}
+    </div>
+  `);
+
+  const btn = document.getElementById('btnAddComment');
+  if(btn) btn.addEventListener('click', async ()=>{
+    const ta = document.getElementById('newCommentText');
+    const text = (ta && ta.value || '').trim();
+    if(!text){ toast(uiT('Izoh matnini kiriting')); return; }
+    btn.disabled = true;
+    btn.textContent = uiT('Yuborilmoqda…');
+    try{
+      await addComment(entityType, entityId, text);
+      closeModal();
+      openCommentsModal(entityType, entityId, title);
+      render();
+      toast(uiT('Izoh qo\'shildi'));
+    }catch(e){
+      console.error(e);
+      toast(uiT('Izohni saqlab bo\'lmadi'));
+      btn.disabled = false;
+      btn.textContent = uiT('Yuborish');
+    }
+  });
 }
 
 /* ============================= CHANGE-REASON / FIELD DIFF HELPERS ============================= */
@@ -728,7 +800,7 @@ function auditSummary(a){
 }
 
 function renderAuditTab(){
-  if(!isEditorMode) return `<div class="panel"><div class="panel-head"><h2>${uiT('Журнал истории')}</h2></div><div class="panel-body"><div class="subtle-note">${uiT('Для просмотра журнала войдите в аккаунт редактора.')}</div></div></div>`;
+  if(!isLoggedIn) return `<div class="panel"><div class="panel-head"><h2>${uiT('Журнал истории')}</h2></div><div class="panel-body"><div class="subtle-note">${uiT('Для просмотра журнала войдите в аккаунт.')}</div></div></div>`;
   const rows=(state.audits||[]).slice().sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).filter(a=>{
     const hay=[a.actorEmail,auditActionLabel(a.action),auditEntityLabel(a.entityType),a.entityLabel,auditSummary(a)].join(' ').toLowerCase();
     return !auditSearch || hay.includes(auditSearch.toLowerCase());
@@ -1057,6 +1129,7 @@ function renderPermits(){
         </div>
       </td>
       <td style="text-align:right;">
+        <button class="btn secondary sm" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('permit',p.id).length}</button>
         ${isEditorMode ? `
         <button class="btn secondary sm" data-edit-permit="${p.id}">Изменить</button>
         <button class="btn danger sm" data-del-permit="${p.id}">Удалить</button>
@@ -1110,6 +1183,10 @@ function bindTabEvents(){
     }));
     document.querySelectorAll('[data-edit-permit]').forEach(el=>el.addEventListener('click', ()=>openPermitModal(el.dataset.editPermit)));
     document.querySelectorAll('[data-del-permit]').forEach(el=>el.addEventListener('click', ()=>deletePermit(el.dataset.delPermit)));
+    document.querySelectorAll('[data-comments-permit]').forEach(el=>el.addEventListener('click', ()=>{
+      const p = state.permits.find(x=>x.id===el.dataset.commentsPermit);
+      openCommentsModal('permit', el.dataset.commentsPermit, p ? p.number : '');
+    }));
   }
   if(currentTab==='shipment'){
     bindShipmentEvents();
@@ -1376,8 +1453,11 @@ let shipmentDraft = { mode:'manual', permitId:'', invoiceNumber:'', invoiceDate:
 
 function renderShipmentTab(){
   if(!isEditorMode){
+    const msg = isLoggedIn
+      ? 'Sizning hisobingiz faqat ko\'rish huquqiga ega. Tahrirlash huquqini administrator beradi.'
+      : 'Ma\'lumotni o\'zgartirish uchun yuqoridagi «Войти» tugmasi orqali tizimga kiring.';
     return `<div class="toolbar"><div><h1>Новая отгрузка</h1><div class="desc">Списание количества/веса по разрешению</div></div></div>
-    <div class="panel"><div class="empty"><div class="big">Режим просмотра</div>Ma'lumotni o'zgartirish uchun yuqoridagi «Войти» tugmasi orqali tizimga kiring.</div></div>`;
+    <div class="panel"><div class="empty"><div class="big">Режим просмотра</div>${msg}</div></div>`;
   }
   if(!state.permits.length){
     return `<div class="toolbar"><div><h1>Новая отгрузка</h1><div class="desc">Списание количества/веса по разрешению</div></div></div>
@@ -1618,8 +1698,11 @@ function renderShipmentHistoryInvoiceFolder(key){
       <td class="num-col">${fmt(sum.qty,0)}</td>
       <td class="num-col">${fmt(sum.weight,2)}</td>
       <td style="text-align:right;white-space:nowrap;">
+        <button class="btn secondary sm" data-comments-shipment="${sh.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('shipment',sh.id).length}</button>
+        ${isEditorMode ? `
         <button class="btn secondary sm" data-edit-shipment="${sh.id}">${uiT('Изменить')}</button>
         <button class="btn danger sm" data-del-shipment-h="${sh.id}">${uiT('Удалить')}</button>
+        ` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1643,7 +1726,7 @@ function renderShipmentHistoryInvoiceFolder(key){
 }
 
 function renderShipmentHistoryTab(){
-  if(!isEditorMode){
+  if(!isLoggedIn){
     return `<div class="toolbar"><div><h1>${uiT('История отгрузок')}</h1><div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div></div></div>
     <div class="panel"><div class="empty"><div class="big">Режим просмотра</div>Ma'lumotni ko'rish uchun yuqoridagi «Войти» tugmasi orqali tizimga kiring.</div></div>`;
   }
@@ -1677,6 +1760,10 @@ function bindShipmentHistoryEvents(){
   }));
 
   document.querySelectorAll('[data-edit-shipment]').forEach(el=>el.addEventListener('click', ()=>openEditShipmentModal(el.dataset.editShipment)));
+  document.querySelectorAll('[data-comments-shipment]').forEach(el=>el.addEventListener('click', ()=>{
+    const sh = state.shipments.find(s=>s.id===el.dataset.commentsShipment);
+    openCommentsModal('shipment', el.dataset.commentsShipment, sh ? (sh.invoiceNumber||sh.id) : '');
+  }));
 
   document.querySelectorAll('[data-del-shipment-h]').forEach(el=>el.addEventListener('click', ()=>{
     showReasonPrompt({
@@ -2250,11 +2337,13 @@ function openStatusModal(kind){
 async function refreshAuthButton(){
   if(!window.OfflineSync) return;
   const info = await OfflineSync.authInfo();
-  isEditorMode = !!info.loggedIn;
+  isLoggedIn = !!info.loggedIn;
+  isEditorMode = isLoggedIn && await OfflineSync.isEditor();
   const btn = document.getElementById('authBtn');
   if(btn){
     btn.textContent = info.loggedIn ? (info.email || 'Аккаунт') : 'Войти';
-    btn.title = info.loggedIn ? 'Аккаунт редактора / выйти' : 'Войти для редактирования';
+    btn.title = !isLoggedIn ? 'Войти'
+      : (isEditorMode ? 'Аккаунт редактора / выйти' : 'Аккаунт (только просмотр) / выйти');
   }
   render();
 }
@@ -2264,10 +2353,12 @@ async function openAuthModal(){
   const info = await OfflineSync.authInfo();
   if(info.loggedIn){
     showModal(`
-      <div class="modal-head"><h2>Аккаунт редактора</h2><button class="close-x" data-close>&times;</button></div>
+      <div class="modal-head"><h2>${isEditorMode ? 'Аккаунт редактора' : 'Аккаунт (только просмотр)'}</h2><button class="close-x" data-close>&times;</button></div>
       <div class="modal-body">
         <div class="field"><label>Выполнен вход</label><div>${escapeHtml(info.email || '')}</div></div>
-        <div class="subtle-note">Офлайн-изменения будут отправлены в общую базу при появлении интернета.</div>
+        ${isEditorMode
+          ? `<div class="subtle-note">Офлайн-изменения будут отправлены в общую базу при появлении интернета.</div>`
+          : `<div class="subtle-note">Sizga faqat ko'rish huquqi berilgan. Tahrirlash huquqi kerak bo'lsa, administratorga murojaat qiling.</div>`}
       </div>
       <div class="modal-foot"><button class="btn secondary" data-close>Закрыть</button><button class="btn danger" id="btnLogout">Выйти</button></div>
     `);
@@ -2411,7 +2502,7 @@ async function dedupePermitsByNumber(){
     OfflineSync.onStatus(({kind,message})=>setSyncPill(kind,message));
     OfflineSync.onData(async ()=>{
       const next = await OfflineSync.loadState();
-      state = { permits:[], shipments:[], audits:[], ...(next||{}) };
+      state = { permits:[], shipments:[], audits:[], comments:[], ...(next||{}) };
       window.state = state;
       render();
     });
