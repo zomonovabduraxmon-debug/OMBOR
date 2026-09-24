@@ -246,15 +246,7 @@
     const res = await fetch(baseUrl() + '/auth/v1/token?grant_type=password', {
       method:'POST',
       headers:{ 'apikey':anonKey(), 'Content-Type':'application/json' },
-      body:JSON.stringify({
-        email, password,
-        // Ism va familiya Supabase user_metadata'da saqlanadi (SQL o'zgartirish shart emas).
-        data:{
-          first_name: String(profile?.firstName||'').trim(),
-          last_name: String(profile?.lastName||'').trim(),
-          full_name: (String(profile?.firstName||'').trim()+' '+String(profile?.lastName||'').trim()).trim()
-        }
-      }),
+      body:JSON.stringify({ email, password }),
     });
     const body = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(body.msg || body.error_description || body.message || 'Не удалось войти');
@@ -278,7 +270,15 @@
     const res = await fetch(baseUrl() + '/auth/v1/signup', {
       method:'POST',
       headers:{ 'apikey':anonKey(), 'Content-Type':'application/json' },
-      body:JSON.stringify({ email, password }),
+      body:JSON.stringify({
+        email, password,
+        // Ism va familiya Supabase user_metadata'da saqlanadi (SQL o'zgartirish shart emas).
+        data:{
+          first_name: String(profile?.firstName||'').trim(),
+          last_name: String(profile?.lastName||'').trim(),
+          full_name: (String(profile?.firstName||'').trim()+' '+String(profile?.lastName||'').trim()).trim()
+        }
+      }),
     });
     const body = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(body.msg || body.error_description || body.message || 'Ro\'yxatdan o\'tib bo\'lmadi');
