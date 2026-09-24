@@ -1930,9 +1930,13 @@
       if(!backdrop) return;
 
       const modal = backdrop.querySelector('.modal');
-      const email = modal?.querySelector('#authEmail');
-      const password = modal?.querySelector('#authPassword');
-      if(!modal || !email || !password) return;
+      // Ham "Kirish", ham "Ro'yxatdan o'tish" formasini qo'llab-quvvatlaydi —
+      // ikkisi ham index.html'da xuddi shu modal qobig'ini ishlatadi, faqat
+      // ichidagi maydon id'lari farq qiladi (authEmail/authPassword vs
+      // signupEmail/signupPassword/signupCode).
+      const isLoginForm = !!(modal?.querySelector('#authEmail') && modal?.querySelector('#authPassword'));
+      const isSignupForm = !!(modal?.querySelector('#signupEmail') && modal?.querySelector('#signupPassword'));
+      if(!modal || (!isLoginForm && !isSignupForm)) return;
 
       backdrop.classList.add('v15-auth-backdrop');
       modal.classList.add('v15-login-modal');
@@ -2101,6 +2105,18 @@
       if(topbar && topbar !== observed){
         const topObserver = new MutationObserver(()=>scheduleEnhance());
         topObserver.observe(topbar,{childList:true,subtree:true,characterData:true});
+      }
+      // MUHIM: login/registratsiya oynasi (.modal-backdrop) #app ichiga emas,
+      // to'g'ridan-to'g'ri document.body'ga qo'shiladi (index.html'dagi
+      // showModal() shunday ishlaydi). Yuqoridagi observer buni SEZMAYDI,
+      // shu sababli oyna ochilganda logo/dizayn (decorateLoginModalV15)
+      // faqat tasodifan — boshqa nomutanosib DOM o'zgarishi bo'lganda —
+      // qo'llanardi. Shu sabab body'ni alohida kuzatib, modal ochilishi
+      // yoki uning ichidagi almashinuvlar (login <-> ro'yxatdan o'tish)
+      // DARHOL sezilishini ta'minlaymiz.
+      if(document.body !== observed){
+        const bodyObserver = new MutationObserver(()=>scheduleEnhance());
+        bodyObserver.observe(document.body,{childList:true,subtree:true,characterData:true});
       }
       scheduleEnhance();
     }

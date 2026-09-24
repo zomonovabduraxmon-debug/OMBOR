@@ -3649,7 +3649,10 @@ html.v12-shell-ready .v15-login-modal .v15-auth-field{
 }
 
 html.v12-shell-ready .v15-login-modal #authEmail,
-html.v12-shell-ready .v15-login-modal #authPassword{
+html.v12-shell-ready .v15-login-modal #authPassword,
+html.v12-shell-ready .v15-login-modal #signupEmail,
+html.v12-shell-ready .v15-login-modal #signupPassword,
+html.v12-shell-ready .v15-login-modal #signupCode{
   display:block !important;
   width:100% !important;
   min-height:46px !important;
@@ -3664,7 +3667,10 @@ html.v12-shell-ready .v15-login-modal #authPassword{
 }
 
 html.v12-shell-ready .v15-login-modal #authEmail:focus,
-html.v12-shell-ready .v15-login-modal #authPassword:focus{
+html.v12-shell-ready .v15-login-modal #authPassword:focus,
+html.v12-shell-ready .v15-login-modal #signupEmail:focus,
+html.v12-shell-ready .v15-login-modal #signupPassword:focus,
+html.v12-shell-ready .v15-login-modal #signupCode:focus{
   outline:none !important;
   border-color:#4f84c7 !important;
   box-shadow:0 0 0 3px rgba(41,100,177,.10) !important;
