@@ -4139,3 +4139,24 @@ table.center-data-table td:nth-child(n+2){
   text-align:center !important;
   font-variant-numeric:tabular-nums;
 }
+
+/* Qatordagi oxirgi izoh: kattaroq va qator o'rtasida (vertikal va gorizontal) */
+button.comment-preview-btn{
+  display:flex !important;
+  align-items:center;
+  justify-content:center;
+  align-self:center;
+  min-height:38px;
+  font-size:14px !important;
+  font-weight:500;
+  line-height:1.3;
+  color:var(--ink,#1c2430) !important;
+  text-align:center !important;
+}
+button.comment-preview-btn em{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  min-width:0;
+}
+button.comment-preview-btn:hover{ color:var(--primary,#1a2338) !important; }

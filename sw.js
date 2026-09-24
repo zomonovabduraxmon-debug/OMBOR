@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v20-login-fix';
+const CACHE = 'permit-tracker-shell-v21-comment-preview';
 const APP_SHELL = [
   './',
   './index.html',
