@@ -222,6 +222,13 @@
   }
   .field textarea{resize:vertical;min-height:64px;}
   .field input:focus, .field select:focus, .field textarea:focus{outline:none;border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(43,58,85,.08);}
+  .field input.input-error, .field select.input-error{
+    border-color:var(--red) !important; background:var(--red-soft) !important;
+  }
+  .auth-error-box{
+    background:var(--red-soft); color:var(--red); border:1px solid var(--red);
+    border-radius:4px; padding:9px 12px; font-size:12.5px; margin-bottom:14px; line-height:1.4;
+  }
   .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 
   .reason-backdrop{
@@ -2675,9 +2682,10 @@ async function openAuthModal(){
     document.getElementById('authCancelBtn').addEventListener('click', closeModal);
     document.getElementById('switchToSignup').addEventListener('click', (e)=>{ e.preventDefault(); renderSignupForm(); });
     document.getElementById('btnLogin').addEventListener('click', async ()=>{
+      clearAuthError();
       const email = document.getElementById('authEmail').value.trim();
       const password = document.getElementById('authPassword').value;
-      if(!email || !password){ toast('Введите email и пароль'); return; }
+      if(!email || !password){ showAuthError('Email va parolni kiriting', ['authEmail','authPassword']); return; }
       const btn = document.getElementById('btnLogin');
       btn.disabled = true;
       btn.textContent = 'Вход…';
@@ -2690,7 +2698,7 @@ async function openAuthModal(){
         console.error(err);
         btn.disabled = false;
         btn.textContent = 'Войти';
-        toast(err.message || 'Не удалось войти');
+        showAuthError(err.message || "Email yoki parol noto'g'ri", ['authEmail','authPassword']);
       }
     });
   }
@@ -2710,11 +2718,12 @@ async function openAuthModal(){
     document.getElementById('authCancelBtn').addEventListener('click', closeModal);
     document.getElementById('switchToLogin').addEventListener('click', (e)=>{ e.preventDefault(); renderLoginForm(); });
     document.getElementById('btnSignup').addEventListener('click', async ()=>{
+      clearAuthError();
       const email = document.getElementById('signupEmail').value.trim();
       const password = document.getElementById('signupPassword').value;
       const code = document.getElementById('signupCode').value;
-      if(!email || !password){ toast('Email va parolni kiriting'); return; }
-      if(password.length < 6){ toast('Parol kamida 6 belgidan iborat bo\'lishi kerak'); return; }
+      if(!email || !password){ showAuthError('Email va parolni kiriting', ['signupEmail','signupPassword']); return; }
+      if(password.length < 6){ showAuthError("Parol kamida 6 belgidan iborat bo'lishi kerak", ['signupPassword']); return; }
       const btn = document.getElementById('btnSignup');
       btn.disabled = true;
       btn.textContent = 'Yaratilmoqda…';
@@ -2732,9 +2741,38 @@ async function openAuthModal(){
         console.error(err);
         btn.disabled = false;
         btn.textContent = "Ro'yxatdan o'tish";
-        toast(err.message || "Ro'yxatdan o'tib bo'lmadi");
+        showAuthError(err.message || "Ro'yxatdan o'tib bo'lmadi", ['signupEmail','signupPassword','signupCode']);
       }
     });
+  }
+
+  function showAuthError(msg, fieldIds){
+    const bodyEl = document.getElementById('authModalBody');
+    if(!bodyEl) return;
+    let box = document.getElementById('authErrorBox');
+    if(!box){
+      box = document.createElement('div');
+      box.id = 'authErrorBox';
+      box.className = 'auth-error-box';
+      bodyEl.prepend(box);
+    }
+    box.textContent = msg;
+    (fieldIds||[]).forEach(id=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      el.classList.add('input-error');
+      const clearErr = ()=>{
+        el.classList.remove('input-error');
+        el.removeEventListener('input', clearErr);
+        const b = document.getElementById('authErrorBox');
+        if(b) b.remove();
+      };
+      el.addEventListener('input', clearErr, { once:true });
+    });
+  }
+  function clearAuthError(){
+    const box = document.getElementById('authErrorBox');
+    if(box) box.remove();
   }
 
   renderLoginForm();
