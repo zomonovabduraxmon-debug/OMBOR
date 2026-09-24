@@ -170,55 +170,6 @@
   .stat-card.warn:active, .stat-card.crit:active{transform:translateY(1px);}
   .stat-card.warn:focus-visible, .stat-card.crit:focus-visible{outline:2px solid #1768ff; outline-offset:2px;}
 
-  /* ===== OMBOR HOLATI — единая лента (заменяет warehouse-summary + cards-row на дашборде) ===== */
-  .oh-strip{
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:4px;
-    padding:22px 28px;
-    margin-bottom:20px;
-    display:flex;
-    align-items:center;
-    gap:30px;
-    flex-wrap:wrap;
-  }
-  .oh-cell{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;}
-  .oh-cell--main{flex-direction:row;align-items:center;gap:16px;}
-  .oh-seal{
-    width:112px;height:112px;border-radius:50%;
-    border:1.5px solid var(--primary);
-    box-shadow:0 0 0 4px var(--panel), 0 0 0 5px var(--line-soft);
-    display:flex;align-items:center;justify-content:center;
-    flex:none;padding:0 6px;
-  }
-  .oh-seal .oh-num{font-size:19px;letter-spacing:-.3px;white-space:nowrap;}
-  .oh-main-lbl{display:flex;flex-direction:column;gap:3px;}
-  .oh-main-lbl .oh-weight{font-family:var(--serif);font-size:16px;color:var(--primary-dark);}
-  .oh-main-lbl .oh-caption{font-size:11.5px;color:var(--muted);letter-spacing:.2px;}
-  .oh-num{font-family:var(--serif);font-weight:700;color:var(--primary-dark);line-height:1;}
-  .oh-num--sm{font-size:30px;}
-  .oh-num--warn{color:var(--amber);}
-  .oh-lbl{font-size:12.5px;color:var(--muted);letter-spacing:.2px;margin-top:4px;}
-  .oh-sep{width:1px;align-self:stretch;background:var(--line);flex:none;}
-  .oh-cell--clickable{cursor:pointer;border-radius:3px;padding:2px 6px;margin:-2px -6px;transition:background .15s ease;}
-  .oh-cell--clickable:hover{background:var(--amber-soft);}
-  .oh-cell--clickable:focus-visible{outline:2px solid #1768ff;outline-offset:2px;}
-  .oh-crit-pill{
-    display:inline-flex;align-items:center;gap:4px;margin-top:6px;
-    font-size:11px;font-weight:700;color:var(--red);background:var(--red-soft);
-    border:1px solid transparent;border-radius:999px;padding:3px 9px;cursor:pointer;
-  }
-  .oh-crit-pill:hover{border-color:rgba(168,64,42,.35);}
-  .oh-crit-pill:focus-visible{outline:2px solid #1768ff;outline-offset:2px;}
-  @media (max-width:860px){
-    .oh-strip{gap:18px;padding:18px 16px;}
-    .oh-sep{display:none;}
-    .oh-cell{min-width:40%;}
-    .oh-seal{width:84px;height:84px;}
-    .oh-seal .oh-num{font-size:16px;}
-    .oh-num--sm{font-size:24px;}
-  }
-
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;}
   .panel + .panel{margin-top:16px;}
   .panel-head{
@@ -1148,27 +1099,6 @@ function validateShipmentLines(permit, lines, excludeShipmentId){
   return errors;
 }
 
-let ohAnimatedOnce = false;
-function animateOhMainNum(el){
-  const target = Number(el.dataset.target)||0;
-  // Faqat sahifa birinchi ochilganda animatsiya beramiz; keyingi qayta render'larda
-  // (qidiruv, saralash) raqam darhol yakuniy qiymatga o'rnatiladi — chalg'ituvchi bo'lmasin.
-  if(ohAnimatedOnce || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){
-    el.textContent = fmt(target,0);
-    return;
-  }
-  ohAnimatedOnce = true;
-  const duration = 900;
-  const start = performance.now();
-  function tick(now){
-    const p = Math.min(1, (now-start)/duration);
-    const eased = 1 - Math.pow(1-p, 3);
-    el.textContent = fmt(Math.round(target*eased),0);
-    if(p<1) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-}
-
 function fmt(n, dec){
   dec = dec===undefined ? 2 : dec;
   n = Number(n)||0;
@@ -1299,39 +1229,22 @@ function renderDashboard(){
       </div>
     </div>
 
-    <div class="oh-strip" data-sold-qty="${soldQtyTotal}" data-remaining-qty="${remQtyTotal}">
-      <div class="oh-cell oh-cell--main">
-        <div class="oh-seal"><span class="oh-num" id="ohMainNum" data-target="${totalQty}">0</span></div>
-        <div class="oh-main-lbl">
-          <div class="oh-weight">${fmt(totalWeight,2)} кг</div>
-          <div class="oh-caption">Остаток на складе${dashboardSearch ? ' (по фильтру и поиску)' : ''}</div>
-        </div>
+    <div class="warehouse-summary">
+      <div>
+        <div class="title">Остаток на складе</div>
+        <div class="hint">Итого по текущему фильтру${dashboardSearch ? ' и поиску' : ''}</div>
       </div>
-      <span class="oh-sep"></span>
-      <div class="oh-cell">
-        <div class="oh-num oh-num--sm">${fmt(state.permits.length,0)}</div>
-        <div class="oh-lbl">разрешений</div>
-      </div>
-      <span class="oh-sep"></span>
-      <div class="oh-cell">
-        <div class="oh-num oh-num--sm">${fmt(modelCount,0)}</div>
-        <div class="oh-lbl">активных моделей</div>
-      </div>
-      <span class="oh-sep"></span>
-      <div class="oh-cell oh-cell--clickable" id="kpiWarnCard" role="button" tabindex="0" title="Bosing — kam qolgan modellarni ko'rish">
-        <div class="oh-num oh-num--sm oh-num--warn">${fmt(warnCount,0)}</div>
-        <div class="oh-lbl">мало осталось${critCount>0 ? `<br><button type="button" class="oh-crit-pill" id="kpiCritCard" title="Bosing — tugagan / ortiqcha sarflangan modellarni ko'rish">${fmt(critCount,0)} закончено/перерасход</button>` : ''}</div>
+      <div class="warehouse-values" data-sold-qty="${soldQtyTotal}" data-remaining-qty="${remQtyTotal}">
+        <div class="warehouse-value"><strong>${fmt(modelCount,0)}</strong><span>модель</span></div>
+        <div class="warehouse-value"><strong>${fmt(totalQty,0)}</strong><span>шт</span></div>
+        <div class="warehouse-value"><strong>${fmt(totalWeight,2)}</strong><span>кг</span></div>
       </div>
     </div>
-    <div class="warehouse-values" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;">
-      <div class="warehouse-value"><small class="v12-metric-label">Активных моделей</small><strong>${fmt(modelCount,0)}</strong><span>model</span></div>
-      <div class="warehouse-value"><small class="v12-metric-label">Всего единиц</small><strong>${fmt(totalQty,0)}</strong><span>dona</span></div>
-      <div class="warehouse-value"><strong>${fmt(totalWeight,2)}</strong><span>кг</span></div>
-    </div>
-    <div class="cards-row" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;">
-      <div class="stat-card"><div class="num">${fmt(state.permits.length,0)}</div><div class="lbl">Разрешений всего</div></div>
-      <div class="stat-card"><div class="num">${fmt(warnCount,0)}</div><div class="lbl">Мало осталось</div></div>
-      <div class="stat-card"><div class="num">${fmt(critCount,0)}</div><div class="lbl">Закончено / перерасход</div></div>
+
+    <div class="cards-row">
+      <div class="stat-card"><div class="num">${state.permits.length}</div><div class="lbl">Разрешений всего</div></div>
+      <div class="stat-card warn" id="kpiWarnCard" role="button" tabindex="0" title="Bosing — kam qolgan modellarni ko'rish"><div class="num">${warnCount}</div><div class="lbl">Мало осталось</div></div>
+      <div class="stat-card crit" id="kpiCritCard" role="button" tabindex="0" title="Bosing — tugagan / ortiqcha sarflangan modellarni ko'rish"><div class="num">${critCount}</div><div class="lbl">Закончено / перерасход</div></div>
     </div>
     <div class="panel" id="positionsPanel">
       <div class="panel-head">
@@ -1427,11 +1340,9 @@ function bindTabEvents(){
     }
     const critCard = document.getElementById('kpiCritCard');
     if(critCard){
-      critCard.addEventListener('click', e=>{ e.stopPropagation(); openStatusModal('critical'); });
-      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopPropagation(); openStatusModal('critical'); } });
+      critCard.addEventListener('click', ()=>openStatusModal('critical'));
+      critCard.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openStatusModal('critical'); } });
     }
-    const ohMainNum = document.getElementById('ohMainNum');
-    if(ohMainNum) animateOhMainNum(ohMainNum);
     const clearFilterBtn = document.getElementById('clearDashboardFilter');
     if(clearFilterBtn) clearFilterBtn.addEventListener('click', ()=>{ dashboardFilter = 'all'; render(); document.dispatchEvent(new CustomEvent('ombor:dashboardfilterchange')); });
 
