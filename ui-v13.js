@@ -2091,6 +2091,23 @@
           closeLanguageMenu();
           closeQuickAppsMenu();
           closeHelpModalV5();
+          // Har qanday ochiq oyna (ruxsatnoma tafsiloti, kirish/ro'yxatdan
+          // o'tish, tahrirlash va h.k.) ESC bosilganda ham yopilsin —
+          // avval faqat "Orqaga"/X tugmasini bosib yopish mumkin edi.
+          if(typeof closeModal === 'function') closeModal();
+        }
+      });
+      // Sichqonchaning "Orqaga"/"Oldinga" (odatda 4- va 5-tugmalar,
+      // ba'zi sichqonchalarda 6-tugma ham) bosilganda: agar biror oyna
+      // ochiq bo'lsa, brauzer sahifasini o'zgartirish o'rniga o'shanday
+      // oynani yopamiz. MouseEvent.button: 3 = orqaga, 4 = oldinga —
+      // qolgan qo'shimcha tugmalar brauzer/OS'ga qarab shu ikkisiga
+      // yoki boshqa qiymatlarga mos kelishi mumkin, shu sabab >=3
+      // bo'lgan barcha tugmalarni ushlaymiz.
+      document.addEventListener('mouseup', e=>{
+        if(e.button >= 3 && typeof closeModal === 'function' && document.getElementById('modalBackdrop')){
+          e.preventDefault();
+          closeModal();
         }
       });
       document.addEventListener('input', e=>{ if(e.target && e.target.id==='dashSearch') dashboardPage = 1; }, true);
