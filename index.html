@@ -601,6 +601,19 @@ function commentsFor(entityType, entityId){
 /* Shu obyektga yozilgan ENG OXIRGI izohni qaytaradi (bo'lmasa — null).
    Ro'yxat (Ruxsatnomalar / Yuklamalar tarixi) qatorida shu izoh ko'rsatiladi,
    qolgan (eski) izohlar esa faqat izohlar oynasi ochilganda ko'rinadi. */
+// ISO (UTC) vaqtni qurilmaning mahalliy vaqtiga o'tkazadi: "YYYY-MM-DD HH:mm"
+function fmtLocalDateTime(v){
+  if(!v) return '';
+  let str = String(v).trim();
+  // Vaqt zonasi ko'rsatilmagan bo'lsa (masalan "2026-09-24 12:54:00") — UTC deb hisoblaymiz
+  if(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(str) && !/(Z|[+-]\d{2}:?\d{2})$/i.test(str)){
+    str = str.replace(' ','T') + 'Z';
+  }
+  const d = new Date(str);
+  if(isNaN(d.getTime())) return String(v).replace('T',' ').slice(0,16);
+  const pad = n => String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
 function latestComment(entityType, entityId){
   const list = commentsFor(entityType, entityId);
   return list.length ? list[list.length-1] : null;
@@ -656,7 +669,7 @@ async function deleteComment(commentId, reason){
 function openCommentsModal(entityType, entityId, title){
   const list = commentsFor(entityType, entityId);
   const itemsHtml = list.length ? list.map(c=>{
-    const edited = c.updatedAt ? ` · <em>${uiT('tahrirlangan')} ${escapeHtml(String(c.updatedAt).replace('T',' ').slice(0,16))}</em>` : '';
+    const edited = c.updatedAt ? ` · <em>${uiT('tahrirlangan')} ${escapeHtml(fmtLocalDateTime(c.updatedAt))}</em>` : '';
     const actions = isEditorMode ? `
       <span style="display:flex;gap:6px;flex-shrink:0;">
         <button class="btn secondary sm" data-edit-comment="${c.id}" title="${escapeAttr(uiT('Tahrirlash'))}">✎</button>
@@ -665,7 +678,7 @@ function openCommentsModal(entityType, entityId, title){
     return `
     <div class="comment-item" data-comment-item="${c.id}" style="padding:8px 0;border-bottom:1px solid var(--border,#e5e5e5);">
       <div class="subtle-note" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-        <span><strong>${escapeHtml(c.authorEmail||'—')}</strong> · ${escapeHtml((c.createdAt||'').replace('T',' ').slice(0,16))}${edited}</span>
+        <span><strong>${escapeHtml(c.authorEmail||'—')}</strong> · ${escapeHtml(fmtLocalDateTime(c.createdAt))}${edited}</span>
         ${actions}
       </div>
       <div data-comment-text="${c.id}">${escapeHtml(c.text)}</div>

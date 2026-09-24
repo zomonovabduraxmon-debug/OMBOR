@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v21-comment-preview';
+const CACHE = 'permit-tracker-shell-v22-local-time';
 const APP_SHELL = [
   './',
   './index.html',
