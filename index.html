@@ -272,6 +272,13 @@
   .close-x{background:none;border:none;font-size:20px;color:var(--muted);}
 
   .subtle-note{font-size:12px;color:var(--muted);margin-top:6px;}
+  .comment-preview-btn{
+    background:none;border:none;padding:0;margin-top:4px;display:block;max-width:100%;
+    font-size:11.5px;color:var(--muted);text-align:left;cursor:pointer;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .comment-preview-btn:hover{color:var(--primary);text-decoration:underline;}
+  .comment-preview-btn em{font-style:normal;}
   .stepper{display:flex;gap:6px;margin-bottom:18px;}
   .step-pill{
     flex:1;text-align:center;padding:7px 0;border-radius:3px;background:var(--paper);color:var(--muted);
@@ -581,6 +588,19 @@ function commentsFor(entityType, entityId){
   return (Array.isArray(state.comments) ? state.comments : [])
     .filter(c=>c.entityType===entityType && c.entityId===entityId)
     .sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+}
+
+/* Shu obyektga yozilgan ENG OXIRGI izohni qaytaradi (bo'lmasa — null).
+   Ro'yxat (Ruxsatnomalar / Yuklamalar tarixi) qatorida shu izoh ko'rsatiladi,
+   qolgan (eski) izohlar esa faqat izohlar oynasi ochilganda ko'rinadi. */
+function latestComment(entityType, entityId){
+  const list = commentsFor(entityType, entityId);
+  return list.length ? list[list.length-1] : null;
+}
+
+function truncateText(s, n){
+  s = String(s||'');
+  return s.length > n ? s.slice(0, Math.max(0,n-1)).trimEnd() + '…' : s;
 }
 
 async function addComment(entityType, entityId, text){
@@ -1256,7 +1276,9 @@ function renderPermits(){
     const pct = t.allowedQty ? Math.max(0,t.remQty)/t.allowedQty : 0;
     const color = t.remQty<=0 ? 'var(--red)' : pct<=0.25 ? 'var(--amber)' : 'var(--teal)';
     return `<tr class="row-clickable" data-open-permit="${p.id}">
-      <td><strong>${escapeHtml(p.number)}</strong><div class="subtle-note">${escapeHtml(p.date||'')}${p.note?(' · '+escapeHtml(p.note)):''}</div></td>
+      <td><strong>${escapeHtml(p.number)}</strong><div class="subtle-note">${escapeHtml(p.date||'')}${p.note?(' · '+escapeHtml(p.note)):''}</div>
+      ${(()=>{ const c = latestComment('permit', p.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,70))}</em></button>` : ''; })()}
+      </td>
       <td class="num-col">${p.items.length}</td>
       <td class="num-col">${fmt(t.allowedQty,0)}</td>
       <td class="num-col">${fmt(t.usedQty,0)}</td>
@@ -1890,7 +1912,9 @@ function renderShipmentHistoryInvoiceFolder(key){
     const sum = shipmentLineTotals(sh);
     return `<tr class="row-clickable" data-open-shipment-lines="${sh.id}" tabindex="0" role="button" title="${escapeAttr(uiT('Нажмите — какие модели и сколько было в этой отгрузке'))}">
       <td>${escapeHtml(sh.invoiceDate||'—')}</td>
-      <td>${permit ? `<a href="#" data-open-permit-h="${permit.id}">${escapeHtml(permit.number)}</a>` : '—'}</td>
+      <td>${permit ? `<a href="#" data-open-permit-h="${permit.id}">${escapeHtml(permit.number)}</a>` : '—'}
+      ${(()=>{ const c = latestComment('shipment', sh.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-shipment="${sh.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,70))}</em></button>` : ''; })()}
+      </td>
       <td class="num-col">${sh.lines.length}</td>
       <td class="num-col">${fmt(sum.qty,0)}</td>
       <td class="num-col">${fmt(sum.weight,2)}</td>
