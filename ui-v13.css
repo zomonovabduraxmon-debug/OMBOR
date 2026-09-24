@@ -4132,3 +4132,10 @@ table.permits-table td:nth-child(6){
   min-width:170px;
 }
 table.permits-table td:nth-child(6) .gauge-wrap{ justify-content:flex-start; }
+
+/* Ma'lumot ustunlari (2-ustundan boshlab): sarlavha va qiymat aynan bir-birining tagida, markazda */
+table.center-data-table th:nth-child(n+2),
+table.center-data-table td:nth-child(n+2){
+  text-align:center !important;
+  font-variant-numeric:tabular-nums;
+}

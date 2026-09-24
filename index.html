@@ -1485,7 +1485,7 @@ function openPermitDetail(permitId){
     <div class="modal-body">
       <div class="subtle-note" style="margin-bottom:14px;">от ${p.date||'—'} ${p.note?(' · '+escapeHtml(p.note)):''} &middot; разрешено ${fmt(t.allowedQty,0)} шт / ${fmt(t.allowedW,2)} кг &middot; остаток ${fmt(t.remQty,0)} шт / ${fmt(t.remW,2)} кг</div>
       <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 8px 0;">Позиции</h3>
-      <table><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
+      <table class="center-data-table"><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
       <tbody>${itemRows}</tbody></table>
       <h3 style="font-family:var(--serif);font-size:14px;margin:20px 0 8px 0;">Отгрузки по этому разрешению</h3>
       ${shipments.length ? `<table><thead><tr><th>Инвойс</th><th>Дата</th><th>Строк</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead><tbody>${shipRows}</tbody></table>`
@@ -1898,7 +1898,7 @@ function renderShipmentHistoryFolders(){
       <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по инвойсу или разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
     </div>
     <div class="panel">
-      <div class="panel-body" style="padding:0;">${folders.length ? `<div style="overflow:auto"><table><thead><tr>
+      <div class="panel-body" style="padding:0;">${folders.length ? `<div style="overflow:auto"><table class="center-data-table"><thead><tr>
         <th>${uiT('Инвойс')}</th><th>${uiT('Дата')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th>
       </tr></thead><tbody>${rows}</tbody></table></div>`
       : `<div class="empty"><div class="big">${uiT('Записей пока нет')}</div></div>`}</div>
@@ -2912,6 +2912,19 @@ async function dedupePermitsByNumber(){
     });
     navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('SW registration failed',err));
   }
+// ESC: yuklamalar tarixida invoys papkasi ichida bo'lsak — invoyslar ro'yxatiga qaytish.
+// Agar biror oyna (modal) ochiq bo'lsa, ESC avval o'sha oynani yopadi (ui-v13.js).
+document.addEventListener('keydown', (e)=>{
+  if(e.key!=='Escape') return;
+  if(document.getElementById('modalBackdrop') || document.querySelector('.reason-backdrop')) return;
+  if(currentTab==='shipmentHistory' && shipmentHistoryOpenInvoice !== null){
+    e.preventDefault();
+    shipmentHistoryOpenInvoice = null;
+    shipmentHistorySearch = '';
+    render();
+  }
+});
+
 })();
 
 function showUpdateBanner(){

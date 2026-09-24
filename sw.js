@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v18-permits-align';
+const CACHE = 'permit-tracker-shell-v19-center-esc';
 const APP_SHELL = [
   './',
   './index.html',
