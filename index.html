@@ -273,9 +273,10 @@
 
   .subtle-note{font-size:12px;color:var(--muted);margin-top:6px;}
   .comment-preview-btn{
-    background:none;border:none;padding:0;margin-top:4px;display:block;max-width:100%;
-    font-size:11.5px;color:var(--muted);text-align:left;cursor:pointer;
+    background:none;border:none;padding:0;display:block;max-width:100%;
+    font-size:11.5px;color:var(--muted);text-align:right;cursor:pointer;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    flex:1;min-width:0;
   }
   .comment-preview-btn:hover{color:var(--primary);text-decoration:underline;}
   .comment-preview-btn em{font-style:normal;}
@@ -1276,9 +1277,7 @@ function renderPermits(){
     const pct = t.allowedQty ? Math.max(0,t.remQty)/t.allowedQty : 0;
     const color = t.remQty<=0 ? 'var(--red)' : pct<=0.25 ? 'var(--amber)' : 'var(--teal)';
     return `<tr class="row-clickable" data-open-permit="${p.id}">
-      <td><strong>${escapeHtml(p.number)}</strong><div class="subtle-note">${escapeHtml(p.date||'')}${p.note?(' · '+escapeHtml(p.note)):''}</div>
-      ${(()=>{ const c = latestComment('permit', p.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,70))}</em></button>` : ''; })()}
-      </td>
+      <td><strong>${escapeHtml(p.number)}</strong><div class="subtle-note">${escapeHtml(p.date||'')}${p.note?(' · '+escapeHtml(p.note)):''}</div></td>
       <td class="num-col">${p.items.length}</td>
       <td class="num-col">${fmt(t.allowedQty,0)}</td>
       <td class="num-col">${fmt(t.usedQty,0)}</td>
@@ -1289,12 +1288,17 @@ function renderPermits(){
           <span class="gauge-pct">${Math.round(Math.max(0,pct)*100)}%</span>
         </div>
       </td>
-      <td style="text-align:right;">
-        <button class="btn secondary sm" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('permit',p.id).length}</button>
-        ${isEditorMode ? `
-        <button class="btn secondary sm" data-edit-permit="${p.id}">Изменить</button>
-        <button class="btn danger sm" data-del-permit="${p.id}">Удалить</button>
-        ` : ''}
+      <td>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+          ${(()=>{ const c = latestComment('permit', p.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,60))}</em></button>` : '<span></span>'; })()}
+          <span style="display:flex;gap:8px;flex-shrink:0;white-space:nowrap;">
+            <button class="btn secondary sm" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('permit',p.id).length}</button>
+            ${isEditorMode ? `
+            <button class="btn secondary sm" data-edit-permit="${p.id}">Изменить</button>
+            <button class="btn danger sm" data-del-permit="${p.id}">Удалить</button>
+            ` : ''}
+          </span>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -1912,18 +1916,21 @@ function renderShipmentHistoryInvoiceFolder(key){
     const sum = shipmentLineTotals(sh);
     return `<tr class="row-clickable" data-open-shipment-lines="${sh.id}" tabindex="0" role="button" title="${escapeAttr(uiT('Нажмите — какие модели и сколько было в этой отгрузке'))}">
       <td>${escapeHtml(sh.invoiceDate||'—')}</td>
-      <td>${permit ? `<a href="#" data-open-permit-h="${permit.id}">${escapeHtml(permit.number)}</a>` : '—'}
-      ${(()=>{ const c = latestComment('shipment', sh.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-shipment="${sh.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,70))}</em></button>` : ''; })()}
-      </td>
+      <td>${permit ? `<a href="#" data-open-permit-h="${permit.id}">${escapeHtml(permit.number)}</a>` : '—'}</td>
       <td class="num-col">${sh.lines.length}</td>
       <td class="num-col">${fmt(sum.qty,0)}</td>
       <td class="num-col">${fmt(sum.weight,2)}</td>
-      <td style="text-align:right;white-space:nowrap;">
-        <button class="btn secondary sm" data-comments-shipment="${sh.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('shipment',sh.id).length}</button>
-        ${isEditorMode ? `
-        <button class="btn secondary sm" data-edit-shipment="${sh.id}">${uiT('Изменить')}</button>
-        <button class="btn danger sm" data-del-shipment-h="${sh.id}">${uiT('Удалить')}</button>
-        ` : ''}
+      <td style="white-space:nowrap;">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
+          ${(()=>{ const c = latestComment('shipment', sh.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-shipment="${sh.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,60))}</em></button>` : '<span></span>'; })()}
+          <span style="display:flex;gap:8px;flex-shrink:0;white-space:nowrap;">
+            <button class="btn secondary sm" data-comments-shipment="${sh.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('shipment',sh.id).length}</button>
+            ${isEditorMode ? `
+            <button class="btn secondary sm" data-edit-shipment="${sh.id}">${uiT('Изменить')}</button>
+            <button class="btn danger sm" data-del-shipment-h="${sh.id}">${uiT('Удалить')}</button>
+            ` : ''}
+          </span>
+        </div>
       </td>
     </tr>`;
   }).join('');
