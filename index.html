@@ -567,7 +567,7 @@ async function addAudit(action, entityType, entityId, entityLabel, oldData, newD
     if(!info.loggedIn) return;
     const now = new Date().toISOString();
     const audit = {
-      id: uid('audit'), actorId: info.userId || null, actorEmail: info.email || '',
+      id: uid('audit'), actorId: info.userId || null, actorEmail: info.displayName || info.email || '',
       action, entityType, entityId, entityLabel: String(entityLabel||''),
       oldData: oldData == null ? null : JSON.parse(JSON.stringify(oldData)),
       newData: newData == null ? null : JSON.parse(JSON.stringify(newData)),
@@ -617,7 +617,7 @@ async function addComment(entityType, entityId, text){
   if(!info.loggedIn) throw new Error('AUTH_REQUIRED');
   const comment = {
     id: uid('comment'), entityType, entityId, text: String(text).trim(),
-    authorId: info.userId || null, authorEmail: info.email || '',
+    authorId: info.userId || null, authorEmail: info.displayName || info.email || '',
     createdAt: new Date().toISOString(), updatedAt: null
   };
   state.comments = Array.isArray(state.comments) ? state.comments : [];
@@ -1317,10 +1317,10 @@ function renderPermits(){
     </div>
     <div class="panel">
       <div class="panel-body" style="padding:0;">
-        ${list.length ? `<table>
+        ${list.length ? `<div style="overflow-x:auto;"><table class="permits-table">
           <thead><tr><th>Разрешение</th><th>Позиций</th><th>Разрешено, шт</th><th>Отгружено</th><th>Остаток</th><th>Заполнение</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
-        </table>` : `<div class="empty"><div class="big">Разрешений ещё нет</div>Нажмите «Добавить разрешение», чтобы внести первое.</div>`}
+        </table></div>` : `<div class="empty"><div class="big">Разрешений ещё нет</div>Нажмите «Добавить разрешение», чтобы внести первое.</div>`}
       </div>
     </div>
   `;
@@ -2632,7 +2632,7 @@ async function refreshAuthButton(){
   isEditorMode = isLoggedIn && await OfflineSync.isEditor();
   const btn = document.getElementById('authBtn');
   if(btn){
-    btn.textContent = info.loggedIn ? (info.email || 'Аккаунт') : 'Войти';
+    btn.textContent = info.loggedIn ? (info.displayName || info.email || 'Аккаунт') : 'Войти';
     btn.title = !isLoggedIn ? 'Войти'
       : (isEditorMode ? 'Аккаунт редактора / выйти' : 'Аккаунт (только просмотр) / выйти');
   }
@@ -2759,6 +2759,8 @@ async function openAuthModal(){
   function renderSignupForm(){
     document.getElementById('authModalTitle').textContent = "Ro'yxatdan o'tish";
     document.getElementById('authModalBody').innerHTML = `
+      <div class="field"><label>Ism</label><input type="text" id="signupFirstName" autocomplete="given-name" placeholder="Ismingiz"></div>
+      <div class="field"><label>Familiya</label><input type="text" id="signupLastName" autocomplete="family-name" placeholder="Familiyangiz"></div>
       <div class="field"><label>Email</label><input type="email" id="signupEmail" autocomplete="username" placeholder="name@company.uz"></div>
       <div class="field"><label>Parol</label><input type="password" id="signupPassword" autocomplete="new-password" placeholder="Kamida 6 belgi"></div>
       <div class="field"><label>Taklif kodi</label><input type="text" id="signupCode" placeholder="Sizga aytilgan kod"></div>
@@ -2772,16 +2774,19 @@ async function openAuthModal(){
     document.getElementById('switchToLogin').addEventListener('click', (e)=>{ e.preventDefault(); renderLoginForm(); });
     document.getElementById('btnSignup').addEventListener('click', async ()=>{
       clearAuthError();
+      const firstName = document.getElementById('signupFirstName').value.trim();
+      const lastName = document.getElementById('signupLastName').value.trim();
       const email = document.getElementById('signupEmail').value.trim();
       const password = document.getElementById('signupPassword').value;
       const code = document.getElementById('signupCode').value;
+      if(!firstName || !lastName){ showAuthError('Ism va familiyani kiriting', ['signupFirstName','signupLastName']); return; }
       if(!email || !password){ showAuthError('Email va parolni kiriting', ['signupEmail','signupPassword']); return; }
       if(password.length < 6){ showAuthError("Parol kamida 6 belgidan iborat bo'lishi kerak", ['signupPassword']); return; }
       const btn = document.getElementById('btnSignup');
       btn.disabled = true;
       btn.textContent = 'Yaratilmoqda…';
       try{
-        const result = await OfflineSync.signup(email, password, code);
+        const result = await OfflineSync.signup(email, password, code, { firstName, lastName });
         if(result.needsEmailConfirm){
           closeModal();
           toast("Hisob yaratildi. Emailingizga kelgan havolani bosib tasdiqlang, so'ng kiring.");
@@ -2794,7 +2799,7 @@ async function openAuthModal(){
         console.error(err);
         btn.disabled = false;
         btn.textContent = "Ro'yxatdan o'tish";
-        showAuthError(err.message || "Ro'yxatdan o'tib bo'lmadi", ['signupEmail','signupPassword','signupCode']);
+        showAuthError(err.message || "Ro'yxatdan o'tib bo'lmadi", ['signupFirstName','signupLastName','signupEmail','signupPassword','signupCode']);
       }
     });
   }

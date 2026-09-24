@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v16-reports-material-fix';
+const CACHE = 'permit-tracker-shell-v18-permits-align';
 const APP_SHELL = [
   './',
   './index.html',

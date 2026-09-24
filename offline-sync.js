@@ -246,7 +246,15 @@
     const res = await fetch(baseUrl() + '/auth/v1/token?grant_type=password', {
       method:'POST',
       headers:{ 'apikey':anonKey(), 'Content-Type':'application/json' },
-      body:JSON.stringify({ email, password }),
+      body:JSON.stringify({
+        email, password,
+        // Ism va familiya Supabase user_metadata'da saqlanadi (SQL o'zgartirish shart emas).
+        data:{
+          first_name: String(profile?.firstName||'').trim(),
+          last_name: String(profile?.lastName||'').trim(),
+          full_name: (String(profile?.firstName||'').trim()+' '+String(profile?.lastName||'').trim()).trim()
+        }
+      }),
     });
     const body = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(body.msg || body.error_description || body.message || 'Не удалось войти');
@@ -260,7 +268,7 @@
   // saqlanadi va faqat brauzer tomonida solishtiriladi — bu server-side
   // himoya EMAS (texnik bilimli odam kodni ko'rishi mumkin), balki
   // tasodifiy/bilmasdan ro'yxatdan o'tishni to'xtatadigan oddiy filtr.
-  async function signup(email, password, inviteCode){
+  async function signup(email, password, inviteCode, profile){
     if(!configured()) throw new Error('Supabase ещё не настроен');
     if(!navigator.onLine) throw new Error('Ro\'yxatdan o\'tish uchun internet kerak');
     const expected = String(config().editorInviteCode || '');
@@ -303,9 +311,17 @@
 
   async function authInfo(){
     const session = await getSession(false);
+    const meta = (session && session.user && session.user.user_metadata) || {};
+    const firstName = String(meta.first_name||'').trim();
+    const lastName = String(meta.last_name||'').trim();
+    const fullName = (firstName+' '+lastName).trim() || String(meta.full_name||'').trim();
+    const email = session && session.user ? session.user.email : '';
     return {
       loggedIn: !!(session && session.refresh_token),
-      email: session && session.user ? session.user.email : '',
+      email,
+      firstName, lastName, fullName,
+      // Tarixda va izohlarda ko'rsatiladigan nom: ism-familiya, bo'lmasa email.
+      displayName: fullName || email,
       userId: session && session.user ? session.user.id : '',
     };
   }
