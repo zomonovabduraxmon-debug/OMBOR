@@ -2636,7 +2636,63 @@ async function refreshAuthButton(){
     btn.title = !isLoggedIn ? 'Войти'
       : (isEditorMode ? 'Аккаунт редактора / выйти' : 'Аккаунт (только просмотр) / выйти');
   }
+  markActivity(); // login/chiqish holati har safar yangilanganda nofaollik hisoblagichi qayta boshlansin
   render();
+}
+
+/* ============================= NOFAOLLIKDAN AVTOMATIK CHIQISH =============================
+   Tizimga kirgan foydalanuvchi (isLoggedIn) uzoq vaqt (IDLE_LOGOUT_MS) hech
+   qanday harakat qilmasa (sichqoncha, klaviatura, scroll, bosish),
+   avtomatik ravishda tizimdan chiqariladi. Oxirgi harakat vaqti
+   localStorage'da saqlanadi, shu sababli sahifa qayta yuklansa yoki
+   yopilib qayta ochilsa ham, "chindan qancha vaqt nofaol turgani"
+   to'g'ri hisoblanadi. */
+const IDLE_LOGOUT_MS = 60 * 60 * 1000; // 1 soat
+const IDLE_STORAGE_KEY = 'ombor_last_activity_at';
+let idleLogoutTimer = null;
+
+function markActivity(){
+  try{ localStorage.setItem(IDLE_STORAGE_KEY, String(Date.now())); }catch(_){}
+  scheduleIdleLogout();
+}
+
+function scheduleIdleLogout(){
+  if(idleLogoutTimer){ clearTimeout(idleLogoutTimer); idleLogoutTimer = null; }
+  if(!isLoggedIn) return;
+
+  let lastActivity = Date.now();
+  try{
+    const stored = Number(localStorage.getItem(IDLE_STORAGE_KEY));
+    if(stored) lastActivity = stored;
+  }catch(_){}
+
+  const remaining = IDLE_LOGOUT_MS - (Date.now() - lastActivity);
+  if(remaining <= 0){
+    performIdleLogout();
+    return;
+  }
+  idleLogoutTimer = setTimeout(performIdleLogout, remaining);
+}
+
+async function performIdleLogout(){
+  if(!isLoggedIn || !window.OfflineSync) return;
+  try{ await OfflineSync.logout(); }catch(err){ console.warn('idle logout xatosi', err); }
+  isLoggedIn = false;
+  isEditorMode = false;
+  await refreshAuthButton();
+  toast("1 soatlik nofaollikdan so'ng tizimdan avtomatik chiqarildingiz");
+}
+
+function initIdleAutoLogout(){
+  ['mousemove','mousedown','keydown','touchstart','scroll','click'].forEach(evt=>{
+    document.addEventListener(evt, markActivity, { passive:true });
+  });
+  // Sahifa yashirin/qayta ko'rinar bo'lganda (masalan, boshqa tabga
+  // o'tib, keyin qaytilganda) ham nofaollik vaqtini qayta tekshiramiz.
+  document.addEventListener('visibilitychange', ()=>{
+    if(!document.hidden) scheduleIdleLogout();
+  });
+  markActivity();
 }
 
 async function openAuthModal(){
@@ -2644,14 +2700,11 @@ async function openAuthModal(){
   const info = await OfflineSync.authInfo();
   if(info.loggedIn){
     showModal(`
-      <div class="modal-head"><h2>${isEditorMode ? 'Аккаунт редактора' : 'Аккаунт (только просмотр)'}</h2><button class="close-x" data-close>&times;</button></div>
+      <div class="modal-head"><h2>Выйти из системы</h2><button class="close-x" data-close>&times;</button></div>
       <div class="modal-body">
-        <div class="field"><label>Выполнен вход</label><div>${escapeHtml(info.email || '')}</div></div>
-        ${isEditorMode
-          ? `<div class="subtle-note">Офлайн-изменения будут отправлены в общую базу при появлении интернета.</div>`
-          : `<div class="subtle-note">Sizga faqat ko'rish huquqi berilgan. Tahrirlash huquqi kerak bo'lsa, administratorga murojaat qiling.</div>`}
+        <p style="margin:0;">Вы уверены, что хотите выйти?</p>
       </div>
-      <div class="modal-foot"><button class="btn secondary" data-close>Закрыть</button><button class="btn danger" id="btnLogout">Выйти</button></div>
+      <div class="modal-foot"><button class="btn secondary" data-close>Нет, остаться</button><button class="btn danger" id="btnLogout">Да, выйти</button></div>
     `);
     document.getElementById('btnLogout').addEventListener('click', async ()=>{
       await OfflineSync.logout();
@@ -2837,6 +2890,7 @@ async function dedupePermitsByNumber(){
 
   render();
   bindAuthButton();
+  initIdleAutoLogout();
 
   if('serviceWorker' in navigator){
     const hadController = !!navigator.serviceWorker.controller;

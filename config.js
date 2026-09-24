@@ -14,6 +14,6 @@ window.APP_CONFIG = {
   // e'lon qilmang. Xohlagan vaqtda shu qatorni o'zgartirib qo'yishingiz
   // mumkin (eski kod bilan yaratilgan hisoblar buzilmaydi, faqat YANGI
   // ro'yxatdan o'tish shu YANGI kodni talab qiladi).
-  editorInviteCode: "OMBOR-2026"
+  editorInviteCode: "OMBOR"
 };
 
