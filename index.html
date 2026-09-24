@@ -6,6 +6,14 @@
 <title>OMBOR QOLDIG'I</title>
 <meta name="theme-color" content="#1a2338">
 <link rel="manifest" href="./manifest.webmanifest">
+<!-- iPhone/Safari "Bosh ekranga qo'shish" uchun: shu teglarsiz ikonka o'rniga
+     sahifaning skrinshoti ishlatiladi va ochilganda Safari paneli ko'rinadi. -->
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="./icon-512.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ombor">
+<meta name="mobile-web-app-capable" content="yes">
 <script>
 // Supabase audit_logs 404 xatosini xavfsiz neytrallash va sinxronizatsiya xatosini bartaraf qilish
 (function(){
@@ -249,6 +257,14 @@
     background:var(--panel);border-radius:5px;max-width:880px;width:100%;
     box-shadow:0 20px 60px rgba(0,0,0,.25);
   }
+  /* To'liq ekranli oyna (masalan, ruxsatnoma tafsilotlari): X o'rniga
+     "Orqaga" tugmasi bilan, butun ekranni egallaydi, orqasidagi ro'yxat
+     ko'rinmaydi. */
+  .modal-backdrop.fullscreen-view{padding:0;align-items:stretch;background:var(--bg,#eef1f2);}
+  .modal-backdrop.fullscreen-view .modal{max-width:100%;width:100%;min-height:100vh;border-radius:0;box-shadow:none;}
+  .modal-backdrop.fullscreen-view .modal-head{justify-content:flex-start;gap:14px;position:sticky;top:0;background:var(--panel);z-index:5;}
+  .modal-backdrop.fullscreen-view .modal-body{max-height:none;}
+  .fs-back-btn{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;}
   .modal-head{padding:16px 20px;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center;}
   .modal-head h2{font-family:var(--serif);font-size:18px;margin:0;}
   .modal-body{padding:20px;max-height:70vh;overflow:auto;-webkit-overflow-scrolling:touch;}
@@ -1430,8 +1446,8 @@ function openPermitDetail(permitId){
 
   showModal(`
     <div class="modal-head">
+      <button class="btn secondary fs-back-btn" data-close>&larr; ${uiT('Orqaga')}</button>
       <h2>${escapeHtml(p.number)}</h2>
-      <button class="close-x" data-close>&times;</button>
     </div>
     <div class="modal-body">
       <div class="subtle-note" style="margin-bottom:14px;">от ${p.date||'—'} ${p.note?(' · '+escapeHtml(p.note)):''} &middot; разрешено ${fmt(t.allowedQty,0)} шт / ${fmt(t.allowedW,2)} кг &middot; остаток ${fmt(t.remQty,0)} шт / ${fmt(t.remW,2)} кг</div>
@@ -1442,10 +1458,7 @@ function openPermitDetail(permitId){
       ${shipments.length ? `<table><thead><tr><th>Инвойс</th><th>Дата</th><th>Строк</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead><tbody>${shipRows}</tbody></table>`
       : `<div class="subtle-note">Отгрузок ещё не было.</div>`}
     </div>
-    <div class="modal-foot">
-      <button class="btn secondary" data-close>Закрыть</button>
-    </div>
-  `);
+  `, {fullscreen:true});
   document.querySelectorAll('[data-del-shipment]').forEach(el=>el.addEventListener('click', ()=>{
     showReasonPrompt({
       title: uiT('Удалить отгрузку?'),
@@ -1875,7 +1888,7 @@ function renderShipmentHistoryInvoiceFolder(key){
   const body = rows.map(sh=>{
     const permit = state.permits.find(p=>p.id===sh.permitId);
     const sum = shipmentLineTotals(sh);
-    return `<tr>
+    return `<tr class="row-clickable" data-open-shipment-lines="${sh.id}" tabindex="0" role="button" title="${escapeAttr(uiT('Нажмите — какие модели и сколько было в этой отгрузке'))}">
       <td>${escapeHtml(sh.invoiceDate||'—')}</td>
       <td>${permit ? `<a href="#" data-open-permit-h="${permit.id}">${escapeHtml(permit.number)}</a>` : '—'}</td>
       <td class="num-col">${sh.lines.length}</td>
@@ -1940,8 +1953,18 @@ function bindShipmentHistoryEvents(){
 
   document.querySelectorAll('[data-open-permit-h]').forEach(el=>el.addEventListener('click', (e)=>{
     e.preventDefault();
+    e.stopPropagation();
     openPermitDetail(el.dataset.openPermitH);
   }));
+
+  document.querySelectorAll('[data-open-shipment-lines]').forEach(el=>{
+    const openIt = (e)=>{
+      if(e && (e.target.closest('button') || e.target.closest('a'))) return;
+      openShipmentLinesModal(el.dataset.openShipmentLines);
+    };
+    el.addEventListener('click', openIt);
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openIt(); } });
+  });
 
   document.querySelectorAll('[data-edit-shipment]').forEach(el=>el.addEventListener('click', ()=>openEditShipmentModal(el.dataset.editShipment)));
   document.querySelectorAll('[data-comments-shipment]').forEach(el=>el.addEventListener('click', ()=>{
@@ -1971,6 +1994,50 @@ function bindShipmentHistoryEvents(){
       }
     });
   }));
+}
+
+/* ============================= BITTA YUKLAMA — QATORLAR (kichik oyna) =============================
+   Yuklamalar tarixi → invoys papkasi ichida bitta qatorga bosilganda ochiladi:
+   aynan shu bitta yuklamada qaysi model(lar)dan necha dona / necha kg
+   yuklangani (boshqa yuklamalar bilan aralashmasdan). */
+function openShipmentLinesModal(shipmentId){
+  const sh = state.shipments.find(s=>s.id===shipmentId);
+  if(!sh) return;
+  const permit = state.permits.find(p=>p.id===sh.permitId);
+  const sum = shipmentLineTotals(sh);
+
+  const rowsHtml = (Array.isArray(sh.lines) && sh.lines.length) ? sh.lines.map(ln=>{
+    const it = permit ? (permit.items||[]).find(i=>i.id===ln.itemId) : null;
+    return `<tr>
+      <td>${it ? escapeHtml(it.name) : `<span class="subtle-note">${uiT('Модель не найдена')}</span>`}</td>
+      <td class="num-col">${fmt(ln.qty,0)} ${escapeHtml((it && it.unit) || '')}</td>
+      <td class="num-col">${fmt(ln.weight,2)} ${uiT('кг')}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="3"><div class="subtle-note">${uiT('Позиций нет')}</div></td></tr>`;
+
+  showModal(`
+    <div class="modal-head">
+      <h2>${escapeHtml(sh.invoiceNumber||'—')}</h2>
+      <button class="close-x" data-close>&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="subtle-note" style="margin-bottom:14px;">
+        ${escapeHtml(sh.invoiceDate||'—')}${permit ? ' &middot; '+escapeHtml(permit.number) : ''}
+      </div>
+      <table>
+        <thead><tr><th>${uiT('Наименование')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot><tr>
+          <td class="table-total-label">${uiT('Итого')}</td>
+          <td class="num-col">${fmt(sum.qty,0)}</td>
+          <td class="num-col">${fmt(sum.weight,2)} ${uiT('кг')}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="modal-foot">
+      <button class="btn secondary" data-close>${uiT('Закрыть')}</button>
+    </div>
+  `);
 }
 
 function openEditShipmentModal(shipmentId){
@@ -2438,14 +2505,16 @@ function exportWorkbook(){
 window.exportWorkbook = exportWorkbook;
 
 /* ============================= MODAL HELPERS ============================= */
-function showModal(innerHtml){
+function showModal(innerHtml, opts){
   closeModal();
   const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
+  backdrop.className = 'modal-backdrop' + ((opts && opts.fullscreen) ? ' fullscreen-view' : '');
   backdrop.id = 'modalBackdrop';
   backdrop.innerHTML = `<div class="modal">${innerHtml}</div>`;
   document.body.appendChild(backdrop);
-  backdrop.addEventListener('click', e=>{ if(e.target===backdrop) closeModal(); });
+  if(!(opts && opts.fullscreen)){
+    backdrop.addEventListener('click', e=>{ if(e.target===backdrop) closeModal(); });
+  }
   backdrop.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click', closeModal));
 }
 function closeModal(){

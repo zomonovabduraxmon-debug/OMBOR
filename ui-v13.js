@@ -285,7 +285,11 @@
     'Итого':{ru:'Итого',en:'Total',uz:'Jami',tr:'Toplam'},
     'Разбивка по отгрузкам':{ru:'Разбивка по отгрузкам',en:'Breakdown by shipments',uz:'Yuklamalar bo‘yicha taqsimot',tr:'Sevkiyatlara göre dağılım'},
     'По этой модели пока нет отгрузок':{ru:'По этой модели пока нет отгрузок',en:'No shipments yet for this model',uz:'Ushbu model bo‘yicha hali yuklama qilinmagan',tr:'Bu model için henüz sevkiyat yok'},
-    'Нажмите — посмотреть, из каких отгрузок расходовалась эта модель':{ru:'Нажмите — посмотреть, из каких отгрузок расходовалась эта модель',en:'Click to see which shipments used this model',uz:'Bosing — bu model qaysi yuklamalardan sarflanganini ko‘rish',tr:'Bu modelin hangi sevkiyatlardan kullanıldığını görmek için tıklayın'}
+    'Нажмите — посмотреть, из каких отгрузок расходовалась эта модель':{ru:'Нажмите — посмотреть, из каких отгрузок расходовалась эта модель',en:'Click to see which shipments used this model',uz:'Bosing — bu model qaysi yuklamalardan sarflanganini ko‘rish',tr:'Bu modelin hangi sevkiyatlardan kullanıldığını görmek için tıklayın'},
+    'Orqaga':{ru:'Назад',en:'Back',uz:'Orqaga',tr:'Geri'},
+    'Нажмите — какие модели и сколько было в этой отгрузке':{ru:'Нажмите — какие модели и сколько было в этой отгрузке',en:'Click to see which models and how much were in this shipment',uz:'Bosing — ushbu yuklamada qaysi modeldan qancha borligini ko‘rish',tr:'Bu sevkiyatta hangi modellerin ne kadar olduğunu görmek için tıklayın'},
+    'Модель не найдена':{ru:'Модель не найдена',en:'Model not found',uz:'Model topilmadi',tr:'Model bulunamadı'},
+    'Позиций нет':{ru:'Позиций нет',en:'No items',uz:'Pozitsiyalar yo‘q',tr:'Kalem yok'}
   };
 
   const reverseText = new Map();
