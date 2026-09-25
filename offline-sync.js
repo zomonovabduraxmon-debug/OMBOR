@@ -347,6 +347,30 @@
     }
   }
 
+  // "Qo'shuvchi" (cheklangan tahrirlash huquqi): faqat admin "contributors"
+  // jadvaliga qo'lda qo'shgan userlar. Ular ruxsatnoma/yuklama qo'sha va
+  // tahrirlay oladi, lekin o'chira olmaydi. Bu cheklov ikki joyda ta'minlanadi:
+  // 1) frontendda (index.html) — o'chirish tugmalari faqat to'liq editorga
+  //    ko'rinadi; 2) serverda — Supabase'dagi sync_records funksiyasi
+  //    contributors uchun deleted_at yozilishini rad etadi (AUDIT/CONTRIBUTOR
+  //    migratsiyasiga qarang).
+  async function isContributor(){
+    const session = await getSession(true);
+    if(!session || !session.access_token || !session.user) return false;
+    try{
+      const res = await apiFetch(
+        `/rest/v1/contributors?select=user_id&user_id=eq.${encodeURIComponent(session.user.id)}`,
+        { method:'GET' },
+        true
+      );
+      if(!res.ok) return false;
+      const rows = await res.json().catch(()=>[]);
+      return Array.isArray(rows) && rows.length > 0;
+    }catch(_){
+      return false;
+    }
+  }
+
   async function apiFetch(path, options, useUserToken){
     const headers = { 'apikey':anonKey(), ...(options && options.headers || {}) };
     if(useUserToken){
@@ -607,6 +631,7 @@
     logout,
     authInfo,
     isEditor,
+    isContributor,
     onStatus(fn){ root.addEventListener(STATUS_EVENT, e=>fn(e.detail)); },
     onData(fn){ root.addEventListener(DATA_EVENT, fn); },
   };

@@ -483,6 +483,10 @@
 let state = { permits: [], shipments: [], audits: [], comments: [] };
 let currentTab = 'dashboard';
 let isEditorMode = false; // haqiqiy tahrirlash huquqi (faqat "editors" jadvalidagilar)
+let isContributorMode = false; // cheklangan tahrirlash: qo'sha/tahrirlay oladi, lekin o'chira olmaydi (faqat "contributors" jadvalidagilar)
+// Ruxsatnoma/yuklama QO'SHISH va TAHRIRLASH huquqi: to'liq editor HAM, qo'shuvchi HAM.
+// O'CHIRISH esa hamon faqat isEditorMode bilan tekshiriladi (pastda o'zgarmagan qoldi).
+function canCreateEdit(){ return isEditorMode || isContributorMode; }
 let isLoggedIn = false;   // tizimga kirgan — hammasini ko'ra oladi, lekin o'zgartira olmaydi
 let dashboardSearch = '';
 let dashboardFilter = 'all';
@@ -1346,10 +1350,8 @@ function renderPermits(){
           ${(()=>{ const c = latestComment('permit', p.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,60))}</em></button>` : '<span></span>'; })()}
           <span style="display:flex;gap:8px;flex-shrink:0;white-space:nowrap;">
             <button class="btn secondary sm" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('permit',p.id).length}</button>
-            ${isEditorMode ? `
-            <button class="btn secondary sm" data-edit-permit="${p.id}">Изменить</button>
-            <button class="btn danger sm" data-del-permit="${p.id}">Удалить</button>
-            ` : ''}
+            ${canCreateEdit() ? `<button class="btn secondary sm" data-edit-permit="${p.id}">Изменить</button>` : ''}
+            ${isEditorMode ? `<button class="btn danger sm" data-del-permit="${p.id}">Удалить</button>` : ''}
           </span>
         </div>
       </td>
@@ -1359,7 +1361,7 @@ function renderPermits(){
   return `
     <div class="toolbar">
       <div><h1>Разрешения</h1><div class="desc">Реестр разрешений (рухсатнома) и их позиций</div></div>
-      ${isEditorMode ? `<button class="btn" id="btnNewPermit">+ Добавить разрешение</button>` : `<span class="badge neutral">Режим просмотра</span>`}
+      ${canCreateEdit() ? `<button class="btn" id="btnNewPermit">+ Добавить разрешение</button>` : `<span class="badge neutral">Режим просмотра</span>`}
     </div>
     <div class="panel">
       <div class="panel-body" style="padding:0;">
@@ -1732,7 +1734,7 @@ async function deletePermit(permitId){
 let shipmentDraft = { mode:'manual', permitId:'', invoiceNumber:'', invoiceDate:'', lines:{} };
 
 function renderShipmentTab(){
-  if(!isEditorMode){
+  if(!canCreateEdit()){
     const msg = isLoggedIn
       ? 'Sizning hisobingiz faqat ko\'rish huquqiga ega. Tahrirlash huquqini administrator beradi.'
       : 'Ma\'lumotni o\'zgartirish uchun yuqoridagi «Войти» tugmasi orqali tizimga kiring.';
@@ -1982,10 +1984,8 @@ function renderShipmentHistoryInvoiceFolder(key){
           ${(()=>{ const c = latestComment('shipment', sh.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-shipment="${sh.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,60))}</em></button>` : '<span></span>'; })()}
           <span style="display:flex;gap:8px;flex-shrink:0;white-space:nowrap;">
             <button class="btn secondary sm" data-comments-shipment="${sh.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('shipment',sh.id).length}</button>
-            ${isEditorMode ? `
-            <button class="btn secondary sm" data-edit-shipment="${sh.id}">${uiT('Изменить')}</button>
-            <button class="btn danger sm" data-del-shipment-h="${sh.id}">${uiT('Удалить')}</button>
-            ` : ''}
+            ${canCreateEdit() ? `<button class="btn secondary sm" data-edit-shipment="${sh.id}">${uiT('Изменить')}</button>` : ''}
+            ${isEditorMode ? `<button class="btn danger sm" data-del-shipment-h="${sh.id}">${uiT('Удалить')}</button>` : ''}
           </span>
         </div>
       </td>
@@ -2680,11 +2680,12 @@ async function refreshAuthButton(){
   const info = await OfflineSync.authInfo();
   isLoggedIn = !!info.loggedIn;
   isEditorMode = isLoggedIn && await OfflineSync.isEditor();
+  isContributorMode = isLoggedIn && !isEditorMode && await OfflineSync.isContributor();
   const btn = document.getElementById('authBtn');
   if(btn){
     btn.textContent = info.loggedIn ? (info.displayName || info.email || 'Аккаунт') : 'Войти';
     btn.title = !isLoggedIn ? 'Войти'
-      : (isEditorMode ? 'Аккаунт редактора / выйти' : 'Аккаунт (только просмотр) / выйти');
+      : (isEditorMode ? 'Аккаунт редактора / выйти' : (isContributorMode ? 'Аккаунт (добавление) / выйти' : 'Аккаунт (только просмотр) / выйти'));
   }
   markActivity(); // login/chiqish holati har safar yangilanganda nofaollik hisoblagichi qayta boshlansin
   render();
@@ -2729,6 +2730,7 @@ async function performIdleLogout(){
   try{ await OfflineSync.logout(); }catch(err){ console.warn('idle logout xatosi', err); }
   isLoggedIn = false;
   isEditorMode = false;
+  isContributorMode = false;
   await refreshAuthButton();
   toast("1 soatlik nofaollikdan so'ng tizimdan avtomatik chiqarildingiz");
 }

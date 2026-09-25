@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v23-audit-delete-editors';
+const CACHE = 'permit-tracker-shell-v24-contributor-role';
 const APP_SHELL = [
   './',
   './index.html',
