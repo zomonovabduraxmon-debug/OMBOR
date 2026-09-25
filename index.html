@@ -486,7 +486,9 @@ let isEditorMode = false; // haqiqiy tahrirlash huquqi (faqat "editors" jadvalid
 let isContributorMode = false; // cheklangan tahrirlash: qo'sha/tahrirlay oladi, lekin o'chira olmaydi (faqat "contributors" jadvalidagilar)
 // Ruxsatnoma/yuklama QO'SHISH va TAHRIRLASH huquqi: to'liq editor HAM, qo'shuvchi HAM.
 // O'CHIRISH esa hamon faqat isEditorMode bilan tekshiriladi (pastda o'zgarmagan qoldi).
-function canCreateEdit(){ return isEditorMode || isContributorMode; }
+// OFFLINE bo'lsa — hech kimga (avval kirgan bo'lsa ham) tahrirlash/qo'shish huquqi
+// berilmaydi: internet yo'qligida dastur to'liq "faqat ko'rish" rejimida ishlaydi.
+function canCreateEdit(){ return navigator.onLine && (isEditorMode || isContributorMode); }
 let isLoggedIn = false;   // tizimga kirgan — hammasini ko'ra oladi, lekin o'zgartira olmaydi
 let dashboardSearch = '';
 let dashboardFilter = 'all';
@@ -630,6 +632,9 @@ function truncateText(s, n){
 
 async function addComment(entityType, entityId, text){
   if(!window.OfflineSync) throw new Error('OFFLINE_SYNC_MISSING');
+  // Offlineda izoh qo'shish ham mumkin emas — offline holatda dastur to'liq
+  // "faqat ko'rish" rejimida ishlaydi (login qilingan bo'lishidan qat'i nazar).
+  if(!navigator.onLine) throw new Error('OFFLINE');
   const info = await OfflineSync.authInfo();
   if(!info.loggedIn) throw new Error('AUTH_REQUIRED');
   const comment = {
@@ -694,13 +699,15 @@ function openCommentsModal(entityType, entityId, title){
     <div class="modal-head"><h2>${uiT('Izohlar')} — ${escapeHtml(title||'')}</h2><button class="close-x" data-close>&times;</button></div>
     <div class="modal-body">
       <div id="commentsListBox" style="max-height:40vh;overflow:auto;margin-bottom:14px;">${itemsHtml}</div>
-      ${isLoggedIn
-        ? `<div class="field"><label>${uiT('Yangi izoh')}</label><textarea id="newCommentText" rows="3" placeholder="${escapeAttr(uiT('Izoh yozing...'))}"></textarea></div>`
-        : `<div class="subtle-note">${uiT('Izoh yozish uchun tizimga kiring (istalgan hisob bilan — tahrirlash huquqi shart emas).')}</div>`}
+      ${!navigator.onLine
+        ? `<div class="subtle-note">${uiT("Offline holatda faqat ko'rish mumkin. Izoh yozish uchun internetga ulaning.")}</div>`
+        : (isLoggedIn
+          ? `<div class="field"><label>${uiT('Yangi izoh')}</label><textarea id="newCommentText" rows="3" placeholder="${escapeAttr(uiT('Izoh yozing...'))}"></textarea></div>`
+          : `<div class="subtle-note">${uiT('Izoh yozish uchun tizimga kiring (istalgan hisob bilan — tahrirlash huquqi shart emas).')}</div>`)}
     </div>
     <div class="modal-foot">
       <button class="btn secondary" data-close>${uiT('Yopish')}</button>
-      ${isLoggedIn ? `<button class="btn" id="btnAddComment">${uiT('Yuborish')}</button>` : ''}
+      ${(isLoggedIn && navigator.onLine) ? `<button class="btn" id="btnAddComment">${uiT('Yuborish')}</button>` : ''}
     </div>
   `);
 
@@ -719,7 +726,7 @@ function openCommentsModal(entityType, entityId, title){
       toast(uiT('Izoh qo\'shildi'));
     }catch(e){
       console.error(e);
-      toast(uiT('Izohni saqlab bo\'lmadi'));
+      toast(String(e && e.message)==='OFFLINE' ? uiT("Offline holatda izoh yozish mumkin emas") : uiT('Izohni saqlab bo\'lmadi'));
       btn.disabled = false;
       btn.textContent = uiT('Yuborish');
     }
@@ -2771,14 +2778,27 @@ function openStatusModal(kind){
 async function refreshAuthButton(){
   if(!window.OfflineSync) return;
   const info = await OfflineSync.authInfo();
+  const online = navigator.onLine;
   isLoggedIn = !!info.loggedIn;
   isEditorMode = isLoggedIn && await OfflineSync.isEditor();
   isContributorMode = isLoggedIn && !isEditorMode && await OfflineSync.isContributor();
+  // OFFLINE — sessiya (agar avval kirilgan bo'lsa) saqlanib qoladi, lekin
+  // qo'shish/tahrirlash huquqlari vaqtincha o'chiriladi: dastur to'liq
+  // "faqat ko'rish" rejimida ishlaydi, internet qaytganda avtomatik tiklanadi.
+  if(!online){
+    isEditorMode = false;
+    isContributorMode = false;
+  }
   const btn = document.getElementById('authBtn');
   if(btn){
-    btn.textContent = info.loggedIn ? (info.displayName || info.email || 'Аккаунт') : 'Войти';
-    btn.title = !isLoggedIn ? 'Войти'
-      : (isEditorMode ? 'Аккаунт редактора / выйти' : (isContributorMode ? 'Аккаунт (добавление) / выйти' : 'Аккаунт (только просмотр) / выйти'));
+    if(!online){
+      btn.textContent = "Faqat ko'rish (offline)";
+      btn.title = "Internet yo'q — faqat ko'rish rejimi. Kirish/tahrirlash uchun internetga ulaning.";
+    }else{
+      btn.textContent = info.loggedIn ? (info.displayName || info.email || 'Аккаунт') : 'Войти';
+      btn.title = !isLoggedIn ? 'Войти'
+        : (isEditorMode ? 'Аккаунт редактора / выйти' : (isContributorMode ? 'Аккаунт (добавление) / выйти' : 'Аккаунт (только просмотр) / выйти'));
+    }
   }
   markActivity(); // login/chiqish holati har safar yangilanganda nofaollik hisoblagichi qayta boshlansin
   render();
@@ -2857,6 +2877,13 @@ async function openAuthModal(){
       await refreshAuthButton();
       toast('Вы вышли из режима редактирования');
     });
+    return;
+  }
+
+  // Offlineda kirish/ro'yxatdan o'tish oynasi umuman ochilmasin — bu holatda
+  // dastur faqat ko'rish rejimida ishlaydi (chiqish esa internetsiz ham bo'ladi).
+  if(!navigator.onLine){
+    toast("Offline holatda tizimga kirish mumkin emas. Internetga ulaning.");
     return;
   }
 
@@ -3041,6 +3068,12 @@ async function dedupePermitsByNumber(){
   render();
   bindAuthButton();
   initIdleAutoLogout();
+
+  // Internet ulanishi holati o'zgarganda (offline<->online) tahrirlash
+  // huquqlarini va "Kirish" tugmasini shu zahoti qayta hisoblaymiz —
+  // sahifani qayta yuklashni kutib o'tirmasdan.
+  window.addEventListener('online', refreshAuthButton);
+  window.addEventListener('offline', refreshAuthButton);
 
   if('serviceWorker' in navigator){
     const hadController = !!navigator.serviceWorker.controller;
