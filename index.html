@@ -921,6 +921,34 @@ function showReasonPrompt(opts){
 function uiLang(){
   try{return window.EOMBOR_UI_V5?.getCurrentLanguage?.() || 'ru';}catch(_){return 'ru';}
 }
+/* Tarixdan (audit_logs) bitta yozuvni o'chirish — FAQAT editor uchun.
+   Frontendda tugma shu shart bilan yashirilgan, orqa tomonda esa Supabase
+   RLS ("audit_logs_update_editors" siyosati, AUDIT-DELETE-EDITORS.sql) ham
+   buni majburlaydi. "Soft delete": mahalliy holatdan (state.audits) olib
+   tashlanadi, sinxronlanganda serverdagi qatorga deleted_at yoziladi —
+   shu tufayli boshqa qurilmalarda ham yo'qoladi va offline holda ham ishlaydi.
+   Ushbu o'chirish uchun yangi audit yozuvi qo'shilmaydi (aks holda tarix
+   o'z-o'zini cheksiz to'ldirib boraveradi). */
+async function deleteAuditEntry(auditId){
+  if(!isEditorMode) return;
+  const a = (state.audits||[]).find(x=>x.id===auditId);
+  if(!a) return;
+  showReasonPrompt({
+    title: uiT('Удалить запись из истории?'),
+    message: uiT('Запись будет удалена из журнала у всех пользователей. Действие необратимо.'),
+    danger: true,
+    confirmLabel: uiT('Удалить'),
+    placeholder: uiT('Укажите причину удаления записи...'),
+    onConfirm: async ()=>{
+      state.audits = (state.audits||[]).filter(x=>x.id!==auditId);
+      await OfflineSync.saveCollection('audit', state.audits);
+      closeModal();
+      render();
+      toast(uiT('Запись удалена'));
+    }
+  });
+}
+
 function uiT(text){
   try{return window.EOMBOR_UI_V5?.translateText?.(String(text), uiLang()) || String(text);}catch(_){return String(text);}
 }
@@ -969,7 +997,7 @@ function renderAuditTab(){
   });
   const locale={ru:'ru-RU',en:'en-US',uz:'uz-UZ',tr:'tr-TR'}[uiLang()]||'ru-RU';
   return `<div class="toolbar"><div><h1>${uiT('Журнал истории')}</h1><div class="desc">${uiT('Кто, когда и что изменил')} · ${escapeHtml(uiT('Нажмите на строку, чтобы увидеть детали'))}</div></div><input id="auditSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по пользователю, действию или объекту'))}" value="${escapeAttr(auditSearch)}"></div>
-    <div class="panel"><div class="panel-body">${rows.length?`<div style="overflow:auto"><table><thead><tr><th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th></tr></thead><tbody>${rows.map(a=>`<tr class="row-clickable" data-open-audit="${a.id}"><td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}</div></div>`;
+    <div class="panel"><div class="panel-body">${rows.length?`<div style="overflow:auto"><table><thead><tr><th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th>${isEditorMode?`<th></th>`:``}</tr></thead><tbody>${rows.map(a=>`<tr class="row-clickable" data-open-audit="${a.id}"><td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td>${isEditorMode?`<td style="text-align:right;"><button type="button" class="btn danger sm" data-del-audit="${a.id}" title="${escapeAttr(uiT('Удалить запись'))}">${escapeHtml(uiT('Удалить'))}</button></td>`:``}</tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}</div></div>`;
 }
 
 // Detail modal for a single audit entry: who/when/what + a clean
@@ -1014,9 +1042,14 @@ function openAuditDetailModal(auditId){
       ${diffHtml}
     </div>
     <div class="modal-foot">
+      ${isEditorMode ? `<button class="btn danger" id="auditDeleteBtn">${escapeHtml(uiT('Удалить запись'))}</button>` : ``}
       <button class="btn secondary" data-close>${escapeHtml(uiT('Закрыть'))}</button>
     </div>
   `);
+  if(isEditorMode){
+    const delBtn = document.getElementById('auditDeleteBtn');
+    if(delBtn) delBtn.addEventListener('click', ()=>deleteAuditEntry(a.id));
+  }
 }
 
 /* ============================= CALCULATIONS ============================= */
@@ -1399,6 +1432,10 @@ function bindTabEvents(){
     const q = document.getElementById('auditSearch');
     if(q) q.addEventListener('input', e=>{ auditSearch=e.target.value; render(); });
     document.querySelectorAll('[data-open-audit]').forEach(el=>el.addEventListener('click', ()=>openAuditDetailModal(el.dataset.openAudit)));
+    document.querySelectorAll('[data-del-audit]').forEach(el=>el.addEventListener('click', e=>{
+      e.stopPropagation();
+      deleteAuditEntry(el.dataset.delAudit);
+    }));
   }
 }
 
