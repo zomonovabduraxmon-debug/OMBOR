@@ -293,7 +293,17 @@
     'Orqaga':{ru:'Назад',en:'Back',uz:'Orqaga',tr:'Geri'},
     'Нажмите — какие модели и сколько было в этой отгрузке':{ru:'Нажмите — какие модели и сколько было в этой отгрузке',en:'Click to see which models and how much were in this shipment',uz:'Bosing — ushbu yuklamada qaysi modeldan qancha borligini ko‘rish',tr:'Bu sevkiyatta hangi modellerin ne kadar olduğunu görmek için tıklayın'},
     'Модель не найдена':{ru:'Модель не найдена',en:'Model not found',uz:'Model topilmadi',tr:'Model bulunamadı'},
-    'Позиций нет':{ru:'Позиций нет',en:'No items',uz:'Pozitsiyalar yo‘q',tr:'Kalem yok'}
+    'Позиций нет':{ru:'Позиций нет',en:'No items',uz:'Pozitsiyalar yo‘q',tr:'Kalem yok'},
+
+    'PDF файл разрешения':{ru:'PDF файл разрешения',en:'Permit PDF file',uz:'Ruxsatnoma PDF fayli',tr:'İzin PDF dosyası'},
+    'saqlashda yuklanadi':{ru:'будет загружен при сохранении',en:'will be uploaded on save',uz:'saqlashda yuklanadi',tr:'kaydedilirken yüklenecek'},
+    'ochish / yuklab olish':{ru:'открыть / скачать',en:'open / download',uz:'ochish / yuklab olish',tr:'aç / indir'},
+    'Almashtirish':{ru:'Заменить',en:'Replace',uz:'Almashtirish',tr:'Değiştir'},
+    'Olib tashlash':{ru:'Убрать',en:'Remove',uz:'Olib tashlash',tr:'Kaldır'},
+    'Faqat PDF fayl tanlang':{ru:'Выберите файл в формате PDF',en:'Please select a PDF file',uz:'Faqat PDF fayl tanlang',tr:'Lütfen bir PDF dosyası seçin'},
+    'PDF yuklanmoqda...':{ru:'Загрузка PDF...',en:'Uploading PDF...',uz:'PDF yuklanmoqda...',tr:'PDF yükleniyor...'},
+    'PDF yuklash uchun tizimga kiring':{ru:'Войдите в систему, чтобы загрузить PDF',en:'Sign in to upload the PDF',uz:'PDF yuklash uchun tizimga kiring',tr:'PDF yüklemek için giriş yapın'},
+    'PDF faylni yuklab bo\'lmadi':{ru:'Не удалось загрузить PDF файл',en:'Could not upload the PDF file',uz:'PDF faylni yuklab bo‘lmadi',tr:'PDF dosyası yüklenemedi'}
   };
 
   const reverseText = new Map();

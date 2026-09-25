@@ -371,6 +371,42 @@
     }
   }
 
+  // ============================= RUXSATNOMA PDF (Supabase Storage) =============================
+  // Ruxsatnoma kiritilganda unga tegishli PDF fayl shu bucket'ga yuklanadi.
+  // Bucket public bo'lgani uchun qaytariladigan URL orqali istalgan payt
+  // ochish/yuklab olish mumkin (login talab qilinmaydi). Yuklash esa faqat
+  // tizimga kirgan (editor/contributor) foydalanuvchiga ruxsat etilgan —
+  // buni Storage RLS siyosati serverda ta'minlaydi (PERMIT-PDF-STORAGE.sql).
+  const PDF_BUCKET = 'permit-pdfs';
+
+  async function uploadPermitPdf(permitId, file){
+    if(!configured()) throw new Error('Supabase ещё не настроен');
+    if(!navigator.onLine) throw new Error('PDF yuklash uchun internet kerak');
+    const session = await getSession(true);
+    if(!session || !session.access_token) throw new Error('AUTH_REQUIRED');
+    const safeName = String(file.name || 'ruxsatnoma.pdf').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-140) || 'ruxsatnoma.pdf';
+    const path = `${permitId}/${Date.now()}_${safeName}`;
+    const res = await fetch(baseUrl() + '/storage/v1/object/' + PDF_BUCKET + '/' + path, {
+      method: 'POST',
+      headers: {
+        'apikey': anonKey(),
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': file.type || 'application/pdf',
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+    if(!res.ok){
+      const text = await res.text().catch(()=>String(res.status));
+      throw new Error('PDF_UPLOAD_FAILED ' + res.status + ' ' + text);
+    }
+    return {
+      url: baseUrl() + '/storage/v1/object/public/' + PDF_BUCKET + '/' + path,
+      path,
+      name: file.name || safeName
+    };
+  }
+
   async function apiFetch(path, options, useUserToken){
     const headers = { 'apikey':anonKey(), ...(options && options.headers || {}) };
     if(useUserToken){
@@ -626,6 +662,7 @@
     saveCollection,
     hasAnyRecords,
     configured,
+    uploadPermitPdf,
     login,
     signup,
     logout,

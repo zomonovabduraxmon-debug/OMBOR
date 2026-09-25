@@ -803,6 +803,7 @@ function diffPermitFields(oldP, newP){
   if(String(oldP.number||'') !== String(newP.number||'')) push('number', uiT('Номер разрешения'), oldP.number, newP.number);
   if(String(oldP.date||'') !== String(newP.date||'')) push('date', uiT('Дата разрешения'), oldP.date, newP.date);
   if(String(oldP.note||'') !== String(newP.note||'')) push('note', uiT('Примечание'), oldP.note, newP.note);
+  if(String(oldP.pdfName||'') !== String(newP.pdfName||'')) push('pdf', uiT('PDF файл разрешения'), oldP.pdfName||'—', newP.pdfName||'—');
 
   const oldItems = Array.isArray(oldP.items) ? oldP.items : [];
   const newItems = Array.isArray(newP.items) ? newP.items : [];
@@ -1350,6 +1351,7 @@ function renderPermits(){
           ${(()=>{ const c = latestComment('permit', p.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,60))}</em></button>` : '<span></span>'; })()}
           <span style="display:flex;gap:8px;flex-shrink:0;white-space:nowrap;">
             <button class="btn secondary sm" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('permit',p.id).length}</button>
+            ${p.pdfUrl ? `<a href="${escapeAttr(p.pdfUrl)}" target="_blank" rel="noopener" class="btn secondary sm" title="${escapeAttr(uiT('ochish / yuklab olish'))}">📄 PDF</a>` : ''}
             ${canCreateEdit() ? `<button class="btn secondary sm" data-edit-permit="${p.id}">Изменить</button>` : ''}
             ${isEditorMode ? `<button class="btn danger sm" data-del-permit="${p.id}">Удалить</button>` : ''}
           </span>
@@ -1407,7 +1409,7 @@ function bindTabEvents(){
     const newBtn = document.getElementById('btnNewPermit');
     if(newBtn) newBtn.addEventListener('click', ()=>openPermitModal(null));
     document.querySelectorAll('[data-open-permit]').forEach(el=>el.addEventListener('click', (e)=>{
-      if(e.target.closest('button')) return;
+      if(e.target.closest('button') || e.target.closest('a')) return;
       openPermitDetail(el.dataset.openPermit);
     }));
     document.querySelectorAll('[data-edit-permit]').forEach(el=>el.addEventListener('click', ()=>openPermitModal(el.dataset.editPermit)));
@@ -1519,7 +1521,7 @@ function openPermitDetail(permitId){
   const shipRows = shipments.map(s=>{
     const lineQty = s.lines.reduce((a,l)=>a+(Number(l.qty)||0),0);
     const lineW = s.lines.reduce((a,l)=>a+(Number(l.weight)||0),0);
-    return `<tr>
+    return `<tr class="row-clickable" data-open-shipment-lines="${s.id}" tabindex="0" role="button" title="${escapeAttr(uiT('Нажмите — какие модели и сколько было в этой отгрузке'))}">
       <td>${escapeHtml(s.invoiceNumber||'—')}</td>
       <td>${escapeHtml(s.invoiceDate||'—')}</td>
       <td class="num-col">${s.lines.length}</td>
@@ -1536,6 +1538,7 @@ function openPermitDetail(permitId){
     </div>
     <div class="modal-body">
       <div class="subtle-note" style="margin-bottom:14px;">от ${p.date||'—'} ${p.note?(' · '+escapeHtml(p.note)):''} &middot; разрешено ${fmt(t.allowedQty,0)} шт / ${fmt(t.allowedW,2)} кг &middot; остаток ${fmt(t.remQty,0)} шт / ${fmt(t.remW,2)} кг</div>
+      ${p.pdfUrl ? `<div style="margin-bottom:14px;"><a href="${escapeAttr(p.pdfUrl)}" target="_blank" rel="noopener" class="btn secondary sm">📄 ${escapeHtml(p.pdfName||uiT('PDF файл разрешения'))} — ${uiT('ochish / yuklab olish')}</a></div>` : ''}
       <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 8px 0;">Позиции</h3>
       <table class="center-data-table"><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
       <tbody>${itemRows}</tbody></table>
@@ -1544,6 +1547,14 @@ function openPermitDetail(permitId){
       : `<div class="subtle-note">Отгрузок ещё не было.</div>`}
     </div>
   `, {fullscreen:true});
+  document.querySelectorAll('[data-open-shipment-lines]').forEach(el=>{
+    const openIt = (e)=>{
+      if(e && (e.target.closest('button') || e.target.closest('a'))) return;
+      openShipmentLinesModal(el.dataset.openShipmentLines);
+    };
+    el.addEventListener('click', openIt);
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openIt(); } });
+  });
   document.querySelectorAll('[data-del-shipment]').forEach(el=>el.addEventListener('click', ()=>{
     showReasonPrompt({
       title: uiT('Удалить отгрузку?'),
@@ -1569,8 +1580,60 @@ function blankItem(){ return { id: uid('it'), name:'', material:'', tnved:'', un
 
 function openPermitModal(permitId){
   const editing = !!permitId;
-  const p = editing ? state.permits.find(x=>x.id===permitId) : { id: uid('perm'), number:'', date:'', note:'', items:[blankItem()] };
+  const p = editing ? state.permits.find(x=>x.id===permitId) : { id: uid('perm'), number:'', date:'', note:'', items:[blankItem()], pdfUrl:null, pdfPath:null, pdfName:null };
   const draft = JSON.parse(JSON.stringify(p));
+  let pendingPdfFile = null;   // tanlangan, hali yuklanmagan PDF (faqat "Сохранить" bosilganda yuklanadi)
+  let pdfRemoved = false;      // mavjud PDF "Olib tashlash" bilan belgilangan
+
+  function pdfFieldHtml(){
+    if(pendingPdfFile){
+      return `<div class="pdf-field-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span class="subtle-note">📄 ${escapeHtml(pendingPdfFile.name)} — ${uiT('saqlashda yuklanadi')}</span>
+        <button type="button" class="btn secondary sm" id="btnCancelPdf">${uiT('Bekor qilish')}</button>
+      </div>`;
+    }
+    if(draft.pdfUrl && !pdfRemoved){
+      return `<div class="pdf-field-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <a href="${escapeAttr(draft.pdfUrl)}" target="_blank" rel="noopener" class="btn secondary sm">📄 ${escapeHtml(draft.pdfName||'PDF')} — ${uiT('ochish / yuklab olish')}</a>
+        <button type="button" class="btn secondary sm" id="btnReplacePdf">${uiT('Almashtirish')}</button>
+        <button type="button" class="btn danger sm" id="btnRemovePdf">${uiT('Olib tashlash')}</button>
+        <input type="file" id="fldPdf" accept="application/pdf" style="display:none;">
+      </div>`;
+    }
+    return `<input type="file" id="fldPdf" accept="application/pdf">`;
+  }
+
+  function bindPdfField(){
+    const fld = document.getElementById('fldPdf');
+    if(fld) fld.addEventListener('change', ()=>{
+      const file = fld.files && fld.files[0];
+      if(!file) return;
+      if(file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name||'')){
+        toast(uiT('Faqat PDF fayl tanlang'));
+        fld.value = '';
+        return;
+      }
+      pendingPdfFile = file;
+      pdfRemoved = false;
+      document.getElementById('pdfFieldHost').innerHTML = pdfFieldHtml();
+      bindPdfField();
+    });
+    const replaceBtn = document.getElementById('btnReplacePdf');
+    if(replaceBtn) replaceBtn.addEventListener('click', ()=>{ document.getElementById('fldPdf').click(); });
+    const cancelBtn = document.getElementById('btnCancelPdf');
+    if(cancelBtn) cancelBtn.addEventListener('click', ()=>{
+      pendingPdfFile = null;
+      document.getElementById('pdfFieldHost').innerHTML = pdfFieldHtml();
+      bindPdfField();
+    });
+    const removeBtn = document.getElementById('btnRemovePdf');
+    if(removeBtn) removeBtn.addEventListener('click', ()=>{
+      pdfRemoved = true;
+      pendingPdfFile = null;
+      document.getElementById('pdfFieldHost').innerHTML = pdfFieldHtml();
+      bindPdfField();
+    });
+  }
 
   function itemsHtml(){
     return draft.items.map((it,i)=>`
@@ -1598,6 +1661,10 @@ function openPermitModal(permitId){
         <div class="field"><label>Дата разрешения</label><input type="date" id="fldDate" value="${draft.date||''}"></div>
       </div>
       <div class="field"><label>Примечание (клиент / бренд, необязательно)</label><input type="text" id="fldNote" value="${escapeAttr(draft.note||'')}" placeholder="напр. ARYANCOM"></div>
+      <div class="field" style="margin-top:12px;">
+        <label>${uiT('PDF файл разрешения')}</label>
+        <div id="pdfFieldHost">${pdfFieldHtml()}</div>
+      </div>
       <div style="margin-top:16px;">
         <div class="item-row-grid" style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;">
           <div></div><div>Наименование</div><div>Мато</div><div>ТН ВЭД</div><div>Ед.</div><div>Кол-во</div><div>Вес, кг</div><div></div>
@@ -1637,6 +1704,7 @@ function openPermitModal(permitId){
     });
   }
   rebindItemRows();
+  bindPdfField();
 
   document.getElementById('btnAddItem').addEventListener('click', ()=>{
     draft.items.push(blankItem());
@@ -1663,6 +1731,31 @@ function openPermitModal(permitId){
     if(invalidItems.length){
       alert('Разрешение не сохранено:\n\n'+invalidItems.join('\n'));
       return;
+    }
+
+    if(pdfRemoved && !pendingPdfFile){
+      draft.pdfUrl = null; draft.pdfPath = null; draft.pdfName = null;
+    }
+    if(pendingPdfFile){
+      const saveBtn = document.getElementById('btnSavePermit');
+      const prevLabel = saveBtn.textContent;
+      saveBtn.disabled = true;
+      saveBtn.textContent = uiT('PDF yuklanmoqda...');
+      try{
+        if(!window.OfflineSync || !OfflineSync.uploadPermitPdf) throw new Error('NO_UPLOAD_SUPPORT');
+        const uploaded = await OfflineSync.uploadPermitPdf(draft.id, pendingPdfFile);
+        draft.pdfUrl = uploaded.url;
+        draft.pdfPath = uploaded.path;
+        draft.pdfName = uploaded.name;
+      }catch(e){
+        console.error(e);
+        saveBtn.disabled = false;
+        saveBtn.textContent = prevLabel;
+        toast(String(e && e.message)==='AUTH_REQUIRED' ? uiT('PDF yuklash uchun tizimga kiring') : uiT('PDF faylni yuklab bo\'lmadi'));
+        return;
+      }
+      saveBtn.disabled = false;
+      saveBtn.textContent = prevLabel;
     }
 
     const idx = state.permits.findIndex(x=>x.id===draft.id);
