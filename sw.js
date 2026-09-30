@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v24-contributor-role';
+const CACHE = 'permit-tracker-shell-v25-layered-views';
 const APP_SHELL = [
   './',
   './index.html',

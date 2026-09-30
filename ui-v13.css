@@ -3489,6 +3489,16 @@ html.v12-shell-ready .stat-card{
   display:flex;
   align-items:center;
   gap:9px;
+  cursor:pointer;
+  border-radius:6px;
+  padding:3px 6px;
+  margin:0 -6px;
+  transition:background-color .12s ease;
+}
+.v12-material-row:hover,
+.v12-material-row:focus-visible{
+  background:rgba(23,104,255,0.08);
+  outline:none;
 }
 
 .v12-material-dot{

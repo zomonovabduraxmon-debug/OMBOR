@@ -1131,10 +1131,11 @@
       const palette = v12MaterialPalette();
       const segments = [];
       if(otherWeight > 0 || entries.length === 0){
-        segments.push({label:'Boshqa', weight:otherWeight, color:palette[0]});
+        // key:'' — "Boshqa" guruhi, ya'ni mato tarkibi kiritilmagan pozitsiyalar.
+        segments.push({label:'Boshqa', key:'', weight:otherWeight, color:palette[0]});
       }
       entries.forEach((e,i)=>{
-        segments.push({label:e.label, weight:e.weight, color:palette[(i+1) % palette.length]});
+        segments.push({label:e.label, key:e.label, weight:e.weight, color:palette[(i+1) % palette.length]});
       });
 
       return {segments, totalWeight, totalItems};
@@ -1152,7 +1153,7 @@
       const rows = segments.map(s=>{
         const pct = total > 0 ? Math.round((s.weight/total)*100) : 0;
         return `
-          <div class="v12-material-row">
+          <div class="v12-material-row" data-open-material="${escapeHtmlV12(s.key)}" tabindex="0" role="button" title="Shu mato tarkibiga ega modellarni ko'rish">
             <span class="v12-material-dot" style="background:${s.color}"></span>
             <span class="v12-material-name">${escapeHtmlV12(s.label)}</span>
             <span class="v12-material-weight">${v12FmtNum(s.weight)} <span>kg</span></span>
@@ -1256,7 +1257,26 @@
           ${renderV12MaterialCard(materialData)}
         </div>`;
 
-      if(!existing) app.appendChild(view);
+      if(!existing){
+        app.appendChild(view);
+        // Delegatsiya orqali: view qayta chizilganda (innerHTML almashganda)
+        // ham qayta ulanish shart emas, chunki listener view'ning o'ziga,
+        // bir marta (element birinchi yaratilganda) qo'yiladi.
+        view.addEventListener('click', e=>{
+          const row = e.target.closest('[data-open-material]');
+          if(row && typeof window.openMaterialDetailView === 'function'){
+            window.openMaterialDetailView(row.dataset.openMaterial);
+          }
+        });
+        view.addEventListener('keydown', e=>{
+          if(e.key!=='Enter' && e.key!==' ') return;
+          const row = e.target.closest('[data-open-material]');
+          if(row && typeof window.openMaterialDetailView === 'function'){
+            e.preventDefault();
+            window.openMaterialDetailView(row.dataset.openMaterial);
+          }
+        });
+      }
       app.classList.add('v12-reports-active');
 
       view.querySelector('.v12-report-export-btn')?.addEventListener('click', ()=>{

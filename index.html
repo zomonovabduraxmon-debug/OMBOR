@@ -1538,7 +1538,7 @@ function openPermitDetail(permitId){
     </tr>`;
   }).join('');
 
-  showModal(`
+  pushView(`
     <div class="modal-head">
       <button class="btn secondary fs-back-btn" data-close>&larr; ${uiT('Orqaga')}</button>
       <h2>${escapeHtml(p.number)}</h2>
@@ -1553,7 +1553,7 @@ function openPermitDetail(permitId){
       ${shipments.length ? `<table><thead><tr><th>Инвойс</th><th>Дата</th><th>Строк</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead><tbody>${shipRows}</tbody></table>`
       : `<div class="subtle-note">Отгрузок ещё не было.</div>`}
     </div>
-  `, {fullscreen:true});
+  `);
   document.querySelectorAll('[data-open-shipment-lines]').forEach(el=>{
     const openIt = (e)=>{
       if(e && (e.target.closest('button') || e.target.closest('a'))) return;
@@ -1574,7 +1574,7 @@ function openPermitDetail(permitId){
         state.shipments = state.shipments.filter(s=>s.id!==el.dataset.delShipment);
         await saveShipments();
         if(oldShipment) await addAudit('shipment_delete', 'shipment', oldShipment.id, oldShipment.invoiceNumber||oldShipment.id, oldShipment, null, reason, []);
-        closeModal();
+        closeAllViews();
         render();
         toast('Отгрузка удалена');
       }
@@ -2203,10 +2203,10 @@ function openShipmentLinesModal(shipmentId){
     </tr>`;
   }).join('') : `<tr><td colspan="3"><div class="subtle-note">${uiT('Позиций нет')}</div></td></tr>`;
 
-  showModal(`
+  pushView(`
     <div class="modal-head">
+      <button class="btn secondary fs-back-btn" data-close>&larr; ${uiT('Orqaga')}</button>
       <h2>${escapeHtml(sh.invoiceNumber||'—')}</h2>
-      <button class="close-x" data-close>&times;</button>
     </div>
     <div class="modal-body">
       <div class="subtle-note" style="margin-bottom:14px;">
@@ -2222,10 +2222,89 @@ function openShipmentLinesModal(shipmentId){
         </tr></tfoot>
       </table>
     </div>
-    <div class="modal-foot">
-      <button class="btn secondary" data-close>${uiT('Закрыть')}</button>
+  `);
+}
+
+/* Hisobotlar sahifasidagi "Materiallar bo'yicha ulush" ro'yxatida bitta
+   matoning ustiga bosilganda ochiladigan to'liq ekranli oyna: o'sha mato
+   tarkibiga ega BARCHA modellar — qaysi ruxsatnomaga tegishli, qancha
+   ruxsat etilgan, qancha sotilgan (yuklangan) va qancha qolgan.
+   materialKey === '' bo'lsa — "Boshqa" (mato tarkibi kiritilmagan) guruhi. */
+function openMaterialDetailView(materialKey){
+  const key = String(materialKey||'').trim();
+  const rows = [];
+  for(const p of state.permits){
+    for(const it of (p.items||[])){
+      if(String(it.material||'').trim() !== key) continue;
+      const used = itemUsage(p.id, it.id);
+      const st = itemStatus(it, used);
+      rows.push({ permit:p, item:it, used, st });
+    }
+  }
+  rows.sort((a,b)=>(Number(b.item.weight)||0) - (Number(a.item.weight)||0));
+
+  const totalAllowedQty = rows.reduce((a,r)=>a+(Number(r.item.qty)||0),0);
+  const totalAllowedW   = rows.reduce((a,r)=>a+(Number(r.item.weight)||0),0);
+  const totalUsedQty    = rows.reduce((a,r)=>a+(Number(r.used.qty)||0),0);
+  const totalUsedW      = rows.reduce((a,r)=>a+(Number(r.used.weight)||0),0);
+  const totalRemQty     = rows.reduce((a,r)=>a+(Number(r.st.remQty)||0),0);
+  const totalRemW       = rows.reduce((a,r)=>a+(Number(r.st.remWeight)||0),0);
+
+  const bodyRows = rows.length ? rows.map(r=>{
+    const {permit,item,used,st} = r;
+    return `<tr class="row-clickable" data-open-position="${permit.id}::${item.id}" tabindex="0" role="button">
+      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(permit.number)}<div class="subtle-note">${escapeHtml(permit.date||'')}</div></td>
+      <td class="num-col">${fmt(item.qty,0)} ${escapeHtml(item.unit||'')}</td>
+      <td class="num-col">${fmt(item.weight,2)} кг</td>
+      <td class="num-col">${fmt(used.qty,0)}</td>
+      <td class="num-col">${fmt(used.weight,2)} кг</td>
+      <td class="num-col">${fmt(st.remQty,0)}</td>
+      <td class="num-col">${fmt(st.remWeight,2)} кг</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="8"><div class="subtle-note">${uiT("Bu mato bo'yicha modellar topilmadi")}</div></td></tr>`;
+
+  pushView(`
+    <div class="modal-head">
+      <button class="btn secondary fs-back-btn" data-close>&larr; ${uiT('Orqaga')}</button>
+      <h2>${key ? escapeHtml(key) : uiT("Mato tarkibi ko'rsatilmagan")}</h2>
+    </div>
+    <div class="modal-body">
+      <div class="subtle-note" style="margin-bottom:14px;">${rows.length} ${uiT('model')} &middot; ${uiT('jami')} ${fmt(totalAllowedW,2)} ${uiT('кг ruxsat etilgan')}</div>
+      <table class="center-data-table">
+        <thead><tr>
+          <th>${uiT('Model')}</th>
+          <th>${uiT('Ruxsatnoma')}</th>
+          <th>${uiT('Ruxsat etilgan')}</th>
+          <th>${uiT('Vazn')}</th>
+          <th>${uiT('Sotilgan')}</th>
+          <th>${uiT('Sotilgan vazn')}</th>
+          <th>${uiT('Qoldiq')}</th>
+          <th>${uiT('Qoldiq vazn')}</th>
+        </tr></thead>
+        <tbody>${bodyRows}</tbody>
+        ${rows.length ? `<tfoot><tr>
+          <td class="table-total-label">${uiT('Итого')}</td>
+          <td></td>
+          <td class="num-col">${fmt(totalAllowedQty,0)}</td>
+          <td class="num-col">${fmt(totalAllowedW,2)} кг</td>
+          <td class="num-col">${fmt(totalUsedQty,0)}</td>
+          <td class="num-col">${fmt(totalUsedW,2)} кг</td>
+          <td class="num-col">${fmt(totalRemQty,0)}</td>
+          <td class="num-col">${fmt(totalRemW,2)} кг</td>
+        </tr></tfoot>` : ''}
+      </table>
     </div>
   `);
+  document.querySelectorAll('[data-open-position]').forEach(el=>{
+    const openIt = (e)=>{
+      if(e && e.target.closest('button')) return;
+      const [permitId, itemId] = el.dataset.openPosition.split('::');
+      openPositionUsageModal(permitId, itemId);
+    };
+    el.addEventListener('click', openIt);
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openIt(); } });
+  });
 }
 
 function openEditShipmentModal(shipmentId){
@@ -2710,6 +2789,53 @@ function closeModal(){
   if(b) b.remove();
 }
 
+/* ===== Qatlamli to'liq ekranli oynalar (Ruxsatnoma → Invoys → ...) =====
+   showModal()dan farqi: bir nechtasi bir-birining USTIGA ochilishi mumkin —
+   pastdagi oyna yopilmaydi, faqat orqada "kutib turadi". Yopish uchun ESC,
+   sichqonchaning orqaga/oldinga tugmalari (brauzer tarixi) yoki "← Orqaga"
+   tugmasi ishlatiladi — barchasi bitta yo'l bilan (history.back()) ishlaydi,
+   shu sababli qaysi biri bosilishidan qat'i nazar natija bir xil bo'ladi. */
+let __omborViewSeq = 0;
+function pushView(innerHtml){
+  let host = document.getElementById('viewStackHost');
+  if(!host){
+    host = document.createElement('div');
+    host.id = 'viewStackHost';
+    document.body.appendChild(host);
+  }
+  const layer = document.createElement('div');
+  layer.className = 'modal-backdrop fullscreen-view view-layer';
+  layer.innerHTML = `<div class="modal">${innerHtml}</div>`;
+  host.appendChild(layer);
+  __omborViewSeq += 1;
+  history.pushState({ __omborViewSeq }, '', location.href);
+  layer.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click', ()=>history.back()));
+  return layer;
+}
+function topView(){
+  const host = document.getElementById('viewStackHost');
+  return (host && host.lastElementChild) ? host.lastElementChild : null;
+}
+function __omborSyncViewsToSeq(targetSeq){
+  const host = document.getElementById('viewStackHost');
+  while(host && host.childElementCount > targetSeq){
+    host.lastElementChild.remove();
+  }
+  if(host && !host.firstElementChild) host.remove();
+  __omborViewSeq = Math.min(__omborViewSeq, Math.max(0, targetSeq));
+}
+// Barcha ochiq qatlamlarni bir yo'la yopib, ro'yxatga qaytaradi (masalan,
+// ichkaridagi biror yozuv o'chirilganda — endi ma'lumot eskirgan bo'ladi).
+function closeAllViews(){
+  if(__omborViewSeq > 0) history.go(-__omborViewSeq);
+}
+window.addEventListener('popstate', (e)=>{
+  const small = document.getElementById('modalBackdrop');
+  if(small) small.remove();
+  const targetSeq = (e.state && typeof e.state.__omborViewSeq === 'number') ? e.state.__omborViewSeq : 0;
+  __omborSyncViewsToSeq(targetSeq);
+});
+
 /* ============================= STATUS LIST MODAL (Kam qoldi / Tugagan) ============================= */
 function computeAllStatusRows(){
   const rows = [];
@@ -3095,6 +3221,11 @@ async function dedupePermitsByNumber(){
 document.addEventListener('keydown', (e)=>{
   if(e.key!=='Escape') return;
   if(document.getElementById('modalBackdrop') || document.querySelector('.reason-backdrop')) return;
+  if(topView()){
+    e.preventDefault();
+    history.back();
+    return;
+  }
   if(currentTab==='shipmentHistory' && shipmentHistoryOpenInvoice !== null){
     e.preventDefault();
     shipmentHistoryOpenInvoice = null;
