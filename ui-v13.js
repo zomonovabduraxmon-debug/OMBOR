@@ -309,7 +309,12 @@
     'masalan':{ru:'напр.',en:'e.g.',uz:'masalan',tr:'örn.'},
     'Barchasi':{ru:'Все',en:'All',uz:'Barchasi',tr:'Hepsi'},
     'Filtrni tozalash':{ru:'Очистить фильтр',en:'Clear filter',uz:'Filtrni tozalash',tr:'Filtreyi temizle'},
-    'Mos pozitsiyalar':{ru:'Подходящих позиций',en:'Matching items',uz:'Mos pozitsiyalar',tr:'Eşleşen kalemler'}
+    'Mos pozitsiyalar':{ru:'Подходящих позиций',en:'Matching items',uz:'Mos pozitsiyalar',tr:'Eşleşen kalemler'},
+    'Modelni qidirish (ruxsatnomani bilmasangiz)':{ru:'Поиск модели (если не знаете разрешение)',en:'Search for a model (if you don\'t know the permit)',uz:'Modelni qidirish (ruxsatnomani bilmasangiz)',tr:'Model ara (izni bilmiyorsanız)'},
+    'Vazn yoki materialni kiriting — barcha ruxsatnomalar orasidan qidiriladi.':{ru:'Введите вес или материал — поиск пройдёт по всем разрешениям.',en:'Enter a weight or material — search runs across all permits.',uz:'Vazn yoki materialni kiriting — barcha ruxsatnomalar orasidan qidiriladi.',tr:'Ağırlık veya malzeme girin — tüm izinlerde aranır.'},
+    'Hech narsa topilmadi':{ru:'Ничего не найдено',en:'Nothing found',uz:'Hech narsa topilmadi',tr:'Hiçbir şey bulunamadı'},
+    '1 dona vazni':{ru:'Вес 1 шт',en:'Weight per unit',uz:'1 dona vazni',tr:'Birim ağırlık'},
+    'Tanlash':{ru:'Выбрать',en:'Select',uz:'Tanlash',tr:'Seç'}
   };
 
   const reverseText = new Map();
