@@ -303,7 +303,13 @@
     'Faqat PDF fayl tanlang':{ru:'Выберите файл в формате PDF',en:'Please select a PDF file',uz:'Faqat PDF fayl tanlang',tr:'Lütfen bir PDF dosyası seçin'},
     'PDF yuklanmoqda...':{ru:'Загрузка PDF...',en:'Uploading PDF...',uz:'PDF yuklanmoqda...',tr:'PDF yükleniyor...'},
     'PDF yuklash uchun tizimga kiring':{ru:'Войдите в систему, чтобы загрузить PDF',en:'Sign in to upload the PDF',uz:'PDF yuklash uchun tizimga kiring',tr:'PDF yüklemek için giriş yapın'},
-    'PDF faylni yuklab bo\'lmadi':{ru:'Не удалось загрузить PDF файл',en:'Could not upload the PDF file',uz:'PDF faylni yuklab bo‘lmadi',tr:'PDF dosyası yüklenemedi'}
+    'PDF faylni yuklab bo\'lmadi':{ru:'Не удалось загрузить PDF файл',en:'Could not upload the PDF file',uz:'PDF faylni yuklab bo‘lmadi',tr:'PDF dosyası yüklenemedi'},
+    'Этот раздел доступен только editor и contributor.':{ru:'Этот раздел доступен только editor и contributor.',en:'This section is only available to editors and contributors.',uz:'Bu bo‘lim faqat editor va contributor uchun ochiq.',tr:'Bu bölüm yalnızca editor ve contributor için görünür.'},
+    'Taxminiy vazn, 1 dona (kg) — ±0.05':{ru:'Примерный вес 1 шт (кг) — ±0.05',en:'Approx. weight per unit (kg) — ±0.05',uz:'Taxminiy vazn, 1 dona (kg) — ±0.05',tr:'Yaklaşık birim ağırlık (kg) — ±0.05'},
+    'masalan':{ru:'напр.',en:'e.g.',uz:'masalan',tr:'örn.'},
+    'Barchasi':{ru:'Все',en:'All',uz:'Barchasi',tr:'Hepsi'},
+    'Filtrni tozalash':{ru:'Очистить фильтр',en:'Clear filter',uz:'Filtrni tozalash',tr:'Filtreyi temizle'},
+    'Mos pozitsiyalar':{ru:'Подходящих позиций',en:'Matching items',uz:'Mos pozitsiyalar',tr:'Eşleşen kalemler'}
   };
 
   const reverseText = new Map();

@@ -444,7 +444,7 @@
     <button class="tab-btn" data-tab="shipment">Новая отгрузка</button>
     <button class="tab-btn" data-tab="shipmentHistory">История отгрузок</button>
     <button class="tab-btn" data-tab="export">Экспорт</button>
-    <button class="tab-btn" data-tab="audit">История</button>
+    <button class="tab-btn" data-tab="audit" style="display:none;">История</button>
   </div>
 </div>
 
@@ -494,6 +494,10 @@ let dashboardSearch = '';
 let dashboardFilter = 'all';
 let dashboardSort = 'remaining-desc';
 let uploadDraft = null;
+// Ruxsatnomada artikulsiz (nomi bo'yicha ajratib bo'lmaydigan) pozitsiyalar
+// ko'p bo'lsa, "Новая отгрузка" jadvalida kerakli qatorni tezroq topish
+// uchun 1 dona og'irligi (±0.05 kg) va mato/material bo'yicha filtr.
+let shipmentItemFilter = { weight: '', material: '' };
 let auditSearch = '';
 let shipmentHistorySearch = '';
 let shipmentHistoryOpenInvoice = null; // null = папка-список инвойсов; string = открытая папка конкретного инвойса
@@ -1002,7 +1006,7 @@ function auditSummary(a){
 }
 
 function renderAuditTab(){
-  if(!isLoggedIn) return `<div class="panel"><div class="panel-head"><h2>${uiT('Журнал истории')}</h2></div><div class="panel-body"><div class="subtle-note">${uiT('Для просмотра журнала войдите в аккаунт.')}</div></div></div>`;
+  if(!canCreateEdit()) return `<div class="panel"><div class="panel-head"><h2>${uiT('Журнал истории')}</h2></div><div class="panel-body"><div class="subtle-note">${uiT('Этот раздел доступен только editor и contributor.')}</div></div></div>`;
   const rows=(state.audits||[]).slice().sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).filter(a=>{
     const hay=[a.actorEmail,auditActionLabel(a.action),auditEntityLabel(a.entityType),a.entityLabel,auditSummary(a)].join(' ').toLowerCase();
     return !auditSearch || hay.includes(auditSearch.toLowerCase());
@@ -1853,14 +1857,35 @@ function renderShipmentTab(){
 
   let manualTable = '';
   if(permit){
-    manualTable = `<table><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Остаток</th><th>Отгружаем, кол-во</th><th>Отгружаем, вес (кг)</th></tr></thead><tbody>
+    const materialsList = Array.from(new Set(permit.items.map(it=>String(it.material||'').trim()).filter(Boolean)));
+    const filterBarHtml = `
+      <div class="field-row" style="padding:12px 16px 0;align-items:flex-end;flex-wrap:wrap;">
+        <div class="field" style="min-width:200px;">
+          <label>${uiT('Taxminiy vazn, 1 dona (kg) — ±0.05')}</label>
+          <input type="number" step="0.001" id="itemFilterWeight" value="${escapeAttr(shipmentItemFilter.weight)}" placeholder="${uiT('masalan')} 0.308">
+        </div>
+        <div class="field" style="min-width:200px;">
+          <label>${uiT('Мато / material')}</label>
+          <select id="itemFilterMaterial">
+            <option value="">${uiT('Barchasi')}</option>
+            ${materialsList.map(m=>`<option value="${escapeAttr(m)}" ${shipmentItemFilter.material===m?'selected':''}>${escapeHtml(m)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="flex:0 0 auto;">
+          <button type="button" class="btn secondary sm" id="btnClearItemFilter">${uiT('Filtrni tozalash')}</button>
+        </div>
+        <div class="field" style="flex:0 0 auto;">
+          <span id="itemFilterCount" class="subtle-note"></span>
+        </div>
+      </div>`;
+    manualTable = `${filterBarHtml}<table><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Остаток</th><th>Отгружаем, кол-во</th><th>Отгружаем, вес (кг)</th></tr></thead><tbody>
       ${permit.items.map(it=>{
         const used = itemUsage(permit.id, it.id);
         const st = itemStatus(it, used);
         const perUnit = it.qty ? (it.weight/it.qty) : 0;
         const currentQty = shipmentDraft.lines[it.id]?.qty ?? '';
         const currentW = shipmentDraft.lines[it.id]?.weight ?? '';
-        return `<tr>
+        return `<tr data-item-row="${it.id}" data-perunit="${perUnit}" data-material="${escapeAttr(it.material||'')}">
           <td>${escapeHtml(it.name)}</td>
           <td>${it.material ? `<span class="material-badge">${escapeHtml(it.material)}</span>` : '—'}</td>
           <td class="code-col">${escapeHtml(it.tnved||'—')}</td>
@@ -1910,7 +1935,7 @@ function renderShipmentTab(){
 
 function bindShipmentEvents(){
   const permitSel = document.getElementById('shipPermit');
-  if(permitSel) permitSel.addEventListener('change', e=>{ shipmentDraft.permitId = e.target.value; shipmentDraft.lines={}; uploadDraft=null; render(); });
+  if(permitSel) permitSel.addEventListener('change', e=>{ shipmentDraft.permitId = e.target.value; shipmentDraft.lines={}; uploadDraft=null; shipmentItemFilter={weight:'',material:''}; render(); });
   const modeSel = document.getElementById('shipMode');
   if(modeSel) modeSel.addEventListener('change', e=>{ shipmentDraft.mode = e.target.value; uploadDraft=null; render(); });
   const invNum = document.getElementById('shipInvNum');
@@ -1944,10 +1969,48 @@ function bindShipmentEvents(){
     toast('Вес пересчитан по среднему весу единицы разрешения');
   });
 
+  const filterWeight = document.getElementById('itemFilterWeight');
+  if(filterWeight) filterWeight.addEventListener('input', ()=>{ shipmentItemFilter.weight = filterWeight.value; applyShipmentItemFilter(); });
+  const filterMaterial = document.getElementById('itemFilterMaterial');
+  if(filterMaterial) filterMaterial.addEventListener('change', ()=>{ shipmentItemFilter.material = filterMaterial.value; applyShipmentItemFilter(); });
+  const clearFilterBtn = document.getElementById('btnClearItemFilter');
+  if(clearFilterBtn) clearFilterBtn.addEventListener('click', ()=>{
+    shipmentItemFilter = { weight:'', material:'' };
+    render();
+  });
+  applyShipmentItemFilter(); // agar boshqa rejimdan qaytilgan bo'lsa, avvalgi filtr holatini tiklaymiz
+
   const saveBtn = document.getElementById('btnSaveShipment');
   if(saveBtn) saveBtn.addEventListener('click', saveManualShipment);
 
   bindUploadEvents();
+}
+
+// Ruxsatnomadagi pozitsiyalar jadvalini 1 dona og'irligi (±0.05 kg, agar
+// kiritilgan bo'lsa) va mato/material (agar tanlangan bo'lsa) bo'yicha
+// filtrlaydi. Mos kelmagan qatorlar vaqtincha yashiriladi — artikulsiz
+// pozitsiyalar orasidan kerakligini tezroq topish uchun.
+function applyShipmentItemFilter(){
+  const rows = document.querySelectorAll('[data-item-row]');
+  if(!rows.length) return;
+  const wInput = document.getElementById('itemFilterWeight');
+  const mSelect = document.getElementById('itemFilterMaterial');
+  const rawW = wInput ? String(wInput.value||'').trim() : '';
+  const wVal = Number(rawW);
+  const hasWeight = rawW !== '' && Number.isFinite(wVal);
+  const mVal = mSelect ? mSelect.value : '';
+  let visibleCount = 0;
+  rows.forEach(row=>{
+    const perUnit = Number(row.dataset.perunit)||0;
+    const material = row.dataset.material||'';
+    let ok = true;
+    if(hasWeight) ok = ok && Math.abs(perUnit - wVal) <= 0.05;
+    if(mVal) ok = ok && material === mVal;
+    row.style.display = ok ? '' : 'none';
+    if(ok) visibleCount++;
+  });
+  const countEl = document.getElementById('itemFilterCount');
+  if(countEl) countEl.textContent = (hasWeight || mVal) ? `${uiT('Mos pozitsiyalar')}: ${visibleCount}` : '';
 }
 
 async function saveManualShipment(){
@@ -2914,6 +2977,15 @@ async function refreshAuthButton(){
   if(!online){
     isEditorMode = false;
     isContributorMode = false;
+  }
+  // "Тарих" (audit) bo'limi faqat editor va contributor'ga ko'rinadi.
+  // Oddiy login qilgan yoki umuman kirmagan foydalanuvchiga bu tab
+  // butunlay yashiriladi (desktop menyusida ham chiqmaydi).
+  const auditTabBtn = document.querySelector('.tab-btn[data-tab="audit"]');
+  if(auditTabBtn) auditTabBtn.style.display = canCreateEdit() ? '' : 'none';
+  if(!canCreateEdit() && currentTab==='audit'){
+    currentTab = 'dashboard';
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='dashboard'));
   }
   const btn = document.getElementById('authBtn');
   if(btn){
