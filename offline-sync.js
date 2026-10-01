@@ -407,6 +407,60 @@
     };
   }
 
+  // ---- Invoysning imzolangan hujjati (yopiq "invoice-files" bucket) ----
+  const INVOICE_BUCKET = 'invoice-files';
+  async function userToken(){
+    if(!configured()) throw new Error('Supabase ещё не настроен');
+    if(!navigator.onLine) throw new Error('Internet kerak');
+    const session = await getSession(true);
+    if(!session || !session.access_token) throw new Error('AUTH_REQUIRED');
+    return session.access_token;
+  }
+  async function uploadInvoiceFile(folder, file){
+    const token = await userToken();
+    const ext = /\.zip$/i.test(file.name||'') ? 'zip' : 'pdf';
+    const safeName = String(file.name || ('invoys.'+ext)).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-120) || ('invoys.'+ext);
+    const path = `${folder}/${Date.now()}_${safeName}`;
+    const res = await fetch(baseUrl() + '/storage/v1/object/' + INVOICE_BUCKET + '/' + path, {
+      method: 'POST',
+      headers: { 'apikey': anonKey(), 'Authorization': 'Bearer ' + token,
+        'Content-Type': file.type || (ext==='zip' ? 'application/zip' : 'application/pdf') },
+      body: file
+    });
+    if(!res.ok){
+      const text = await res.text().catch(()=>String(res.status));
+      throw new Error('INVOICE_UPLOAD_FAILED ' + res.status + ' ' + text);
+    }
+    return { path, name: file.name || safeName, size: file.size || 0 };
+  }
+  async function invoiceFileUrl(path){
+    const token = await userToken();
+    const res = await fetch(baseUrl() + '/storage/v1/object/sign/' + INVOICE_BUCKET + '/' + path, {
+      method: 'POST',
+      headers: { 'apikey': anonKey(), 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresIn: 300 })
+    });
+    if(!res.ok){
+      const text = await res.text().catch(()=>String(res.status));
+      throw new Error('INVOICE_SIGN_FAILED ' + res.status + ' ' + text);
+    }
+    const j = await res.json();
+    const u = j.signedURL || j.signedUrl || '';
+    if(!u) throw new Error('INVOICE_SIGN_FAILED empty');
+    return u.startsWith('http') ? u : baseUrl() + (u.startsWith('/storage/v1') ? '' : '/storage/v1') + u;
+  }
+  async function deleteInvoiceFile(path){
+    const token = await userToken();
+    const res = await fetch(baseUrl() + '/storage/v1/object/' + INVOICE_BUCKET + '/' + path, {
+      method: 'DELETE',
+      headers: { 'apikey': anonKey(), 'Authorization': 'Bearer ' + token }
+    });
+    if(!res.ok && res.status !== 404){
+      const text = await res.text().catch(()=>String(res.status));
+      throw new Error('INVOICE_DELETE_FAILED ' + res.status + ' ' + text);
+    }
+  }
+
   async function apiFetch(path, options, useUserToken){
     const headers = { 'apikey':anonKey(), ...(options && options.headers || {}) };
     if(useUserToken){
@@ -663,6 +717,9 @@
     hasAnyRecords,
     configured,
     uploadPermitPdf,
+    uploadInvoiceFile,
+    invoiceFileUrl,
+    deleteInvoiceFile,
     login,
     signup,
     logout,

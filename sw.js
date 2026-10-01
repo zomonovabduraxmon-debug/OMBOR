@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v27-drafts-stock';
+const CACHE = 'permit-tracker-shell-v28-invoice-docs';
 const APP_SHELL = [
   './',
   './index.html',

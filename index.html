@@ -481,7 +481,7 @@
 
 <script>
 /* ============================= STATE & STORAGE ============================= */
-let state = { permits: [], shipments: [], drafts: [], audits: [], comments: [] };
+let state = { permits: [], shipments: [], drafts: [], hiddenDrafts: [], invoiceFiles: [], audits: [], comments: [] };
 let currentTab = 'dashboard';
 let isEditorMode = false; // haqiqiy tahrirlash huquqi (faqat "editors" jadvalidagilar)
 let isContributorMode = false; // cheklangan tahrirlash: qo'sha/tahrirlay oladi, lekin o'chira olmaydi (faqat "contributors" jadvalidagilar)
@@ -546,7 +546,14 @@ document.addEventListener('click', (e)=>{
 
 function splitDrafts(st){
   const all = Array.isArray(st.shipments) ? st.shipments : [];
-  return { ...st, shipments: all.filter(x=>x.status!=='draft'), drafts: all.filter(x=>x.status==='draft') };
+  // Qoralama, yopilgan qoralama va invoys fayli yozuvlari ham "shipments" jadvalida turadi,
+  // lekin yuklama emas — qoldiq hisobiga kirmasligi uchun ajratib olinadi.
+  const SPECIAL = ['draft','draft_done','draft_deleted','invoicefile'];
+  return { ...st,
+    shipments: all.filter(x=>!SPECIAL.includes(x.status)),
+    drafts: all.filter(x=>x.status==='draft'),
+    hiddenDrafts: all.filter(x=>x.status==='draft_done' || x.status==='draft_deleted'),
+    invoiceFiles: all.filter(x=>x.status==='invoicefile') };
 }
 
 async function loadState(){
@@ -558,7 +565,7 @@ async function loadState(){
     }
   }catch(e){
     console.error(e);
-    state = { permits:[], shipments:[], drafts:[], audits:[], comments:[] };
+    state = { permits:[], shipments:[], drafts:[], hiddenDrafts:[], invoiceFiles:[], audits:[], comments:[] };
     setSyncPill('error','ошибка локального хранилища');
   }
 }
@@ -574,7 +581,7 @@ async function savePermits(){
 
 async function saveShipments(){
   try{
-    if(window.OfflineSync) await OfflineSync.saveCollection('shipment', state.shipments.concat(state.drafts||[]));
+    if(window.OfflineSync) await OfflineSync.saveCollection('shipment', state.shipments.concat(state.drafts||[], state.hiddenDrafts||[], state.invoiceFiles||[]));
   }catch(e){
     console.error(e);
     toast('Не удалось сохранить отгрузку');
@@ -980,15 +987,18 @@ function uiT(text){
   try{return window.EOMBOR_UI_V5?.translateText?.(String(text), uiLang()) || String(text);}catch(_){return String(text);}
 }
 function auditActionLabel(a){
-  const map={create:'Создание', update:'Изменение', delete:'Удаление', shipment_create:'Новая отгрузка', shipment_delete:'Удаление отгрузки', shipment_update:'Отгрузка изменена', draft_create:'Qoralama yaratildi', draft_delete:'Qoralama o‘chirildi', draft_finalize:'Qoralama yakunlandi'};
+  const map={create:'Создание', update:'Изменение', delete:'Удаление', shipment_create:'Новая отгрузка', shipment_delete:'Удаление отгрузки', shipment_update:'Отгрузка изменена', draft_create:'Qoralama yaratildi', draft_delete:'Qoralama o‘chirildi', draft_finalize:'Qoralama yakunlandi', invoicefile_add:'Hujjat biriktirildi', invoicefile_replace:'Hujjat almashtirildi', invoicefile_remove:'Hujjat olib tashlandi'};
   return uiT(map[a] || a);
 }
-function auditEntityLabel(t){ return uiT(t==='permit' ? 'Разрешение' : t==='shipment' ? 'Отгрузка' : t==='draft' ? 'Qoralama' : t); }
+function auditEntityLabel(t){ return uiT(t==='permit' ? 'Разрешение' : t==='shipment' ? 'Отгрузка' : t==='draft' ? 'Qoralama' : t==='invoice' ? 'Invoys' : t); }
 function auditSummary(a){
   const oldD=a.oldData||{}, newD=a.newData||{};
   if(a.action==='create') return uiT('Создано');
   if(a.action==='delete' || a.action==='shipment_delete') return uiT('Удалено');
   if(a.action==='shipment_create') return uiT('Создана отгрузка');
+  if(a.action==='invoicefile_add') return 'Imzolangan hujjat biriktirildi: ' + ((a.newData&&a.newData.name)||'');
+  if(a.action==='invoicefile_replace') return 'Hujjat almashtirildi: ' + ((a.oldData&&a.oldData.name)||'') + ' → ' + ((a.newData&&a.newData.name)||'');
+  if(a.action==='invoicefile_remove') return 'Hujjat olib tashlandi: ' + ((a.oldData&&a.oldData.name)||'');
   if(a.action==='draft_create') return 'Qoralama yaratildi';
   if(a.action==='draft_delete') return 'Qoralama o‘chirildi';
   if(a.action==='draft_finalize') return 'Qoralama yakunlandi (yuklamaga aylandi)';
@@ -1048,7 +1058,7 @@ function openAuditDetailModal(auditId){
       <td class="diff-old">${escapeHtml(formatDiffValue(c.oldValue))}</td>
       <td class="diff-new">${escapeHtml(formatDiffValue(c.newValue))}</td>
     </tr>`).join('')}</tbody></table>`
-    : (a.action==='create' || a.action==='shipment_create' || a.action==='delete' || a.action==='shipment_delete' || String(a.action).startsWith('draft_')
+    : (a.action==='create' || a.action==='shipment_create' || a.action==='delete' || a.action==='shipment_delete' || String(a.action).startsWith('draft_') || String(a.action).startsWith('invoicefile_')
         ? ''
         : `<div class="subtle-note" style="margin-bottom:14px;">${escapeHtml(uiT('Детали недоступны для этой записи'))}</div>`);
 
@@ -2072,6 +2082,16 @@ let multiDraft = null;     // ochiq qoralamaning ishchi nusxasi
 let mdAdd = { permitId:'', itemId:'' };
 
 function cloneJson(o){ return JSON.parse(JSON.stringify(o)); }
+// Server "qo'shuvchi"ga yozuvni o'chirishga (deleted_at) ruxsat bermaydi, shuning uchun
+// yakunlangan/o'chirilgan qoralama jadvaldan olib tashlanmaydi, balki yashiriladi.
+function retireDraft(id, status){
+  const i = state.drafts.findIndex(x=>x.id===id);
+  if(i<0) return;
+  const d = state.drafts.splice(i,1)[0];
+  const rec = { ...cloneJson(d), status, retiredAt:new Date().toISOString(), updatedAt:new Date().toISOString() };
+  const j = state.hiddenDrafts.findIndex(x=>x.id===id);
+  if(j>=0) state.hiddenDrafts[j] = rec; else state.hiddenDrafts.push(rec);
+}
 function newMultiDraft(){
   return { id: uid('draft'), status:'draft', permitId:'', lines:[], invoiceNumber:'', invoiceDate:'', rows:[], createdAt:new Date().toISOString() };
 }
@@ -2357,7 +2377,7 @@ async function deleteMultiDraft(){
     if(!confirm('Qoralama butunlay o\'chirilsinmi?')) return;
   }
   if(saved){
-    state.drafts = state.drafts.filter(x=>x.id!==d.id);
+    retireDraft(d.id,'draft_deleted');
     await saveShipments();
     await addAudit('draft_delete','draft',d.id,draftLabel(d),d,null);
   }
@@ -2400,7 +2420,7 @@ async function finalizeMultiDraft(){
     created.push({ id: uid('ship'), permitId: pid, invoiceNumber, invoiceDate: d.invoiceDate||'', lines });
   }
   state.shipments.push(...created);
-  state.drafts = state.drafts.filter(x=>x.id!==d.id);
+  retireDraft(d.id,'draft_done');
   await saveShipments();
   for(const s of created) await addAudit('shipment_create', 'shipment', s.id, s.invoiceNumber||s.id, null, s);
   await addAudit('draft_finalize','draft',d.id,draftLabel(d),d,{ shipmentIds: created.map(x=>x.id) });
@@ -2500,6 +2520,117 @@ function openMfAddModal(permitId, itemId){
   });
 }
 
+/* ============================= INVOYSNING IMZOLANGAN HUJJATI (PDF / ZIP) =============================
+   Fayl yopiq "invoice-files" bucket'ida saqlanadi (INVOICE-FILES-STORAGE.sql). Yozuv (qaysi invoysga
+   qaysi fayl) "shipments" jadvalida status:'invoicefile' bilan turadi. Bitta invoysga bitta fayl:
+   yangisi yuklansa, eskisi saqlash joyidan ham o'chiriladi. */
+const INVOICE_FILE_MAX = 20*1024*1024;
+function invoiceFileRec(key){ return (state.invoiceFiles||[]).find(f=>f.invoiceNumber===key); }
+function invoiceFileFor(key){ const f = invoiceFileRec(key); return (f && f.path && !f.removed) ? f : null; }
+function fmtFileSize(b){ b = Number(b)||0; return b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
+
+async function uploadInvoiceDoc(key, file){
+  if(!file) return;
+  if(!/\.(pdf|zip)$/i.test(file.name||'')){ toast('Faqat PDF yoki ZIP fayl yuklash mumkin'); return; }
+  if(file.size > INVOICE_FILE_MAX){ toast('Fayl 20 MB dan katta'); return; }
+  const me = await getMe();
+  const existing = invoiceFileRec(key);
+  const rec = existing || { id: uid('invfile'), status:'invoicefile', invoiceNumber:key };
+  const oldPath = existing && existing.path && !existing.removed ? existing.path : null;
+  const oldName = existing ? existing.name : '';
+  toast('Fayl yuklanmoqda…');
+  let up;
+  try{ up = await OfflineSync.uploadInvoiceFile(rec.id, file); }
+  catch(e){
+    console.error(e);
+    const m = String(e&&e.message||e);
+    toast('Fayl yuklanmadi');
+    alert('Fayl yuklanmadi.\n\n' + (/403|401|row-level|Unauthorized|AUTH/i.test(m)
+      ? 'Ruxsat yo\'q: tizimga kirganingizni va INVOICE-FILES-STORAGE.sql Supabase\'da ishga tushirilganini tekshiring.'
+      : /404|Bucket not found/i.test(m) ? 'Saqlash joyi topilmadi: INVOICE-FILES-STORAGE.sql ni Supabase SQL Editor\'da ishga tushiring.' : m));
+    return;
+  }
+  rec.path = up.path; rec.name = file.name; rec.size = file.size;
+  rec.uploadedBy = me.name; rec.uploadedAt = new Date().toISOString(); rec.removed = false;
+  if(!existing) state.invoiceFiles.push(rec);
+  await saveShipments();
+  if(oldPath){ try{ await OfflineSync.deleteInvoiceFile(oldPath); }catch(e){ console.warn('Eski fayl o\'chmadi', e); } }
+  await addAudit(oldPath ? 'invoicefile_replace' : 'invoicefile_add', 'invoice', key, key,
+    oldPath ? { name: oldName } : null, { name: file.name, size: file.size });
+  render();
+  toast(oldPath ? 'Fayl almashtirildi' : 'Fayl biriktirildi');
+}
+
+async function openInvoiceDoc(key){
+  const f = invoiceFileFor(key);
+  if(!f) return;
+  if(!navigator.onLine){ toast('Faylni ochish uchun internet kerak'); return; }
+  const w = window.open('', '_blank');
+  try{
+    const url = await OfflineSync.invoiceFileUrl(f.path);
+    if(w) w.location.href = url; else location.href = url;
+  }catch(e){
+    console.error(e);
+    if(w) w.close();
+    toast('Faylni ochib bo\'lmadi');
+  }
+}
+
+async function removeInvoiceDocRecord(key){
+  const f = invoiceFileFor(key);
+  if(!f) return null;
+  const old = { name: f.name, size: f.size };
+  const path = f.path;
+  f.removed = true; f.path = null;
+  await saveShipments();
+  try{ await OfflineSync.deleteInvoiceFile(path); }catch(e){ console.warn('Fayl saqlash joyidan o\'chmadi', e); }
+  return old;
+}
+
+function removeInvoiceDoc(key){
+  const f = invoiceFileFor(key);
+  if(!f) return;
+  showReasonPrompt({
+    title: 'Biriktirilgan hujjatni olib tashlash?',
+    message: `«${f.name}» fayli saqlash joyidan o'chiriladi.`,
+    danger: true,
+    confirmLabel: 'Olib tashlash',
+    placeholder: uiT('Укажите причину удаления...'),
+    onConfirm: async (reason)=>{
+      const old = await removeInvoiceDocRecord(key);
+      await addAudit('invoicefile_remove','invoice',key,key,old,null,reason,[]);
+      render();
+      toast('Hujjat olib tashlandi');
+    }
+  });
+}
+
+function invoiceDocPanelHtml(key){
+  const f = invoiceFileFor(key);
+  const can = canCreateEdit();
+  const input = can ? `<input type="file" id="invDocInput" accept=".pdf,.zip,application/pdf,application/zip" style="display:none;">` : '';
+  if(!f){
+    return `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div><strong>📎 Imzolangan hujjat</strong><div class="subtle-note">Imzolangan / tasdiqlangan skaner (PDF yoki ZIP, 20 MB gacha) hali biriktirilmagan.</div></div>
+      ${can ? `<button type="button" class="btn secondary sm" id="invDocUpload">Fayl yuklash</button>` : ''}${input}
+    </div></div>`;
+  }
+  const when = f.uploadedAt ? new Date(f.uploadedAt).toLocaleString() : '';
+  return `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <div><strong>📎 ${escapeHtml(f.name||'Hujjat')}</strong>
+      <div class="subtle-note">${fmtFileSize(f.size)}${f.uploadedBy?' · '+escapeHtml(f.uploadedBy):''}${when?' · '+escapeHtml(when):''}</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button type="button" class="btn sm" id="invDocOpen">Ochish / yuklab olish</button>
+      ${can ? `<button type="button" class="btn secondary sm" id="invDocReplace">Almashtirish</button><button type="button" class="btn danger sm" id="invDocRemove">Olib tashlash</button>` : ''}
+    </div>${input}
+  </div></div>`;
+}
+async function dropInvoiceDocIfOrphan(key){
+  if(state.shipments.some(s=>shipmentHistoryInvoiceKey(s)===key)) return;
+  const old = await removeInvoiceDocRecord(key);
+  if(old) await addAudit('invoicefile_remove','invoice',key,key,old,null,'Invoysning barcha yuklamalari o\'chirildi',[]);
+}
+
 /* ============================= SHIPMENT HISTORY ============================= */
 function shipmentLineTotals(sh){
   const lines = Array.isArray(sh.lines) ? sh.lines : [];
@@ -2578,7 +2709,7 @@ function renderShipmentHistoryFolders(){
           </div>
         </div>
       </td>
-      <td><span style="color:#1f8a70;font-weight:600;">Tayyorlandi</span></td>
+      <td><span style="color:#1f8a70;font-weight:600;">Tayyorlandi</span>${invoiceFileFor(f.key) ? `<div class="subtle-note">📎 Imzolangan</div>` : ''}</td>
       <td class="num-col">${escapeHtml(f.latestDate||'—')}</td>
       <td class="num-col">${f.totalLines}</td>
       <td class="num-col">${fmt(f.totalQty,0)}</td>
@@ -2644,6 +2775,7 @@ function renderShipmentHistoryInvoiceFolder(key){
       </div>
       <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
     </div>
+    ${invoiceDocPanelHtml(key)}
     <div class="panel">
       <div class="panel-body" style="padding:0;">${rows.length ? `<div style="overflow:auto"><table><thead><tr>
         <th>${uiT('Дата')}</th><th>${uiT('Разрешение')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th><th></th>
@@ -2681,7 +2813,7 @@ function bindShipmentHistoryEvents(){
       confirmLabel: uiT('Удалить'),
       placeholder: uiT('Укажите причину удаления...'),
       onConfirm: async (reason)=>{
-        state.drafts = state.drafts.filter(x=>x.id!==d.id);
+        retireDraft(d.id,'draft_deleted');
         await saveShipments();
         await addAudit('draft_delete','draft',d.id,draftLabel(d),d,null,reason,[]);
         if(multiDraft && multiDraft.id===d.id) multiDraft = newMultiDraft();
@@ -2690,6 +2822,17 @@ function bindShipmentHistoryEvents(){
       }
     });
   }));
+  const docInput = document.getElementById('invDocInput');
+  const pickDoc = ()=>docInput && docInput.click();
+  document.getElementById('invDocUpload')?.addEventListener('click', pickDoc);
+  document.getElementById('invDocReplace')?.addEventListener('click', pickDoc);
+  document.getElementById('invDocOpen')?.addEventListener('click', ()=>openInvoiceDoc(shipmentHistoryOpenInvoice));
+  document.getElementById('invDocRemove')?.addEventListener('click', ()=>removeInvoiceDoc(shipmentHistoryOpenInvoice));
+  if(docInput) docInput.addEventListener('change', async ()=>{
+    const file = docInput.files && docInput.files[0];
+    docInput.value = '';
+    await uploadInvoiceDoc(shipmentHistoryOpenInvoice, file);
+  });
   document.getElementById('invXlsx')?.addEventListener('click', ()=>exportInvoiceXlsx(finalizedInvoice(shipmentHistoryOpenInvoice)));
   document.getElementById('invPrint')?.addEventListener('click', ()=>printInvoice(finalizedInvoice(shipmentHistoryOpenInvoice)));
 
@@ -2739,6 +2882,7 @@ function bindShipmentHistoryEvents(){
         state.shipments = state.shipments.filter(s=>s.id!==el.dataset.delShipmentH);
         await saveShipments();
         if(oldShipment) await addAudit('shipment_delete', 'shipment', oldShipment.id, oldShipment.invoiceNumber||oldShipment.id, oldShipment, null, reason, []);
+        if(oldShipment) await dropInvoiceDocIfOrphan(shipmentHistoryInvoiceKey(oldShipment));
         // Agar shu papkada boshqa yozuv qolmagan bo'lsa, ro'yxatga qaytamiz.
         if(shipmentHistoryOpenInvoice !== null){
           const stillHas = state.shipments.some(s=>shipmentHistoryInvoiceKey(s)===shipmentHistoryOpenInvoice);
