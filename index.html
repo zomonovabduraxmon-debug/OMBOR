@@ -2750,14 +2750,79 @@ const MODEL_FINDER_TOLERANCE_KG = 0.05; // ±0.05 kg
 // masalan "Брюки трикотажные женские артикул uz400337" → "Брюки",
 // "Лонгслив мужской..." → "Лонгслив". Shu sababli alohida kalit so'zlar
 // jadvali kerak emas — turkum nomning birinchi so'zidan avtomatik olinadi.
-function itemCategory(name){
+function itemCategoryRaw(name){
   const first = String(name||'').trim().split(/\s+/)[0] || '';
   return first.replace(/[.,;:]+$/,'');
 }
 
+// Katta-kichik harf farqi (костюм/Костюм) va 1 ta harflik yozuv farqi
+// (Платье/Платья, Толстовка/Тольстовка) bilan yozilgan turkumlarni bitta
+// turkum sifatida birlashtirish uchun — ikki so'z orasidagi tahrirlash
+// masofasi (Levenshtein) 1 dan oshmasligini tekshiradi.
+function isEditDistanceAtMostOne(a, b){
+  if(a === b) return true;
+  const la = a.length, lb = b.length;
+  if(Math.abs(la - lb) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while(i < la && j < lb){
+    if(a[i] === b[j]){ i++; j++; continue; }
+    edits++;
+    if(edits > 1) return false;
+    if(la === lb){ i++; j++; }
+    else if(la > lb){ i++; }
+    else { j++; }
+  }
+  edits += (la - i) + (lb - j);
+  return edits <= 1;
+}
+
+// Barcha ruxsatnomalardagi turkum so'zlarini yig'ib, bir-biriga juda yaqin
+// (katta-kichik harf yoki 1 ta harf farqi bilan) yozilganlarini bitta
+// "kanonik" (eng ko'p uchraydigan yozilish shakli) turkumga birlashtiradi.
+function buildCategoryCanonicalMap(){
+  const counts = new Map(); // lowercase -> {count, label}
+  for(const p of state.permits){
+    for(const it of (p.items||[])){
+      const raw = itemCategoryRaw(it.name);
+      if(!raw) continue;
+      const lc = raw.toLowerCase();
+      const entry = counts.get(lc) || { count: 0, label: raw };
+      entry.count++;
+      counts.set(lc, entry);
+    }
+  }
+  const keys = Array.from(counts.keys());
+  const parent = new Map(keys.map(k=>[k,k]));
+  function find(x){ while(parent.get(x)!==x){ x = parent.get(x); } return x; }
+  function union(a,b){ const ra=find(a), rb=find(b); if(ra!==rb) parent.set(ra, rb); }
+  for(let i=0;i<keys.length;i++){
+    for(let j=i+1;j<keys.length;j++){
+      if(isEditDistanceAtMostOne(keys[i], keys[j])) union(keys[i], keys[j]);
+    }
+  }
+  const clusterBest = new Map(); // root -> {count,label}
+  for(const k of keys){
+    const root = find(k);
+    const cur = counts.get(k);
+    const best = clusterBest.get(root);
+    if(!best || cur.count > best.count) clusterBest.set(root, cur);
+  }
+  const map = new Map();
+  for(const k of keys) map.set(k, clusterBest.get(find(k)).label);
+  return map;
+}
+
+function itemCategory(name, categoryMap){
+  const raw = itemCategoryRaw(name);
+  if(!raw) return '';
+  if(categoryMap) return categoryMap.get(raw.toLowerCase()) || raw;
+  return raw;
+}
+
 function renderModelFinderTab(){
+  const categoryMap = buildCategoryCanonicalMap();
   const allCategories = Array.from(new Set(
-    state.permits.flatMap(p=>(p.items||[]).map(it=>itemCategory(it.name))).filter(Boolean)
+    state.permits.flatMap(p=>(p.items||[]).map(it=>itemCategory(it.name, categoryMap))).filter(Boolean)
   )).sort((a,b)=>a.localeCompare(b, 'ru'));
 
   return `
@@ -2799,6 +2864,7 @@ function modelFinderResultsHtml(){
   }
 
   const wValKg = hasWeight ? wValKgRaw : null;
+  const categoryMap = buildCategoryCanonicalMap();
   const results = [];
   for(const p of state.permits){
     for(const it of (p.items||[])){
@@ -2807,7 +2873,7 @@ function modelFinderResultsHtml(){
       const perUnit = qty ? (weight / qty) : 0;
       let ok = true;
       if(hasWeight) ok = ok && Math.abs(perUnit - wValKg) <= MODEL_FINDER_TOLERANCE_KG;
-      if(catVal) ok = ok && itemCategory(it.name) === catVal;
+      if(catVal) ok = ok && itemCategory(it.name, categoryMap) === catVal;
       if(!ok) continue;
       const used = itemUsage(p.id, it.id);
       const st = itemStatus(it, used);
