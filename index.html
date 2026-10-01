@@ -980,15 +980,18 @@ function uiT(text){
   try{return window.EOMBOR_UI_V5?.translateText?.(String(text), uiLang()) || String(text);}catch(_){return String(text);}
 }
 function auditActionLabel(a){
-  const map={create:'Создание', update:'Изменение', delete:'Удаление', shipment_create:'Новая отгрузка', shipment_delete:'Удаление отгрузки', shipment_update:'Отгрузка изменена'};
+  const map={create:'Создание', update:'Изменение', delete:'Удаление', shipment_create:'Новая отгрузка', shipment_delete:'Удаление отгрузки', shipment_update:'Отгрузка изменена', draft_create:'Qoralama yaratildi', draft_delete:'Qoralama o‘chirildi', draft_finalize:'Qoralama yakunlandi'};
   return uiT(map[a] || a);
 }
-function auditEntityLabel(t){ return uiT(t==='permit' ? 'Разрешение' : t==='shipment' ? 'Отгрузка' : t); }
+function auditEntityLabel(t){ return uiT(t==='permit' ? 'Разрешение' : t==='shipment' ? 'Отгрузка' : t==='draft' ? 'Qoralama' : t); }
 function auditSummary(a){
   const oldD=a.oldData||{}, newD=a.newData||{};
   if(a.action==='create') return uiT('Создано');
   if(a.action==='delete' || a.action==='shipment_delete') return uiT('Удалено');
   if(a.action==='shipment_create') return uiT('Создана отгрузка');
+  if(a.action==='draft_create') return 'Qoralama yaratildi';
+  if(a.action==='draft_delete') return 'Qoralama o‘chirildi';
+  if(a.action==='draft_finalize') return 'Qoralama yakunlandi (yuklamaga aylandi)';
   const changes=[];
   const lang=uiLang();
   const labels={
@@ -1045,7 +1048,7 @@ function openAuditDetailModal(auditId){
       <td class="diff-old">${escapeHtml(formatDiffValue(c.oldValue))}</td>
       <td class="diff-new">${escapeHtml(formatDiffValue(c.newValue))}</td>
     </tr>`).join('')}</tbody></table>`
-    : (a.action==='create' || a.action==='shipment_create' || a.action==='delete' || a.action==='shipment_delete'
+    : (a.action==='create' || a.action==='shipment_create' || a.action==='delete' || a.action==='shipment_delete' || String(a.action).startsWith('draft_')
         ? ''
         : `<div class="subtle-note" style="margin-bottom:14px;">${escapeHtml(uiT('Детали недоступны для этой записи'))}</div>`);
 
@@ -2090,10 +2093,116 @@ function addRowToDraft(d, permitId, itemId, qty, weight){
   if(ex){ ex.qty = (Number(ex.qty)||0) + qty; ex.weight = ((Number(ex.weight)||0) + weight).toFixed(3); }
   else d.rows.push({ permitId, itemId, qty, weight: Number(weight).toFixed(3) });
 }
-function resumeDraft(id){
+
+/* ---- qoldiq, tahrirlash belgisi, saqlash, invoys eksporti ---- */
+let __meCache = null, __meLoading = false;
+async function getMe(){
+  if(__meCache) return __meCache;
+  let info = {};
+  try{ info = window.OfflineSync ? await OfflineSync.authInfo() : {}; }catch(_){}
+  __meCache = { id: info.userId || '', name: info.displayName || info.email || 'Foydalanuvchi' };
+  return __meCache;
+}
+const DRAFT_LOCK_MS = 15*60*1000;
+function lockActive(d){
+  const lk = d && d.editingBy;
+  return !!(lk && lk.at && (Date.now()-Date.parse(lk.at)) < DRAFT_LOCK_MS);
+}
+function lockOther(d){
+  return lockActive(d) && __meCache && d.editingBy.id !== __meCache.id ? d.editingBy : null;
+}
+async function claimDraft(d){
+  const me = await getMe();
+  if(lockActive(d) && d.editingBy.id !== me.id){
+    const mins = Math.max(1, Math.round((Date.now()-Date.parse(d.editingBy.at))/60000));
+    return confirm(`${d.editingBy.name} bu qoralamani tahrirlayapti (${mins} daqiqa oldin).\n\nBaribir ochasizmi? Oxirgi saqlagan odamning o'zgarishlari qoladi.`);
+  }
+  return true;
+}
+async function markEditing(d){
+  const me = await getMe();
+  d.editingBy = { id: me.id, name: me.name, at: new Date().toISOString() };
+}
+function stockFor(permitId, itemId){
+  const p = state.permits.find(x=>x.id===permitId);
+  const it = p && (p.items||[]).find(x=>x.id===itemId);
+  if(!it) return null;
+  const st = itemStatus(it, itemUsage(permitId, itemId));
+  return { p, it, per: itemPerUnit(it), remQty: Math.max(0, st.remQty), remWeight: Math.max(0, st.remWeight) };
+}
+async function persistDraft(d){
+  const isNew = !state.drafts.some(x=>x.id===d.id);
+  upsertDraft(d);
+  await saveShipments();
+  if(isNew) await addAudit('draft_create','draft',d.id,draftLabel(d),null,d);
+}
+function invoiceData(number, date, rows){
+  const groups = new Map();
+  (rows||[]).forEach(r=>{
+    const qty = Number(r.qty)||0; if(!qty) return;
+    const p = state.permits.find(x=>x.id===r.permitId);
+    const it = p && (p.items||[]).find(x=>x.id===r.itemId);
+    if(!groups.has(r.permitId)) groups.set(r.permitId, { permit:p, lines:[], qty:0, weight:0 });
+    const g = groups.get(r.permitId); const w = Number(r.weight)||0;
+    g.lines.push({ name: it?it.name:'—', material: (it&&it.material)||'', tnved: (it&&it.tnved)||'', unit:(it&&it.unit)||'', qty, weight:w });
+    g.qty += qty; g.weight += w;
+  });
+  const list = [...groups.values()].sort((a,b)=>String(a.permit&&a.permit.number||'').localeCompare(String(b.permit&&b.permit.number||'')));
+  return { number: number||'', date: date||'', groups:list,
+    qty: list.reduce((a,g)=>a+g.qty,0), weight: list.reduce((a,g)=>a+g.weight,0) };
+}
+function finalizedInvoice(key){
+  const rows = []; let date = '';
+  state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)===key).forEach(sh=>{
+    if((sh.invoiceDate||'')>date) date = sh.invoiceDate||'';
+    (sh.lines||[]).forEach(l=>rows.push({ permitId:sh.permitId, itemId:l.itemId, qty:l.qty, weight:l.weight }));
+  });
+  return invoiceData(key, date, rows);
+}
+function invoiceFileName(inv){ return ('Invoys_'+(inv.number||'qoralama')).replace(/[\\/:*?"<>|]/g,'_'); }
+function exportInvoiceXlsx(inv){
+  if(typeof XLSX==='undefined'){ toast('Excel kutubxonasi yuklanmadi'); return; }
+  if(!inv.groups.length){ toast('Eksport qilish uchun miqdori kiritilgan qator yo\'q'); return; }
+  const aoa = [[`Invoys: ${inv.number||'—'}`,'','',`Sana: ${inv.date||'—'}`],[]];
+  inv.groups.forEach(g=>{
+    aoa.push([`Ruxsatnoma № ${g.permit?g.permit.number:'—'}${g.permit&&g.permit.date?' от '+g.permit.date:''}`]);
+    aoa.push(['№','Наименование','Мато','Код ТН ВЭД','Кол-во','Вес (кг)']);
+    g.lines.forEach((l,i)=>aoa.push([i+1,l.name,l.material,l.tnved,l.qty,Number(l.weight.toFixed(3))]));
+    aoa.push(['','Jami (ruxsatnoma)','','',g.qty,Number(g.weight.toFixed(3))]);
+    aoa.push([]);
+  });
+  aoa.push(['','UMUMIY JAMI','','',inv.qty,Number(inv.weight.toFixed(3))]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:6},{wch:44},{wch:22},{wch:16},{wch:10},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Invoys');
+  XLSX.writeFile(wb, invoiceFileName(inv)+'.xlsx');
+}
+function printInvoice(inv){
+  if(!inv.groups.length){ toast('Chop etish uchun miqdori kiritilgan qator yo\'q'); return; }
+  const body = inv.groups.map(g=>`
+    <h3>Ruxsatnoma № ${escapeHtml(g.permit?g.permit.number:'—')}${g.permit&&g.permit.date?' · '+escapeHtml(g.permit.date):''}</h3>
+    <table><thead><tr><th>№</th><th>Наименование</th><th>Мато</th><th>Код ТН ВЭД</th><th class="n">Кол-во</th><th class="n">Вес (кг)</th></tr></thead><tbody>
+    ${g.lines.map((l,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(l.name)}</td><td>${escapeHtml(l.material)}</td><td>${escapeHtml(l.tnved)}</td><td class="n">${fmt(l.qty,0)} ${escapeHtml(l.unit)}</td><td class="n">${fmt(l.weight,3)}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="4">Jami (ruxsatnoma)</td><td class="n">${fmt(g.qty,0)}</td><td class="n">${fmt(g.weight,3)}</td></tr></tfoot></table>`).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(invoiceFileName(inv))}</title>
+  <style>body{font:13px Arial,sans-serif;color:#111;margin:24px}h1{font-size:20px;margin:0 0 4px}h3{margin:20px 0 6px;font-size:14px}
+  table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:5px 8px;text-align:left}th{background:#eee}.n{text-align:right}
+  tfoot td{font-weight:bold;background:#f6f6f6}.total{margin-top:18px;font-size:15px;font-weight:bold}</style></head><body>
+  <h1>Invoys: ${escapeHtml(inv.number||'—')}</h1><div>Sana: ${escapeHtml(inv.date||'—')}</div>${body}
+  <div class="total">UMUMIY JAMI: ${fmt(inv.qty,0)} dona · ${fmt(inv.weight,3)} kg</div></body></html>`;
+  const w = window.open('', '_blank');
+  if(!w){ alert('Oyna bloklandi. Brauzerda ushbu sayt uchun qalqib chiquvchi oynalarga ruxsat bering.'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+  w.focus(); setTimeout(()=>{ try{ w.print(); }catch(_){} }, 300);
+}
+
+async function resumeDraft(id){
   const d = state.drafts.find(x=>x.id===id);
   if(!d) return;
+  if(!(await claimDraft(d))) return;
   multiDraft = cloneJson(d);
+  await markEditing(multiDraft); upsertDraft(multiDraft); await saveShipments();
   shipView = 'multi';
   const b = document.querySelector('.tab-btn[data-tab="shipment"]');
   if(b) b.click(); else setTab('shipment');
@@ -2128,7 +2237,7 @@ function renderMultiShipment(){
     const it = p && (p.items||[]).find(x=>x.id===r.itemId);
     if(!p || !it) return `<tr><td colspan="5"><span class="subtle-note">Ruxsatnoma yoki model topilmadi</span></td><td><button type="button" class="btn danger sm" data-md-del="${i}">✕</button></td></tr>`;
     const st = itemStatus(it, itemUsage(p.id, it.id));
-    return `<tr data-md-row="${i}" data-perunit="${itemPerUnit(it)}">
+    return `<tr data-md-row="${i}" data-perunit="${itemPerUnit(it)}" data-remqty="${Math.max(0,st.remQty)}" data-remweight="${Math.max(0,st.remWeight)}">
       <td>${escapeHtml(p.number)}<div class="subtle-note">${escapeHtml(p.date||'')}</div></td>
       <td>${escapeHtml(it.name)}${it.material ? ` <span class="material-badge">${escapeHtml(it.material)}</span>` : ''}</td>
       <td class="num-col ${st.remQty<0?'mismatch':''}">${fmt(st.remQty,0)} ${escapeHtml(it.unit||'')} / ${fmt(st.remWeight,2)} кг</td>
@@ -2138,8 +2247,12 @@ function renderMultiShipment(){
     </tr>`;
   }).join('');
   const tot = draftTotals(d);
+  if(!__meCache && !__meLoading){ __meLoading = true; getMe().then(()=>{ __meLoading=false; if(currentTab==='shipment') render(); }); }
+  const savedD = state.drafts.find(x=>x.id===d.id);
+  const lo = savedD ? lockOther(savedD) : null;
+  const lockBanner = lo ? `<div class="panel" style="border-left:4px solid var(--amber);"><div class="panel-body" style="color:var(--amber);font-weight:600;">⚠ ${escapeHtml(lo.name)} shu qoralamani tahrirlayapti. Ikkalangiz saqlasangiz, oxirgi saqlagan odamning o'zgarishlari qoladi.</div></div>` : '';
 
-  return `
+  return lockBanner + `
     <div class="toolbar"><div><h1>Ko'p ruxsatnomali invoys</h1><div class="desc">Bitta invoysga turli ruxsatnomalardan modellar yig'ing. «Qoralamaga saqlash» — keyin davom ettirish uchun, «Saqlash» — yakunlash.</div></div></div>
     <div class="panel"><div class="panel-body">
       <div class="field-row">
@@ -2162,6 +2275,8 @@ function renderMultiShipment(){
         : `<div class="empty">Hali qator yo'q. Yuqoridan ruxsatnoma va modelni tanlab «Qo'shish» bosing.</div>`}</div>
     </div>
     <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+      <button type="button" class="btn secondary" id="mdXlsx">Excel</button>
+      <button type="button" class="btn secondary" id="mdPrint">PDF / Chop etish</button>
       <button type="button" class="btn danger" id="mdDelete">O'chirish</button>
       <button type="button" class="btn secondary" id="mdSaveDraft">Qoralamaga saqlash</button>
       <button type="button" class="btn" id="mdFinalize">Saqlash</button>
@@ -2174,9 +2289,13 @@ function bindShipmentEvents(){
   const d = multiDraft; if(!d) return;
   const $ = id=>document.getElementById(id);
 
-  $('mdPick')?.addEventListener('change', e=>{
+  $('mdPick')?.addEventListener('change', async e=>{
     const x = state.drafts.find(y=>y.id===e.target.value);
-    multiDraft = x ? cloneJson(x) : newMultiDraft();
+    if(x){
+      if(!(await claimDraft(x))){ render(); return; }
+      multiDraft = cloneJson(x);
+      await markEditing(multiDraft); upsertDraft(multiDraft); await saveShipments();
+    }else multiDraft = newMultiDraft();
     render();
   });
   $('mdInvNum')?.addEventListener('input', e=>{ d.invoiceNumber = e.target.value; });
@@ -2186,6 +2305,8 @@ function bindShipmentEvents(){
   $('mdAddBtn')?.addEventListener('click', ()=>{
     if(!mdAdd.permitId || !mdAdd.itemId){ toast('Ruxsatnoma va modelni tanlang'); return; }
     if(d.rows.some(r=>r.permitId===mdAdd.permitId && r.itemId===mdAdd.itemId)){ toast('Bu model allaqachon qo\'shilgan'); return; }
+    const sf = stockFor(mdAdd.permitId, mdAdd.itemId);
+    if(!sf || sf.remQty<=0){ toast('Bu modelning qoldig\'i yo\'q — qo\'shib bo\'lmaydi'); return; }
     d.rows.push({ permitId:mdAdd.permitId, itemId:mdAdd.itemId, qty:'', weight:'' });
     mdAdd.itemId = '';
     render();
@@ -2197,13 +2318,17 @@ function bindShipmentEvents(){
   };
   document.querySelectorAll('[data-md-qty]').forEach(inp=>inp.addEventListener('input', ()=>{
     const i = Number(inp.dataset.mdQty); const tr = inp.closest('tr'); const per = Number(tr.dataset.perunit)||0;
+    const maxQ = Number(tr.dataset.remqty)||0, maxW = Number(tr.dataset.remweight)||0;
+    let q = Number(inp.value);
+    if(q > maxQ + 1e-9){ q = maxQ; inp.value = String(maxQ); toast(`Qoldiq: ${fmt(maxQ,0)} — undan ortiq kiritib bo'lmaydi`); }
     d.rows[i].qty = inp.value;
-    const q = Number(inp.value);
     const wInp = tr.querySelector('[data-md-weight]');
-    if(wInp && q>0 && per){ wInp.value = (q*per).toFixed(3); d.rows[i].weight = wInp.value; }
+    if(wInp && q>0 && per){ wInp.value = Math.min(q*per, maxW).toFixed(3); d.rows[i].weight = wInp.value; }
     refreshTotals();
   }));
   document.querySelectorAll('[data-md-weight]').forEach(inp=>inp.addEventListener('input', ()=>{
+    const tr = inp.closest('tr'); const maxW = Number(tr.dataset.remweight)||0;
+    if(Number(inp.value) > maxW + 1e-9){ inp.value = maxW.toFixed(3); toast(`Qoldiq vazn: ${fmt(maxW,3)} kg — undan ortiq kiritib bo'lmaydi`); }
     d.rows[Number(inp.dataset.mdWeight)].weight = inp.value; refreshTotals();
   }));
   document.querySelectorAll('[data-md-del]').forEach(b=>b.addEventListener('click', ()=>{
@@ -2212,13 +2337,15 @@ function bindShipmentEvents(){
   $('mdSaveDraft')?.addEventListener('click', saveMultiDraft);
   $('mdFinalize')?.addEventListener('click', finalizeMultiDraft);
   $('mdDelete')?.addEventListener('click', deleteMultiDraft);
+  $('mdXlsx')?.addEventListener('click', ()=>exportInvoiceXlsx(invoiceData(d.invoiceNumber, d.invoiceDate, d.rows)));
+  $('mdPrint')?.addEventListener('click', ()=>printInvoice(invoiceData(d.invoiceNumber, d.invoiceDate, d.rows)));
 }
 
 async function saveMultiDraft(){
   const d = multiDraft;
   if(!d.rows.length && !(d.invoiceNumber||'').trim()){ toast('Invoys raqamini kiriting yoki model qo\'shing'); return; }
-  upsertDraft(d);
-  await saveShipments();
+  await markEditing(d);
+  await persistDraft(d);
   toast('Qoralama saqlandi');
   render();
 }
@@ -2232,6 +2359,7 @@ async function deleteMultiDraft(){
   if(saved){
     state.drafts = state.drafts.filter(x=>x.id!==d.id);
     await saveShipments();
+    await addAudit('draft_delete','draft',d.id,draftLabel(d),d,null);
   }
   multiDraft = newMultiDraft();
   mdAdd = { permitId:'', itemId:'' };
@@ -2275,19 +2403,19 @@ async function finalizeMultiDraft(){
   state.drafts = state.drafts.filter(x=>x.id!==d.id);
   await saveShipments();
   for(const s of created) await addAudit('shipment_create', 'shipment', s.id, s.invoiceNumber||s.id, null, s);
+  await addAudit('draft_finalize','draft',d.id,draftLabel(d),d,{ shipmentIds: created.map(x=>x.id) });
   multiDraft = newMultiDraft();
   mdAdd = { permitId:'', itemId:'' };
   render();
   toast(`Yuklama saqlandi (${created.length} ta ruxsatnoma bo'yicha), qoldiqlar yangilandi`);
 }
 
-/* "Поиск модели" natijasidan qoralamaga qo'shish */
+/* "Поиск модели" natijasidan qoralamaga qo'shish — qoldiqdan ortiq kiritib bo'lmaydi */
 function openMfAddModal(permitId, itemId){
-  const p = state.permits.find(x=>x.id===permitId);
-  const it = p && (p.items||[]).find(x=>x.id===itemId);
-  if(!p || !it) return;
-  const per = itemPerUnit(it);
-  const st = itemStatus(it, itemUsage(p.id, it.id));
+  const sf = stockFor(permitId, itemId);
+  if(!sf) return;
+  const { p, it, per } = sf;
+  if(sf.remQty<=0){ toast('Bu modelning qoldig\'i yo\'q'); return; }
   const opts = [];
   const seen = new Set();
   if(multiDraft && (multiDraft.rows.length || (multiDraft.invoiceNumber||'').trim())){
@@ -2297,7 +2425,7 @@ function openMfAddModal(permitId, itemId){
   const layer = pushView(`
     <div class="modal-head"><button class="btn secondary fs-back-btn" data-close>&larr; Orqaga</button><h2>Invoysga qo'shish</h2></div>
     <div class="modal-body">
-      <div class="subtle-note" style="margin-bottom:12px;"><strong>${escapeHtml(it.name)}</strong><br>${escapeHtml(p.number)} · qoldiq: ${fmt(st.remQty,0)} ${escapeHtml(it.unit||'')} / ${fmt(st.remWeight,2)} кг</div>
+      <div class="subtle-note" style="margin-bottom:12px;"><strong>${escapeHtml(it.name)}</strong><br>${escapeHtml(p.number)} · qoldiq: ${fmt(sf.remQty,0)} ${escapeHtml(it.unit||'')} / ${fmt(sf.remWeight,2)} кг</div>
       <div class="field"><label>Qaysi invoys?</label>
         <select id="mfaTarget">
           ${opts.map(x=>`<option value="${x.id}">${escapeHtml(draftLabel(x))}${x.invoiceDate?' · '+escapeHtml(x.invoiceDate):''}</option>`).join('')}
@@ -2308,19 +2436,52 @@ function openMfAddModal(permitId, itemId){
         <div class="field"><label>Miqdor (${escapeHtml(it.unit||'dona')})</label><input type="number" min="0" step="any" id="mfaQty" placeholder="0"></div>
         <div class="field"><label>Vazn (kg) — avtomatik</label><input type="number" min="0" step="0.001" id="mfaWeight" placeholder="0.00"></div>
       </div>
+      <div class="subtle-note" id="mfaHint" style="margin-top:6px;"></div>
       <div style="margin-top:14px;text-align:right;"><button class="btn" id="mfaOk">Qo'shish</button></div>
     </div>`);
   const $ = id=>layer.querySelector('#'+id);
   const sel = $('mfaTarget');
   if(!opts.length) sel.value = '__new__';
-  const syncNew = ()=>{ $('mfaNewWrap').style.display = sel.value==='__new__' ? '' : 'none'; };
+  const findTarget = ()=>{
+    if(sel.value==='__new__') return null;
+    if(multiDraft && multiDraft.id===sel.value) return multiDraft;
+    return state.drafts.find(y=>y.id===sel.value) || null;
+  };
+  // Tanlangan invoysda shu model allaqachon bo'lsa, uning miqdori qoldiqdan ayriladi.
+  const limits = ()=>{
+    const t = findTarget();
+    const ex = t ? t.rows.find(r=>r.permitId===permitId && r.itemId===itemId) : null;
+    return { q: Math.max(0, sf.remQty - (ex ? (Number(ex.qty)||0) : 0)),
+             w: Math.max(0, sf.remWeight - (ex ? (Number(ex.weight)||0) : 0)),
+             had: ex ? (Number(ex.qty)||0) : 0 };
+  };
+  const showHint = ()=>{
+    const L = limits();
+    $('mfaHint').innerHTML = L.q>0
+      ? `Qo'shish mumkin: <strong>${fmt(L.q,0)}</strong> ${escapeHtml(it.unit||'dona')}${L.had?` (bu invoysda allaqachon ${fmt(L.had,0)} bor)`:''}`
+      : `<span style="color:var(--red);font-weight:600;">Bu invoysda modelning butun qoldig'i allaqachon kiritilgan.</span>`;
+    $('mfaOk').disabled = L.q<=0;
+  };
+  const syncNew = ()=>{ $('mfaNewWrap').style.display = sel.value==='__new__' ? '' : 'none'; showHint(); };
   sel.addEventListener('change', syncNew); syncNew();
-  $('mfaQty').addEventListener('input', ()=>{ const q=Number($('mfaQty').value); if(q>0 && per) $('mfaWeight').value = (q*per).toFixed(3); });
+  $('mfaQty').addEventListener('input', ()=>{
+    const L = limits();
+    let q = Number($('mfaQty').value);
+    if(q > L.q + 1e-9){ q = L.q; $('mfaQty').value = String(L.q); toast(`Qoldiq: ${fmt(L.q,0)} — undan ortiq kiritib bo'lmaydi`); }
+    if(q>0 && per) $('mfaWeight').value = Math.min(q*per, L.w).toFixed(3);
+  });
+  $('mfaWeight').addEventListener('input', ()=>{
+    const L = limits();
+    if(Number($('mfaWeight').value) > L.w + 1e-9){ $('mfaWeight').value = L.w.toFixed(3); toast(`Qoldiq vazn: ${fmt(L.w,3)} kg — undan ortiq kiritib bo'lmaydi`); }
+  });
   $('mfaOk').addEventListener('click', async ()=>{
+    const L = limits();
     const qty = Number($('mfaQty').value);
     if(!Number.isFinite(qty) || qty<=0){ toast('Miqdorni kiriting'); return; }
+    if(qty > L.q + 1e-9){ toast(`Qoldiq: ${fmt(L.q,0)} — undan ortiq qo'shib bo'lmaydi`); return; }
     let weight = Number($('mfaWeight').value);
-    if(!Number.isFinite(weight) || $('mfaWeight').value==='') weight = qty*per;
+    if(!Number.isFinite(weight) || $('mfaWeight').value==='') weight = Math.min(qty*per, L.w);
+    if(weight > L.w + 1e-9){ toast(`Qoldiq vazn: ${fmt(L.w,3)} kg — undan ortiq qo'shib bo'lmaydi`); return; }
     let target;
     if(sel.value==='__new__'){
       target = newMultiDraft();
@@ -2333,8 +2494,7 @@ function openMfAddModal(permitId, itemId){
       target = cloneJson(x);
     }
     addRowToDraft(target, permitId, itemId, qty, weight);
-    upsertDraft(target);
-    await saveShipments();
+    await persistDraft(target);
     history.back();
     toast('Qoralamaga qo\'shildi: ' + draftLabel(target) + '. «Новая отгрузка» → «Ko\'p ruxsatnomali» bo\'limida davom ettiring');
   });
@@ -2399,12 +2559,12 @@ function renderShipmentHistoryFolders(){
     const pc = new Set((d.rows||[]).map(r=>r.permitId)).size;
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:10px;">${FOLDER_ICON_SVG}<div><strong>${escapeHtml(draftLabel(d))}</strong><div class="subtle-note">${pc} ${escapeHtml(uiT('Разрешение'))} &middot; ${(d.rows||[]).length} ${escapeHtml(uiT('записей'))}</div></div></div></td>
-      <td><span style="color:#8a929c;font-weight:600;">Tugallanmagan</span></td>
+      <td><span style="color:#8a929c;font-weight:600;">Tugallanmagan</span>${(()=>{ const lo = lockOther(d); return lo ? `<div class="subtle-note" style="color:var(--amber);">${escapeHtml(lo.name)} tahrirlayapti</div>` : ''; })()}</td>
       <td class="num-col">${escapeHtml(d.invoiceDate||'—')}</td>
       <td class="num-col">${(d.rows||[]).length}</td>
       <td class="num-col">${fmt(t.qty,0)}</td>
       <td class="num-col">${fmt(t.weight,2)}</td>
-      <td style="white-space:nowrap;">${canCreateEdit() ? `<button class="btn secondary sm" data-resume-draft="${d.id}">Davom ettirish</button>` : ''}</td>
+      <td style="white-space:nowrap;">${canCreateEdit() ? `<button class="btn secondary sm" data-resume-draft="${d.id}">Davom ettirish</button> <button class="btn danger sm" data-del-draft-h="${d.id}">${uiT('Удалить')}</button>` : ''}</td>
     </tr>`;
   }).join('');
 
@@ -2480,6 +2640,7 @@ function renderShipmentHistoryInvoiceFolder(key){
         <button class="btn secondary sm" id="shipHistBack" style="margin-bottom:10px;">&larr; ${uiT('Назад к инвойсам')}</button>
         <h1>${escapeHtml(key || '—')}</h1>
         <div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn secondary sm" id="invXlsx">Excel</button><button type="button" class="btn secondary sm" id="invPrint">PDF / Chop etish</button></div>
       </div>
       <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
     </div>
@@ -2508,7 +2669,29 @@ function bindShipmentHistoryEvents(){
   const q = document.getElementById('shipHistSearch');
   if(q) q.addEventListener('input', e=>{ shipmentHistorySearch = e.target.value; render(); setTimeout(()=>{ const i=document.getElementById('shipHistSearch'); if(i){ i.focus(); i.selectionStart=i.selectionEnd=i.value.length; } },0); });
 
+  if(!__meCache) getMe();
   document.querySelectorAll('[data-resume-draft]').forEach(el=>el.addEventListener('click', ()=>resumeDraft(el.dataset.resumeDraft)));
+  document.querySelectorAll('[data-del-draft-h]').forEach(el=>el.addEventListener('click', ()=>{
+    const d = state.drafts.find(x=>x.id===el.dataset.delDraftH);
+    if(!d) return;
+    showReasonPrompt({
+      title: 'Qoralamani o\'chirish?',
+      message: `«${draftLabel(d)}» qoralamasi butunlay o'chiriladi. Qoldiqlarga ta'sir qilmaydi.`,
+      danger: true,
+      confirmLabel: uiT('Удалить'),
+      placeholder: uiT('Укажите причину удаления...'),
+      onConfirm: async (reason)=>{
+        state.drafts = state.drafts.filter(x=>x.id!==d.id);
+        await saveShipments();
+        await addAudit('draft_delete','draft',d.id,draftLabel(d),d,null,reason,[]);
+        if(multiDraft && multiDraft.id===d.id) multiDraft = newMultiDraft();
+        render();
+        toast('Qoralama o\'chirildi');
+      }
+    });
+  }));
+  document.getElementById('invXlsx')?.addEventListener('click', ()=>exportInvoiceXlsx(finalizedInvoice(shipmentHistoryOpenInvoice)));
+  document.getElementById('invPrint')?.addEventListener('click', ()=>printInvoice(finalizedInvoice(shipmentHistoryOpenInvoice)));
 
   document.querySelectorAll('[data-open-invoice-folder]').forEach(el=>el.addEventListener('click', ()=>{
     shipmentHistoryOpenInvoice = el.dataset.openInvoiceFolder;
