@@ -2744,22 +2744,18 @@ async function confirmUploadShipment(){
    mato/material bo'yicha BARCHA ruxsatnomalar orasidan izlab topish.
    Faqat ma'lumot ko'rsatish uchun: qatorni bosish hech qanday amalni
    ishga tushirmaydi va qoldig'i 0 bo'lgan pozitsiyalar ko'rsatilmaydi. */
-const MODEL_FINDER_TOLERANCE_KG = 0.005; // ±5 gramm
+const MODEL_FINDER_TOLERANCE_KG = 0.05; // ±0.05 kg
 
 // Pozitsiya nomi deyarli har doim turkum (model turi) so'zi bilan boshlanadi,
 // masalan "Брюки трикотажные женские артикул uz400337" → "Брюки",
 // "Лонгслив мужской..." → "Лонгслив". Shu sababli alohida kalit so'zlar
-// jadvali kerak emas — turkum nomning birinchi so'zidan avtomatik olinadi,
-// xuddi "Mato" ro'yxati material maydonidan avtomatik yig'ilgani kabi.
+// jadvali kerak emas — turkum nomning birinchi so'zidan avtomatik olinadi.
 function itemCategory(name){
   const first = String(name||'').trim().split(/\s+/)[0] || '';
   return first.replace(/[.,;:]+$/,'');
 }
 
 function renderModelFinderTab(){
-  const allMaterials = Array.from(new Set(
-    state.permits.flatMap(p=>(p.items||[]).map(it=>String(it.material||'').trim())).filter(Boolean)
-  )).sort();
   const allCategories = Array.from(new Set(
     state.permits.flatMap(p=>(p.items||[]).map(it=>itemCategory(it.name))).filter(Boolean)
   )).sort((a,b)=>a.localeCompare(b, 'ru'));
@@ -2772,15 +2768,8 @@ function renderModelFinderTab(){
       <div class="panel-body">
         <div class="field-row" style="align-items:flex-end;flex-wrap:wrap;">
           <div class="field" style="min-width:200px;">
-            <label>${uiT('Вес 1 шт., грамм (±5 г)')}</label>
-            <input type="number" step="1" id="modelFinderWeight" value="${escapeAttr(modelFinder.weightGram)}" placeholder="${uiT('masalan')} 308">
-          </div>
-          <div class="field" style="min-width:200px;">
-            <label>${uiT('Мато / material')}</label>
-            <select id="modelFinderMaterial">
-              <option value="">${uiT('Barchasi')}</option>
-              ${allMaterials.map(m=>`<option value="${escapeAttr(m)}" ${modelFinder.material===m?'selected':''}>${escapeHtml(m)}</option>`).join('')}
-            </select>
+            <label>${uiT('1 dona vazni, kg (±0.05)')}</label>
+            <input type="number" step="0.001" id="modelFinderWeight" value="${escapeAttr(modelFinder.weightGram)}" placeholder="${uiT('masalan')} 0.308">
           </div>
           <div class="field" style="min-width:200px;">
             <label>${uiT('Turkum')}</label>
@@ -2800,17 +2789,16 @@ function renderModelFinderTab(){
 }
 
 function modelFinderResultsHtml(){
-  const rawG = String(modelFinder.weightGram||'').trim();
-  const gVal = Number(rawG);
-  const hasWeight = rawG !== '' && Number.isFinite(gVal);
-  const mVal = modelFinder.material || '';
+  const rawW = String(modelFinder.weightGram||'').trim();
+  const wValKgRaw = Number(rawW);
+  const hasWeight = rawW !== '' && Number.isFinite(wValKgRaw);
   const catVal = modelFinder.category || '';
 
-  if(!hasWeight && !mVal && !catVal){
-    return `<div class="subtle-note" style="margin-top:10px;">${uiT('Укажите вес в граммах — поиск идёт по всем разрешениям')}</div>`;
+  if(!hasWeight && !catVal){
+    return `<div class="subtle-note" style="margin-top:10px;">${uiT('Укажите вес — поиск идёт по всем разрешениям')}</div>`;
   }
 
-  const wValKg = hasWeight ? gVal / 1000 : null;
+  const wValKg = hasWeight ? wValKgRaw : null;
   const results = [];
   for(const p of state.permits){
     for(const it of (p.items||[])){
@@ -2819,7 +2807,6 @@ function modelFinderResultsHtml(){
       const perUnit = qty ? (weight / qty) : 0;
       let ok = true;
       if(hasWeight) ok = ok && Math.abs(perUnit - wValKg) <= MODEL_FINDER_TOLERANCE_KG;
-      if(mVal) ok = ok && String(it.material||'').trim() === mVal;
       if(catVal) ok = ok && itemCategory(it.name) === catVal;
       if(!ok) continue;
       const used = itemUsage(p.id, it.id);
@@ -2840,13 +2827,15 @@ function modelFinderResultsHtml(){
   const rows = results.map(r=>`<tr>
       <td>${escapeHtml(r.permit.number)}<div class="subtle-note">${escapeHtml(r.permit.date||'')}</div></td>
       <td>${escapeHtml(r.item.name)}</td>
+      <td>${r.item.material ? `<span class="material-badge">${escapeHtml(r.item.material)}</span>` : '—'}</td>
       <td class="code-col">${escapeHtml(r.item.tnved||'—')}</td>
+      <td class="num-col">${fmt(r.perUnit,3)} кг</td>
       <td class="num-col">${fmt(r.st.remQty,0)} ${escapeHtml(r.item.unit||'')}</td>
       <td class="num-col">${fmt(r.st.remWeight,2)} кг</td>
     </tr>`).join('');
 
   return `<div style="margin-top:10px;overflow:auto;"><table><thead><tr>
-      <th>${uiT('Разрешение')}</th><th>${uiT('Наименование')}</th><th>${uiT('Код ТН ВЭД')}</th><th>${uiT('Остаток, кол-во')}</th><th>${uiT('Остаток, вес')}</th>
+      <th>${uiT('Разрешение')}</th><th>${uiT('Наименование')}</th><th>${uiT('Мато / material')}</th><th>${uiT('Код ТН ВЭД')}</th><th>${uiT('1 dona vazni')}</th><th>${uiT('Остаток, кол-во')}</th><th>${uiT('Остаток, вес')}</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -2857,9 +2846,6 @@ function bindModelFinderEvents(){
 
   const wInput = document.getElementById('modelFinderWeight');
   if(wInput) wInput.addEventListener('input', ()=>{ modelFinder.weightGram = wInput.value; refresh(); });
-
-  const mSelect = document.getElementById('modelFinderMaterial');
-  if(mSelect) mSelect.addEventListener('change', ()=>{ modelFinder.material = mSelect.value; refresh(); });
 
   const catSelect = document.getElementById('modelFinderCategory');
   if(catSelect) catSelect.addEventListener('change', ()=>{ modelFinder.category = catSelect.value; refresh(); });
