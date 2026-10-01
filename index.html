@@ -2806,18 +2806,19 @@ function modelFinderResultsHtml(){
   const mVal = modelFinder.material || '';
   const catVal = modelFinder.category || '';
 
-  if(!hasWeight){
+  if(!hasWeight && !mVal && !catVal){
     return `<div class="subtle-note" style="margin-top:10px;">${uiT('Укажите вес в граммах — поиск идёт по всем разрешениям')}</div>`;
   }
 
-  const wValKg = gVal / 1000;
+  const wValKg = hasWeight ? gVal / 1000 : null;
   const results = [];
   for(const p of state.permits){
     for(const it of (p.items||[])){
       const qty = Number(it.qty) || 0;
       const weight = Number(it.weight) || 0;
       const perUnit = qty ? (weight / qty) : 0;
-      let ok = Math.abs(perUnit - wValKg) <= MODEL_FINDER_TOLERANCE_KG;
+      let ok = true;
+      if(hasWeight) ok = ok && Math.abs(perUnit - wValKg) <= MODEL_FINDER_TOLERANCE_KG;
       if(mVal) ok = ok && String(it.material||'').trim() === mVal;
       if(catVal) ok = ok && itemCategory(it.name) === catVal;
       if(!ok) continue;
@@ -2827,7 +2828,10 @@ function modelFinderResultsHtml(){
       results.push({ permit:p, item:it, perUnit, st });
     }
   }
-  results.sort((a,b)=>Math.abs(a.perUnit - wValKg) - Math.abs(b.perUnit - wValKg));
+  results.sort((a,b)=>{
+    if(!hasWeight) return 0;
+    return Math.abs(a.perUnit - wValKg) - Math.abs(b.perUnit - wValKg);
+  });
 
   if(!results.length){
     return `<div class="subtle-note" style="margin-top:10px;">${uiT('Hech narsa topilmadi')}</div>`;
