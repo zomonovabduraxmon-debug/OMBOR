@@ -2525,6 +2525,7 @@ function openMfAddModal(permitId, itemId){
    qaysi fayl) "shipments" jadvalida status:'invoicefile' bilan turadi. Bitta invoysga bitta fayl:
    yangisi yuklansa, eskisi saqlash joyidan ham o'chiriladi. */
 const INVOICE_FILE_MAX = 20*1024*1024;
+const CHECK_ICON_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#1f8a70" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex:0 0 auto;" aria-hidden="true"><path d="M5 13l4 4L19 7"></path></svg>`;
 function invoiceFileRec(key){ return (state.invoiceFiles||[]).find(f=>f.invoiceNumber===key); }
 function invoiceFileFor(key){ const f = invoiceFileRec(key); return (f && f.path && !f.removed) ? f : null; }
 function fmtFileSize(b){ b = Number(b)||0; return b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
@@ -2611,13 +2612,13 @@ function invoiceDocPanelHtml(key){
   const input = can ? `<input type="file" id="invDocInput" accept=".pdf,.zip,application/pdf,application/zip" style="display:none;">` : '';
   if(!f){
     return `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-      <div><strong>📎 Imzolangan hujjat</strong><div class="subtle-note">Imzolangan / tasdiqlangan skaner (PDF yoki ZIP, 20 MB gacha) hali biriktirilmagan.</div></div>
+      <div><strong>Imzolangan hujjat</strong><div class="subtle-note">Imzolangan / tasdiqlangan skaner (PDF yoki ZIP, 20 MB gacha) hali biriktirilmagan.</div></div>
       ${can ? `<button type="button" class="btn secondary sm" id="invDocUpload">Fayl yuklash</button>` : ''}${input}
     </div></div>`;
   }
   const when = f.uploadedAt ? new Date(f.uploadedAt).toLocaleString() : '';
   return `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-    <div><strong>📎 ${escapeHtml(f.name||'Hujjat')}</strong>
+    <div><strong>${CHECK_ICON_SVG} ${escapeHtml(f.name||'Hujjat')}</strong>
       <div class="subtle-note">${fmtFileSize(f.size)}${f.uploadedBy?' · '+escapeHtml(f.uploadedBy):''}${when?' · '+escapeHtml(when):''}</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button type="button" class="btn sm" id="invDocOpen">Ochish / yuklab olish</button>
@@ -2709,7 +2710,7 @@ function renderShipmentHistoryFolders(){
           </div>
         </div>
       </td>
-      <td><span style="color:#1f8a70;font-weight:600;">Tayyorlandi</span>${invoiceFileFor(f.key) ? `<div class="subtle-note">📎 Imzolangan</div>` : ''}</td>
+      <td><span style="color:#1f8a70;font-weight:600;">Tayyorlandi</span>${invoiceFileFor(f.key) ? `<div class="subtle-note" style="color:#1f8a70;font-weight:600;">${CHECK_ICON_SVG} Imzolangan</div>` : ''}</td>
       <td class="num-col">${escapeHtml(f.latestDate||'—')}</td>
       <td class="num-col">${f.totalLines}</td>
       <td class="num-col">${fmt(f.totalQty,0)}</td>
