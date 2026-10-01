@@ -315,6 +315,7 @@
     'Укажите вес в граммах — поиск идёт по всем разрешениям':{ru:'Укажите вес в граммах — поиск идёт по всем разрешениям',en:'Enter the weight in grams — searching across all permits',uz:'1 dona vaznini grammda kiriting — barcha ruxsatnomalar orasidan qidiriladi.',tr:'Ağırlığı gram olarak girin — tüm izinler aranır'},
     'Остаток, кол-во':{ru:'Остаток, кол-во',en:'Balance, qty',uz:'Qoldiq (soni)',tr:'Bakiye (adet)'},
     'Остаток, вес':{ru:'Остаток, вес',en:'Balance, weight',uz:'Qoldiq (vazn)',tr:'Bakiye (ağırlık)'},
+    'Turkum':{ru:'Категория',en:'Category',uz:'Turkum',tr:'Kategori'},
     'Mos pozitsiyalar':{ru:'Подходящих позиций',en:'Matching items',uz:'Mos pozitsiyalar',tr:'Eşleşen kalemler'},
     'Modelni qidirish (ruxsatnomani bilmasangiz)':{ru:'Поиск модели (если не знаете разрешение)',en:'Search for a model (if you don\'t know the permit)',uz:'Modelni qidirish (ruxsatnomani bilmasangiz)',tr:'Model ara (izni bilmiyorsanız)'},
     'Vazn yoki materialni kiriting — barcha ruxsatnomalar orasidan qidiriladi.':{ru:'Введите вес или материал — поиск пройдёт по всем разрешениям.',en:'Enter a weight or material — search runs across all permits.',uz:'Vazn yoki materialni kiriting — barcha ruxsatnomalar orasidan qidiriladi.',tr:'Ağırlık veya malzeme girin — tüm izinlerde aranır.'},
@@ -397,6 +398,7 @@
       {id:'permits', label:'Ruxsatnomalar', icon:'clipboard'},
       {id:'shipment', label:'Yangi yuklama', icon:'truck'},
       {id:'shipmentHistory', label:'Yuklamalar tarixi', icon:'clock'},
+      {id:'modelFinder', label:'Model topish', icon:'search'},
       {id:'reports', label:'Hisobotlar', icon:'chart'},
       {id:'audit', label:'Tarix', icon:'audit'}
     ];
@@ -404,11 +406,11 @@
 
   function sidebarDestinationV12(id){
     if(id === 'reports') return {tab:'dashboard', mode:'reports'};
-    return {tab:['dashboard','permits','shipment','shipmentHistory','export','audit'].includes(id) ? id : 'dashboard', mode:'normal'};
+    return {tab:['dashboard','permits','shipment','shipmentHistory','modelFinder','export','audit'].includes(id) ? id : 'dashboard', mode:'normal'};
   }
 
   function resolveSidebarSelectionV12(activeTab, requested){
-    const tab = ['dashboard','permits','shipment','shipmentHistory','export','audit'].includes(activeTab) ? activeTab : 'dashboard';
+    const tab = ['dashboard','permits','shipment','shipmentHistory','modelFinder','export','audit'].includes(activeTab) ? activeTab : 'dashboard';
     // Eksport endi Hisobotlar bo'limining ichki kichik bo'limi — shu sabab
     // eksport ochilganda ham yon panelda "Hisobotlar" band bo'lib qoladi.
     if(tab === 'export') return 'reports';
@@ -677,7 +679,7 @@
     }
 
     function navigateQuickTab(tab){
-      const allowed = new Set([...quickSections().map(x=>x.tab), 'audit', 'shipmentHistory']);
+      const allowed = new Set([...quickSections().map(x=>x.tab), 'audit', 'shipmentHistory', 'modelFinder']);
       if(!allowed.has(tab)) return false;
       try{
         const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
@@ -809,7 +811,8 @@
         logout:'<path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10"/>',
         bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
         audit:'<path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M14 4v5h5"/><circle cx="11" cy="15.5" r="2.5"/><path d="m14.5 19 2 2"/>',
-        clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3.5 2"/>'
+        clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3.5 2"/>',
+        search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'
       };
       return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${icons[kind]||icons.home}</svg>`;
     }
