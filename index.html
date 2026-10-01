@@ -1944,6 +1944,7 @@ function renderShipmentTabSingle(){
           <div class="field"><label>Номер инвойса / накладной</label><input type="text" id="shipInvNum" value="${escapeAttr(shipmentDraft.invoiceNumber)}" placeholder="напр. MTG-ARYANCOM-160"></div>
           <div class="field"><label>Дата инвойса</label><input type="date" id="shipInvDate" value="${shipmentDraft.invoiceDate||''}"></div>
         </div>
+        ${invoiceDocPickerHtml()}
       </div>
     </div>
 
@@ -2044,6 +2045,7 @@ function applyShipmentItemFilter(){
 async function saveManualShipment(){
   const permit = state.permits.find(p=>p.id===shipmentDraft.permitId);
   if(!permit){ toast('Разрешение не найдено'); return; }
+  if(!docGuard(shipmentDraft.invoiceNumber)) return;
 
   const lines = Object.entries(shipmentDraft.lines)
     .map(([itemId,v])=>({itemId, qty:Number(v.qty), weight:Number(v.weight)}))
@@ -2067,6 +2069,7 @@ async function saveManualShipment(){
   await saveShipments();
   await addAudit('shipment_create', 'shipment', newShipment.id, newShipment.invoiceNumber||newShipment.id, null, newShipment);
   shipmentDraft = { mode:'manual', permitId: permit.id, invoiceNumber:'', invoiceDate:'', lines:{} };
+  await commitPendingDoc(newShipment.invoiceNumber);
   render();
   toast('Отгрузка сохранена, остатки обновлены');
 }
@@ -2280,6 +2283,7 @@ function renderMultiShipment(){
         <div class="field"><label>Номер инвойса / накладной</label><input type="text" id="mdInvNum" value="${escapeAttr(d.invoiceNumber||'')}" placeholder="напр. MTG-ARYANCOM-160"></div>
         <div class="field"><label>Дата инвойса</label><input type="date" id="mdInvDate" value="${d.invoiceDate||''}"></div>
       </div>
+      ${invoiceDocPickerHtml()}
       <div class="field-row" style="align-items:flex-end;flex-wrap:wrap;">
         <div class="field"><label>Ruxsatnoma</label><select id="mdAddPermit">${permitOpts}</select></div>
         <div class="field"><label>Model</label><select id="mdAddItem">${itemOpts}</select></div>
@@ -2304,6 +2308,7 @@ function renderMultiShipment(){
 }
 
 function bindShipmentEvents(){
+  bindInvoiceDocPicker();
   document.querySelectorAll('[data-ship-view]').forEach(b=>b.addEventListener('click', ()=>{ shipView = b.dataset.shipView; render(); }));
   if(shipView!=='multi' || !canCreateEdit() || !state.permits.length){ bindShipmentEventsSingle(); return; }
   const d = multiDraft; if(!d) return;
@@ -2426,6 +2431,7 @@ async function finalizeMultiDraft(){
   await addAudit('draft_finalize','draft',d.id,draftLabel(d),d,{ shipmentIds: created.map(x=>x.id) });
   multiDraft = newMultiDraft();
   mdAdd = { permitId:'', itemId:'' };
+  await commitPendingDoc(invoiceNumber);
   render();
   toast(`Yuklama saqlandi (${created.length} ta ruxsatnoma bo'yicha), qoldiqlar yangilandi`);
 }
@@ -2531,9 +2537,9 @@ function invoiceFileFor(key){ const f = invoiceFileRec(key); return (f && f.path
 function fmtFileSize(b){ b = Number(b)||0; return b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
 
 async function uploadInvoiceDoc(key, file){
-  if(!file) return;
-  if(!/\.(pdf|zip)$/i.test(file.name||'')){ toast('Faqat PDF yoki ZIP fayl yuklash mumkin'); return; }
-  if(file.size > INVOICE_FILE_MAX){ toast('Fayl 20 MB dan katta'); return; }
+  if(!file) return false;
+  if(!/\.(pdf|zip)$/i.test(file.name||'')){ toast('Faqat PDF yoki ZIP fayl yuklash mumkin'); return false; }
+  if(file.size > INVOICE_FILE_MAX){ toast('Fayl 20 MB dan katta'); return false; }
   const me = await getMe();
   const existing = invoiceFileRec(key);
   const rec = existing || { id: uid('invfile'), status:'invoicefile', invoiceNumber:key };
@@ -2549,7 +2555,7 @@ async function uploadInvoiceDoc(key, file){
     alert('Fayl yuklanmadi.\n\n' + (/403|401|row-level|Unauthorized|AUTH/i.test(m)
       ? 'Ruxsat yo\'q: tizimga kirganingizni va INVOICE-FILES-STORAGE.sql Supabase\'da ishga tushirilganini tekshiring.'
       : /404|Bucket not found/i.test(m) ? 'Saqlash joyi topilmadi: INVOICE-FILES-STORAGE.sql ni Supabase SQL Editor\'da ishga tushiring.' : m));
-    return;
+    return false;
   }
   rec.path = up.path; rec.name = file.name; rec.size = file.size;
   rec.uploadedBy = me.name; rec.uploadedAt = new Date().toISOString(); rec.removed = false;
@@ -2560,6 +2566,49 @@ async function uploadInvoiceDoc(key, file){
     oldPath ? { name: oldName } : null, { name: file.name, size: file.size });
   render();
   toast(oldPath ? 'Fayl almashtirildi' : 'Fayl biriktirildi');
+  return true;
+}
+
+/* Yangi yuklama saqlanayotganda ixtiyoriy biriktiriladigan imzolangan hujjat */
+let pendingInvoiceDoc = null;
+function invoiceDocPickerHtml(){
+  const f = pendingInvoiceDoc;
+  return `<div class="field-row"><div class="field"><label>Imzolangan hujjat (ixtiyoriy) — PDF yoki ZIP, 20 MB gacha</label>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <button type="button" class="btn secondary sm" id="pdPick">${f ? 'Boshqa fayl tanlash' : 'Fayl tanlash'}</button>
+      ${f ? `<span>${CHECK_ICON_SVG} ${escapeHtml(f.name)} (${fmtFileSize(f.size)})</span><button type="button" class="btn secondary sm" id="pdClear" title="Olib tashlash">✕</button>` : `<span class="subtle-note">Fayl tanlanmagan</span>`}
+      <input type="file" id="pdInput" accept=".pdf,.zip,application/pdf,application/zip" style="display:none;">
+    </div>
+    <div class="subtle-note">Fayl yakuniy «Saqlash» bosilganda invoysga biriktiriladi (qoralamaga saqlanmaydi). Bu invoysda fayl allaqachon bo'lsa, almashtiriladi.</div>
+  </div></div>`;
+}
+function bindInvoiceDocPicker(){
+  const inp = document.getElementById('pdInput');
+  document.getElementById('pdPick')?.addEventListener('click', ()=>inp && inp.click());
+  document.getElementById('pdClear')?.addEventListener('click', ()=>{ pendingInvoiceDoc = null; render(); });
+  if(inp) inp.addEventListener('change', ()=>{
+    const f = inp.files && inp.files[0];
+    inp.value = '';
+    if(!f) return;
+    if(!/\.(pdf|zip)$/i.test(f.name||'')){ toast('Faqat PDF yoki ZIP fayl yuklash mumkin'); return; }
+    if(f.size > INVOICE_FILE_MAX){ toast('Fayl 20 MB dan katta'); return; }
+    pendingInvoiceDoc = f;
+    render();
+  });
+}
+function docGuard(invoiceNumber){
+  if(pendingInvoiceDoc && !String(invoiceNumber||'').trim()){
+    toast('Fayl biriktirish uchun invoys raqamini kiriting');
+    return false;
+  }
+  return true;
+}
+async function commitPendingDoc(invoiceNumber){
+  const f = pendingInvoiceDoc;
+  if(!f) return;
+  pendingInvoiceDoc = null;
+  const ok = await uploadInvoiceDoc(String(invoiceNumber||'').trim(), f);
+  if(!ok) toast('Yuklama saqlandi, lekin fayl yuklanmadi — «Yuklamalar tarixi»dan qayta yuklang');
 }
 
 async function openInvoiceDoc(key){
@@ -3342,6 +3391,7 @@ function handleUploadFile(file){
 async function confirmUploadShipment(){
   const permit = state.permits.find(p=>p.id===shipmentDraft.permitId);
   if(!permit){ toast('Разрешение не найдено'); return; }
+  if(!docGuard(shipmentDraft.invoiceNumber)) return;
 
   const lines = uploadDraft.matched.filter(r=>Number(r.qty)>0).map(r=>{
     const it = permit.items.find(x=>x.id===r.itemId);
@@ -3372,6 +3422,7 @@ async function confirmUploadShipment(){
   await addAudit('shipment_create', 'shipment', newShipment.id, newShipment.invoiceNumber||newShipment.id, null, newShipment);
   uploadDraft = null;
   shipmentDraft = { mode:'upload', permitId: permit.id, invoiceNumber:'', invoiceDate:'', lines:{} };
+  await commitPendingDoc(newShipment.invoiceNumber);
   render();
   toast('Отгрузка из файла проведена, остатки обновлены');
 }
