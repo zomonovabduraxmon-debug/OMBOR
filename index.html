@@ -481,7 +481,7 @@
 
 <script>
 /* ============================= STATE & STORAGE ============================= */
-let state = { permits: [], shipments: [], audits: [], comments: [] };
+let state = { permits: [], shipments: [], drafts: [], audits: [], comments: [] };
 let currentTab = 'dashboard';
 let isEditorMode = false; // haqiqiy tahrirlash huquqi (faqat "editors" jadvalidagilar)
 let isContributorMode = false; // cheklangan tahrirlash: qo'sha/tahrirlay oladi, lekin o'chira olmaydi (faqat "contributors" jadvalidagilar)
@@ -544,16 +544,21 @@ document.addEventListener('click', (e)=>{
   if(pill && pill.dataset.kind === 'error' && window.OfflineSync) OfflineSync.syncNow(true);
 });
 
+function splitDrafts(st){
+  const all = Array.isArray(st.shipments) ? st.shipments : [];
+  return { ...st, shipments: all.filter(x=>x.status!=='draft'), drafts: all.filter(x=>x.status==='draft') };
+}
+
 async function loadState(){
   try{
     if(window.OfflineSync){
-      state = await OfflineSync.loadState();
+      state = splitDrafts(await OfflineSync.loadState());
       window.state = state;
       setSyncPill(navigator.onLine ? 'local' : 'offline', navigator.onLine ? 'локально · готово' : 'офлайн · сохранено на устройстве');
     }
   }catch(e){
     console.error(e);
-    state = { permits:[], shipments:[], audits:[], comments:[] };
+    state = { permits:[], shipments:[], drafts:[], audits:[], comments:[] };
     setSyncPill('error','ошибка локального хранилища');
   }
 }
@@ -569,7 +574,7 @@ async function savePermits(){
 
 async function saveShipments(){
   try{
-    if(window.OfflineSync) await OfflineSync.saveCollection('shipment', state.shipments);
+    if(window.OfflineSync) await OfflineSync.saveCollection('shipment', state.shipments.concat(state.drafts||[]));
   }catch(e){
     console.error(e);
     toast('Не удалось сохранить отгрузку');
@@ -1847,7 +1852,7 @@ async function deletePermit(permitId){
 /* ============================= SHIPMENT TAB ============================= */
 let shipmentDraft = { mode:'manual', permitId:'', invoiceNumber:'', invoiceDate:'', lines:{} };
 
-function renderShipmentTab(){
+function renderShipmentTabSingle(){
   if(!canCreateEdit()){
     const msg = isLoggedIn
       ? 'Sizning hisobingiz faqat ko\'rish huquqiga ega. Tahrirlash huquqini administrator beradi.'
@@ -1943,7 +1948,7 @@ function renderShipmentTab(){
   `;
 }
 
-function bindShipmentEvents(){
+function bindShipmentEventsSingle(){
   const permitSel = document.getElementById('shipPermit');
   if(permitSel) permitSel.addEventListener('change', e=>{ shipmentDraft.permitId = e.target.value; shipmentDraft.lines={}; uploadDraft=null; shipmentItemFilter={weight:'',material:''}; render(); });
   const modeSel = document.getElementById('shipMode');
@@ -2053,6 +2058,288 @@ async function saveManualShipment(){
   toast('Отгрузка сохранена, остатки обновлены');
 }
 
+/* ============================= KO'P RUXSATNOMALI INVOYS + QORALAMALAR =============================
+   Qoralama (draft) — tugallanmagan invoys. Supabase'dagi "shipments" jadvalida
+   boshqa yuklamalar bilan birga status:'draft' belgisi bilan saqlanadi (yangi SQL
+   kerak emas), shuning uchun link/dastur orqali kirgan hamma ko'radi.
+   Qoralamalar state.drafts'da turadi va qoldiq hisobiga TA'SIR QILMAYDI.
+   "Saqlash" bosilganda qoralama ruxsatnomalar bo'yicha haqiqiy yuklamalarga bo'linadi. */
+let shipView = 'single';   // 'single' = eski usul, 'multi' = ko'p ruxsatnomali (qoralama)
+let multiDraft = null;     // ochiq qoralamaning ishchi nusxasi
+let mdAdd = { permitId:'', itemId:'' };
+
+function cloneJson(o){ return JSON.parse(JSON.stringify(o)); }
+function newMultiDraft(){
+  return { id: uid('draft'), status:'draft', permitId:'', lines:[], invoiceNumber:'', invoiceDate:'', rows:[], createdAt:new Date().toISOString() };
+}
+function draftTotals(d){
+  let qty=0, weight=0;
+  (d.rows||[]).forEach(r=>{ qty += Number(r.qty)||0; weight += Number(r.weight)||0; });
+  return { qty, weight };
+}
+function draftLabel(d){ return (d.invoiceNumber||'').trim() || 'Nomsiz qoralama'; }
+function itemPerUnit(it){ return it && it.qty ? (Number(it.weight)||0)/(Number(it.qty)||1) : 0; }
+function upsertDraft(d){
+  d.updatedAt = new Date().toISOString();
+  const copy = cloneJson(d);
+  const i = state.drafts.findIndex(x=>x.id===d.id);
+  if(i>=0) state.drafts[i] = copy; else state.drafts.push(copy);
+}
+function addRowToDraft(d, permitId, itemId, qty, weight){
+  const ex = d.rows.find(r=>r.permitId===permitId && r.itemId===itemId);
+  if(ex){ ex.qty = (Number(ex.qty)||0) + qty; ex.weight = ((Number(ex.weight)||0) + weight).toFixed(3); }
+  else d.rows.push({ permitId, itemId, qty, weight: Number(weight).toFixed(3) });
+}
+function resumeDraft(id){
+  const d = state.drafts.find(x=>x.id===id);
+  if(!d) return;
+  multiDraft = cloneJson(d);
+  shipView = 'multi';
+  const b = document.querySelector('.tab-btn[data-tab="shipment"]');
+  if(b) b.click(); else setTab('shipment');
+  render();
+}
+
+function renderShipmentTab(){
+  if(!canCreateEdit() || !state.permits.length) return renderShipmentTabSingle();
+  const toggle = `<div class="panel" style="margin-bottom:12px;"><div class="panel-body" style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn ${shipView==='single'?'':'secondary'} sm" data-ship-view="single">Bitta ruxsatnoma</button>
+    <button type="button" class="btn ${shipView==='multi'?'':'secondary'} sm" data-ship-view="multi">Ko'p ruxsatnomali invoys (qoralama)${state.drafts.length ? ' · '+state.drafts.length : ''}</button>
+  </div></div>`;
+  return toggle + (shipView==='multi' ? renderMultiShipment() : renderShipmentTabSingle());
+}
+
+function renderMultiShipment(){
+  if(!multiDraft) multiDraft = newMultiDraft();
+  const d = multiDraft;
+  const saved = state.drafts.some(x=>x.id===d.id);
+  const pickOpts = `<option value="">➕ Yangi invoys</option>` + state.drafts.map(x=>
+    `<option value="${x.id}" ${x.id===d.id?'selected':''}>${escapeHtml(draftLabel(x))}${x.invoiceDate?' · '+escapeHtml(x.invoiceDate):''}</option>`).join('');
+  const permitOpts = `<option value="">— Ruxsatnoma —</option>` + state.permits.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    .map(p=>`<option value="${p.id}" ${mdAdd.permitId===p.id?'selected':''}>${escapeHtml(p.number)}${p.date?' · '+escapeHtml(p.date):''}</option>`).join('');
+  const addPermit = state.permits.find(p=>p.id===mdAdd.permitId);
+  const itemOpts = `<option value="">— Model —</option>` + (addPermit ? (addPermit.items||[]).map(it=>{
+    const st = itemStatus(it, itemUsage(addPermit.id, it.id));
+    return `<option value="${it.id}" ${mdAdd.itemId===it.id?'selected':''}>${escapeHtml(it.name)} (${fmt(st.remQty,0)} ${escapeHtml(it.unit||'')})</option>`;
+  }).join('') : '');
+
+  const rows = d.rows.map((r,i)=>{
+    const p = state.permits.find(x=>x.id===r.permitId);
+    const it = p && (p.items||[]).find(x=>x.id===r.itemId);
+    if(!p || !it) return `<tr><td colspan="5"><span class="subtle-note">Ruxsatnoma yoki model topilmadi</span></td><td><button type="button" class="btn danger sm" data-md-del="${i}">✕</button></td></tr>`;
+    const st = itemStatus(it, itemUsage(p.id, it.id));
+    return `<tr data-md-row="${i}" data-perunit="${itemPerUnit(it)}">
+      <td>${escapeHtml(p.number)}<div class="subtle-note">${escapeHtml(p.date||'')}</div></td>
+      <td>${escapeHtml(it.name)}${it.material ? ` <span class="material-badge">${escapeHtml(it.material)}</span>` : ''}</td>
+      <td class="num-col ${st.remQty<0?'mismatch':''}">${fmt(st.remQty,0)} ${escapeHtml(it.unit||'')} / ${fmt(st.remWeight,2)} кг</td>
+      <td><input type="number" min="0" step="any" data-md-qty="${i}" value="${escapeAttr(String(r.qty??''))}" placeholder="0" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
+      <td><input type="number" min="0" step="0.001" data-md-weight="${i}" value="${escapeAttr(String(r.weight??''))}" placeholder="0.00" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
+      <td><button type="button" class="btn danger sm" data-md-del="${i}">✕</button></td>
+    </tr>`;
+  }).join('');
+  const tot = draftTotals(d);
+
+  return `
+    <div class="toolbar"><div><h1>Ko'p ruxsatnomali invoys</h1><div class="desc">Bitta invoysga turli ruxsatnomalardan modellar yig'ing. «Qoralamaga saqlash» — keyin davom ettirish uchun, «Saqlash» — yakunlash.</div></div></div>
+    <div class="panel"><div class="panel-body">
+      <div class="field-row">
+        <div class="field"><label>Qoralama</label><select id="mdPick">${pickOpts}</select></div>
+        <div class="field"><label>Номер инвойса / накладной</label><input type="text" id="mdInvNum" value="${escapeAttr(d.invoiceNumber||'')}" placeholder="напр. MTG-ARYANCOM-160"></div>
+        <div class="field"><label>Дата инвойса</label><input type="date" id="mdInvDate" value="${d.invoiceDate||''}"></div>
+      </div>
+      <div class="field-row" style="align-items:flex-end;flex-wrap:wrap;">
+        <div class="field"><label>Ruxsatnoma</label><select id="mdAddPermit">${permitOpts}</select></div>
+        <div class="field"><label>Model</label><select id="mdAddItem">${itemOpts}</select></div>
+        <div class="field" style="flex:0 0 auto;"><button type="button" class="btn secondary sm" id="mdAddBtn">Qo'shish</button></div>
+      </div>
+      <div class="subtle-note">Modelni «Поиск модели» bo'limidan ham qidirib qo'shishingiz mumkin.</div>
+    </div></div>
+    <div class="panel">
+      <div class="panel-head"><h2>Invoys qatorlari (${d.rows.length})</h2></div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">${d.rows.length
+        ? `<table><thead><tr><th>Разрешение</th><th>Наименование</th><th>Остаток</th><th>Кол-во</th><th>Вес (кг)</th><th></th></tr></thead><tbody>${rows}</tbody>
+           <tfoot><tr><td class="table-total-label" colspan="3">Итого</td><td class="num-col" id="mdTotQty">${fmt(tot.qty,0)}</td><td class="num-col" id="mdTotW">${fmt(tot.weight,2)}</td><td></td></tr></tfoot></table>`
+        : `<div class="empty">Hali qator yo'q. Yuqoridan ruxsatnoma va modelni tanlab «Qo'shish» bosing.</div>`}</div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+      <button type="button" class="btn danger" id="mdDelete">O'chirish</button>
+      <button type="button" class="btn secondary" id="mdSaveDraft">Qoralamaga saqlash</button>
+      <button type="button" class="btn" id="mdFinalize">Saqlash</button>
+    </div>`;
+}
+
+function bindShipmentEvents(){
+  document.querySelectorAll('[data-ship-view]').forEach(b=>b.addEventListener('click', ()=>{ shipView = b.dataset.shipView; render(); }));
+  if(shipView!=='multi' || !canCreateEdit() || !state.permits.length){ bindShipmentEventsSingle(); return; }
+  const d = multiDraft; if(!d) return;
+  const $ = id=>document.getElementById(id);
+
+  $('mdPick')?.addEventListener('change', e=>{
+    const x = state.drafts.find(y=>y.id===e.target.value);
+    multiDraft = x ? cloneJson(x) : newMultiDraft();
+    render();
+  });
+  $('mdInvNum')?.addEventListener('input', e=>{ d.invoiceNumber = e.target.value; });
+  $('mdInvDate')?.addEventListener('input', e=>{ d.invoiceDate = e.target.value; });
+  $('mdAddPermit')?.addEventListener('change', e=>{ mdAdd = { permitId:e.target.value, itemId:'' }; render(); });
+  $('mdAddItem')?.addEventListener('change', e=>{ mdAdd.itemId = e.target.value; });
+  $('mdAddBtn')?.addEventListener('click', ()=>{
+    if(!mdAdd.permitId || !mdAdd.itemId){ toast('Ruxsatnoma va modelni tanlang'); return; }
+    if(d.rows.some(r=>r.permitId===mdAdd.permitId && r.itemId===mdAdd.itemId)){ toast('Bu model allaqachon qo\'shilgan'); return; }
+    d.rows.push({ permitId:mdAdd.permitId, itemId:mdAdd.itemId, qty:'', weight:'' });
+    mdAdd.itemId = '';
+    render();
+  });
+  const refreshTotals = ()=>{
+    const t = draftTotals(d);
+    const q=$('mdTotQty'), w=$('mdTotW');
+    if(q) q.textContent = fmt(t.qty,0); if(w) w.textContent = fmt(t.weight,2);
+  };
+  document.querySelectorAll('[data-md-qty]').forEach(inp=>inp.addEventListener('input', ()=>{
+    const i = Number(inp.dataset.mdQty); const tr = inp.closest('tr'); const per = Number(tr.dataset.perunit)||0;
+    d.rows[i].qty = inp.value;
+    const q = Number(inp.value);
+    const wInp = tr.querySelector('[data-md-weight]');
+    if(wInp && q>0 && per){ wInp.value = (q*per).toFixed(3); d.rows[i].weight = wInp.value; }
+    refreshTotals();
+  }));
+  document.querySelectorAll('[data-md-weight]').forEach(inp=>inp.addEventListener('input', ()=>{
+    d.rows[Number(inp.dataset.mdWeight)].weight = inp.value; refreshTotals();
+  }));
+  document.querySelectorAll('[data-md-del]').forEach(b=>b.addEventListener('click', ()=>{
+    d.rows.splice(Number(b.dataset.mdDel),1); render();
+  }));
+  $('mdSaveDraft')?.addEventListener('click', saveMultiDraft);
+  $('mdFinalize')?.addEventListener('click', finalizeMultiDraft);
+  $('mdDelete')?.addEventListener('click', deleteMultiDraft);
+}
+
+async function saveMultiDraft(){
+  const d = multiDraft;
+  if(!d.rows.length && !(d.invoiceNumber||'').trim()){ toast('Invoys raqamini kiriting yoki model qo\'shing'); return; }
+  upsertDraft(d);
+  await saveShipments();
+  toast('Qoralama saqlandi');
+  render();
+}
+
+async function deleteMultiDraft(){
+  const d = multiDraft;
+  const saved = state.drafts.some(x=>x.id===d.id);
+  if(saved || d.rows.length){
+    if(!confirm('Qoralama butunlay o\'chirilsinmi?')) return;
+  }
+  if(saved){
+    state.drafts = state.drafts.filter(x=>x.id!==d.id);
+    await saveShipments();
+  }
+  multiDraft = newMultiDraft();
+  mdAdd = { permitId:'', itemId:'' };
+  render();
+  toast('Qoralama o\'chirildi');
+}
+
+async function finalizeMultiDraft(){
+  const d = multiDraft;
+  const invoiceNumber = (d.invoiceNumber||'').trim();
+  if(!invoiceNumber){ toast('Invoys raqamini kiriting'); return; }
+  const byPermit = new Map();
+  for(const r of d.rows){
+    const p = state.permits.find(x=>x.id===r.permitId);
+    const it = p && (p.items||[]).find(x=>x.id===r.itemId);
+    const qty = Number(r.qty);
+    if(!p || !it || !Number.isFinite(qty) || qty<=0) continue;
+    let weight = Number(r.weight);
+    if(!Number.isFinite(weight) || r.weight==='' ) weight = qty*itemPerUnit(it);
+    if(!byPermit.has(p.id)) byPermit.set(p.id, []);
+    byPermit.get(p.id).push({ itemId:it.id, qty, weight });
+  }
+  if(!byPermit.size){ toast('Kamida bitta qatorga miqdor kiriting'); return; }
+
+  const errors = [];
+  for(const [pid, lines] of byPermit){
+    const p = state.permits.find(x=>x.id===pid);
+    validateShipmentLines(p, lines).forEach(e=>errors.push(p.number+': '+e));
+  }
+  if(errors.length){
+    toast('Saqlanmadi: ' + errors[0]);
+    alert('Yuklamani yakunlab bo\'lmaydi:\n\n' + errors.join('\n'));
+    return;
+  }
+
+  const created = [];
+  for(const [pid, lines] of byPermit){
+    created.push({ id: uid('ship'), permitId: pid, invoiceNumber, invoiceDate: d.invoiceDate||'', lines });
+  }
+  state.shipments.push(...created);
+  state.drafts = state.drafts.filter(x=>x.id!==d.id);
+  await saveShipments();
+  for(const s of created) await addAudit('shipment_create', 'shipment', s.id, s.invoiceNumber||s.id, null, s);
+  multiDraft = newMultiDraft();
+  mdAdd = { permitId:'', itemId:'' };
+  render();
+  toast(`Yuklama saqlandi (${created.length} ta ruxsatnoma bo'yicha), qoldiqlar yangilandi`);
+}
+
+/* "Поиск модели" natijasidan qoralamaga qo'shish */
+function openMfAddModal(permitId, itemId){
+  const p = state.permits.find(x=>x.id===permitId);
+  const it = p && (p.items||[]).find(x=>x.id===itemId);
+  if(!p || !it) return;
+  const per = itemPerUnit(it);
+  const st = itemStatus(it, itemUsage(p.id, it.id));
+  const opts = [];
+  const seen = new Set();
+  if(multiDraft && (multiDraft.rows.length || (multiDraft.invoiceNumber||'').trim())){
+    opts.push(multiDraft); seen.add(multiDraft.id);
+  }
+  state.drafts.forEach(x=>{ if(!seen.has(x.id)) opts.push(x); });
+  const layer = pushView(`
+    <div class="modal-head"><button class="btn secondary fs-back-btn" data-close>&larr; Orqaga</button><h2>Invoysga qo'shish</h2></div>
+    <div class="modal-body">
+      <div class="subtle-note" style="margin-bottom:12px;"><strong>${escapeHtml(it.name)}</strong><br>${escapeHtml(p.number)} · qoldiq: ${fmt(st.remQty,0)} ${escapeHtml(it.unit||'')} / ${fmt(st.remWeight,2)} кг</div>
+      <div class="field"><label>Qaysi invoys?</label>
+        <select id="mfaTarget">
+          ${opts.map(x=>`<option value="${x.id}">${escapeHtml(draftLabel(x))}${x.invoiceDate?' · '+escapeHtml(x.invoiceDate):''}</option>`).join('')}
+          <option value="__new__">➕ Yangi invoys</option>
+        </select></div>
+      <div class="field" id="mfaNewWrap" style="display:none;"><label>Yangi invoys raqami</label><input type="text" id="mfaNewNum" placeholder="напр. MTG-ARYANCOM-160"></div>
+      <div class="field-row">
+        <div class="field"><label>Miqdor (${escapeHtml(it.unit||'dona')})</label><input type="number" min="0" step="any" id="mfaQty" placeholder="0"></div>
+        <div class="field"><label>Vazn (kg) — avtomatik</label><input type="number" min="0" step="0.001" id="mfaWeight" placeholder="0.00"></div>
+      </div>
+      <div style="margin-top:14px;text-align:right;"><button class="btn" id="mfaOk">Qo'shish</button></div>
+    </div>`);
+  const $ = id=>layer.querySelector('#'+id);
+  const sel = $('mfaTarget');
+  if(!opts.length) sel.value = '__new__';
+  const syncNew = ()=>{ $('mfaNewWrap').style.display = sel.value==='__new__' ? '' : 'none'; };
+  sel.addEventListener('change', syncNew); syncNew();
+  $('mfaQty').addEventListener('input', ()=>{ const q=Number($('mfaQty').value); if(q>0 && per) $('mfaWeight').value = (q*per).toFixed(3); });
+  $('mfaOk').addEventListener('click', async ()=>{
+    const qty = Number($('mfaQty').value);
+    if(!Number.isFinite(qty) || qty<=0){ toast('Miqdorni kiriting'); return; }
+    let weight = Number($('mfaWeight').value);
+    if(!Number.isFinite(weight) || $('mfaWeight').value==='') weight = qty*per;
+    let target;
+    if(sel.value==='__new__'){
+      target = newMultiDraft();
+      target.invoiceNumber = $('mfaNewNum').value.trim();
+    }else if(multiDraft && multiDraft.id===sel.value){
+      target = multiDraft;
+    }else{
+      const x = state.drafts.find(y=>y.id===sel.value);
+      if(!x){ toast('Qoralama topilmadi'); return; }
+      target = cloneJson(x);
+    }
+    addRowToDraft(target, permitId, itemId, qty, weight);
+    upsertDraft(target);
+    await saveShipments();
+    history.back();
+    toast('Qoralamaga qo\'shildi: ' + draftLabel(target) + '. «Новая отгрузка» → «Ko\'p ruxsatnomali» bo\'limida davom ettiring');
+  });
+}
+
 /* ============================= SHIPMENT HISTORY ============================= */
 function shipmentLineTotals(sh){
   const lines = Array.isArray(sh.lines) ? sh.lines : [];
@@ -2101,6 +2388,26 @@ function renderShipmentHistoryFolders(){
     });
   }
 
+  const dq = q;
+  const draftList = (state.drafts||[]).filter(d=>{
+    if(!dq) return true;
+    const pn = (d.rows||[]).map(r=>{ const p=state.permits.find(pp=>pp.id===r.permitId); return p?p.number:''; }).join(' ');
+    return `${d.invoiceNumber||''} ${pn}`.toLowerCase().includes(dq);
+  }).sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
+  const draftRows = draftList.map(d=>{
+    const t = draftTotals(d);
+    const pc = new Set((d.rows||[]).map(r=>r.permitId)).size;
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:10px;">${FOLDER_ICON_SVG}<div><strong>${escapeHtml(draftLabel(d))}</strong><div class="subtle-note">${pc} ${escapeHtml(uiT('Разрешение'))} &middot; ${(d.rows||[]).length} ${escapeHtml(uiT('записей'))}</div></div></div></td>
+      <td><span style="color:#8a929c;font-weight:600;">Tugallanmagan</span></td>
+      <td class="num-col">${escapeHtml(d.invoiceDate||'—')}</td>
+      <td class="num-col">${(d.rows||[]).length}</td>
+      <td class="num-col">${fmt(t.qty,0)}</td>
+      <td class="num-col">${fmt(t.weight,2)}</td>
+      <td style="white-space:nowrap;">${canCreateEdit() ? `<button class="btn secondary sm" data-resume-draft="${d.id}">Davom ettirish</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+
   const rows = folders.map(f=>`<tr class="row-clickable" data-open-invoice-folder="${escapeAttr(f.key)}">
       <td>
         <div style="display:flex;align-items:center;gap:10px;">
@@ -2111,10 +2418,12 @@ function renderShipmentHistoryFolders(){
           </div>
         </div>
       </td>
+      <td><span style="color:#1f8a70;font-weight:600;">Tayyorlandi</span></td>
       <td class="num-col">${escapeHtml(f.latestDate||'—')}</td>
       <td class="num-col">${f.totalLines}</td>
       <td class="num-col">${fmt(f.totalQty,0)}</td>
       <td class="num-col">${fmt(f.totalWeight,2)}</td>
+      <td></td>
     </tr>`).join('');
 
   return `
@@ -2123,9 +2432,9 @@ function renderShipmentHistoryFolders(){
       <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по инвойсу или разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
     </div>
     <div class="panel">
-      <div class="panel-body" style="padding:0;">${folders.length ? `<div style="overflow:auto"><table class="center-data-table"><thead><tr>
-        <th>${uiT('Инвойс')}</th><th>${uiT('Дата')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>`
+      <div class="panel-body" style="padding:0;">${(folders.length || draftList.length) ? `<div style="overflow:auto"><table class="center-data-table"><thead><tr>
+        <th>${uiT('Инвойс')}</th><th>Holat</th><th>${uiT('Дата')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th><th></th>
+      </tr></thead><tbody>${draftRows}${rows}</tbody></table></div>`
       : `<div class="empty"><div class="big">${uiT('Записей пока нет')}</div></div>`}</div>
     </div>
   `;
@@ -2198,6 +2507,8 @@ function renderShipmentHistoryTab(){
 function bindShipmentHistoryEvents(){
   const q = document.getElementById('shipHistSearch');
   if(q) q.addEventListener('input', e=>{ shipmentHistorySearch = e.target.value; render(); setTimeout(()=>{ const i=document.getElementById('shipHistSearch'); if(i){ i.focus(); i.selectionStart=i.selectionEnd=i.value.length; } },0); });
+
+  document.querySelectorAll('[data-resume-draft]').forEach(el=>el.addEventListener('click', ()=>resumeDraft(el.dataset.resumeDraft)));
 
   document.querySelectorAll('[data-open-invoice-folder]').forEach(el=>el.addEventListener('click', ()=>{
     shipmentHistoryOpenInvoice = el.dataset.openInvoiceFolder;
@@ -2898,10 +3209,11 @@ function modelFinderResultsHtml(){
       <td class="num-col">${fmt(r.perUnit,3)} кг</td>
       <td class="num-col">${fmt(r.st.remQty,0)} ${escapeHtml(r.item.unit||'')}</td>
       <td class="num-col">${fmt(r.st.remWeight,2)} кг</td>
+      <td>${canCreateEdit() ? `<button type="button" class="btn secondary sm" data-mf-add="${escapeAttr(r.permit.id)}::${escapeAttr(r.item.id)}">Qo'shish</button>` : ''}</td>
     </tr>`).join('');
 
   return `<div style="margin-top:10px;overflow:auto;"><table><thead><tr>
-      <th>${uiT('Разрешение')}</th><th>${uiT('Наименование')}</th><th>${uiT('Мато / material')}</th><th>${uiT('Код ТН ВЭД')}</th><th>${uiT('1 dona vazni')}</th><th>${uiT('Остаток, кол-во')}</th><th>${uiT('Остаток, вес')}</th>
+      <th>${uiT('Разрешение')}</th><th>${uiT('Наименование')}</th><th>${uiT('Мато / material')}</th><th>${uiT('Код ТН ВЭД')}</th><th>${uiT('1 dona vazni')}</th><th>${uiT('Остаток, кол-во')}</th><th>${uiT('Остаток, вес')}</th><th></th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -2909,6 +3221,13 @@ function bindModelFinderEvents(){
   const host = document.getElementById('modelFinderResultsHost');
   if(!host) return;
   const refresh = ()=>{ host.innerHTML = modelFinderResultsHtml(); };
+
+  host.addEventListener('click', e=>{
+    const b = e.target.closest('[data-mf-add]');
+    if(!b) return;
+    const [pid, iid] = String(b.dataset.mfAdd).split('::');
+    openMfAddModal(pid, iid);
+  });
 
   const wInput = document.getElementById('modelFinderWeight');
   if(wInput) wInput.addEventListener('input', ()=>{ modelFinder.weightGram = wInput.value; refresh(); });
@@ -3447,7 +3766,7 @@ async function dedupePermitsByNumber(){
     OfflineSync.onStatus(({kind,message})=>setSyncPill(kind,message));
     OfflineSync.onData(async ()=>{
       const next = await OfflineSync.loadState();
-      state = { permits:[], shipments:[], audits:[], comments:[], ...(next||{}) };
+      state = splitDrafts({ permits:[], shipments:[], audits:[], comments:[], ...(next||{}) });
       window.state = state;
       render();
     });
