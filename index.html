@@ -2080,7 +2080,7 @@ async function saveManualShipment(){
    kerak emas), shuning uchun link/dastur orqali kirgan hamma ko'radi.
    Qoralamalar state.drafts'da turadi va qoldiq hisobiga TA'SIR QILMAYDI.
    "Saqlash" bosilganda qoralama ruxsatnomalar bo'yicha haqiqiy yuklamalarga bo'linadi. */
-let shipView = 'single';   // 'single' = eski usul, 'multi' = ko'p ruxsatnomali (qoralama)
+let shipView = 'multi';   // 'single' = eski usul, 'multi' = ko'p ruxsatnomali (qoralama)
 let multiDraft = null;     // ochiq qoralamaning ishchi nusxasi
 let mdAdd = { permitId:'', itemId:'' };
 
@@ -2233,12 +2233,9 @@ async function resumeDraft(id){
 }
 
 function renderShipmentTab(){
+  // Ruxsat yo'q yoki ruxsatnoma yo'q bo'lsa — "Режим просмотра" xabari (eski funksiya shuni ko'rsatadi).
   if(!canCreateEdit() || !state.permits.length) return renderShipmentTabSingle();
-  const toggle = `<div class="panel" style="margin-bottom:12px;"><div class="panel-body" style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button type="button" class="btn ${shipView==='single'?'':'secondary'} sm" data-ship-view="single">Bitta ruxsatnoma</button>
-    <button type="button" class="btn ${shipView==='multi'?'':'secondary'} sm" data-ship-view="multi">Ko'p ruxsatnomali invoys (qoralama)${state.drafts.length ? ' · '+state.drafts.length : ''}</button>
-  </div></div>`;
-  return toggle + (shipView==='multi' ? renderMultiShipment() : renderShipmentTabSingle());
+  return renderMultiShipment();
 }
 
 function renderMultiShipment(){
@@ -2310,7 +2307,7 @@ function renderMultiShipment(){
 function bindShipmentEvents(){
   bindInvoiceDocPicker();
   document.querySelectorAll('[data-ship-view]').forEach(b=>b.addEventListener('click', ()=>{ shipView = b.dataset.shipView; render(); }));
-  if(shipView!=='multi' || !canCreateEdit() || !state.permits.length){ bindShipmentEventsSingle(); return; }
+  if(!canCreateEdit() || !state.permits.length){ bindShipmentEventsSingle(); return; }
   const d = multiDraft; if(!d) return;
   const $ = id=>document.getElementById(id);
 
@@ -2821,7 +2818,7 @@ function renderShipmentHistoryInvoiceFolder(key){
         <button class="btn secondary sm" id="shipHistBack" style="margin-bottom:10px;">&larr; ${uiT('Назад к инвойсам')}</button>
         <h1>${escapeHtml(key || '—')}</h1>
         <div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn secondary sm" id="invXlsx">Excel</button><button type="button" class="btn secondary sm" id="invPrint">PDF / Chop etish</button></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn secondary sm" id="invXlsx">Excel</button><button type="button" class="btn secondary sm" id="invPrint">PDF / Chop etish</button>${isEditorMode ? `<button type="button" class="btn danger sm" id="invDelete">Invoysni o'chirish</button>` : ''}</div>
       </div>
       <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
     </div>
@@ -2882,6 +2879,29 @@ function bindShipmentHistoryEvents(){
     const file = docInput.files && docInput.files[0];
     docInput.value = '';
     await uploadInvoiceDoc(shipmentHistoryOpenInvoice, file);
+  });
+  document.getElementById('invDelete')?.addEventListener('click', ()=>{
+    const key = shipmentHistoryOpenInvoice;
+    if(!isEditorMode || key===null) return;
+    const items = state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)===key);
+    if(!items.length) return;
+    const permitCount = new Set(items.map(sh=>sh.permitId)).size;
+    showReasonPrompt({
+      title: 'Invoysni butunlay o\'chirish?',
+      message: `«${key||'—'}» invoysining ${items.length} ta yuklamasi (${permitCount} ta ruxsatnoma bo'yicha) o'chiriladi, ruxsatnomalar qoldig'i qayta hisoblanadi.${invoiceFileFor(key) ? ' Biriktirilgan imzolangan hujjat ham o\'chadi.' : ''}`,
+      danger: true,
+      confirmLabel: 'Invoysni o\'chirish',
+      placeholder: uiT('Укажите причину удаления...'),
+      onConfirm: async (reason)=>{
+        state.shipments = state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)!==key);
+        await saveShipments();
+        for(const sh of items) await addAudit('shipment_delete', 'shipment', sh.id, sh.invoiceNumber||sh.id, sh, null, reason, []);
+        await dropInvoiceDocIfOrphan(key);
+        shipmentHistoryOpenInvoice = null;
+        render();
+        toast(`Invoys o'chirildi (${items.length} ta yuklama), qoldiqlar yangilandi`);
+      }
+    });
   });
   document.getElementById('invXlsx')?.addEventListener('click', ()=>exportInvoiceXlsx(finalizedInvoice(shipmentHistoryOpenInvoice)));
   document.getElementById('invPrint')?.addEventListener('click', ()=>printInvoice(finalizedInvoice(shipmentHistoryOpenInvoice)));
