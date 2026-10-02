@@ -987,7 +987,7 @@ function uiT(text){
   try{return window.EOMBOR_UI_V5?.translateText?.(String(text), uiLang()) || String(text);}catch(_){return String(text);}
 }
 function auditActionLabel(a){
-  const map={create:'Создание', update:'Изменение', delete:'Удаление', shipment_create:'Новая отгрузка', shipment_delete:'Удаление отгрузки', shipment_update:'Отгрузка изменена', draft_create:'Qoralama yaratildi', draft_delete:'Qoralama o‘chirildi', draft_finalize:'Qoralama yakunlandi', invoicefile_add:'Hujjat biriktirildi', invoicefile_replace:'Hujjat almashtirildi', invoicefile_remove:'Hujjat olib tashlandi'};
+  const map={create:'Создание', update:'Изменение', delete:'Удаление', shipment_create:'Новая отгрузка', shipment_delete:'Удаление отгрузки', shipment_update:'Отгрузка изменена', draft_create:'Qoralama yaratildi', draft_delete:'Qoralama o‘chirildi', draft_finalize:'Qoralama yakunlandi', invoicefile_add:'Hujjat biriktirildi', invoicefile_replace:'Hujjat almashtirildi', invoicefile_remove:'Hujjat olib tashlandi', invoice_edit:'Invoys tahrirlandi'};
   return uiT(map[a] || a);
 }
 function auditEntityLabel(t){ return uiT(t==='permit' ? 'Разрешение' : t==='shipment' ? 'Отгрузка' : t==='draft' ? 'Qoralama' : t==='invoice' ? 'Invoys' : t); }
@@ -996,6 +996,7 @@ function auditSummary(a){
   if(a.action==='create') return uiT('Создано');
   if(a.action==='delete' || a.action==='shipment_delete') return uiT('Удалено');
   if(a.action==='shipment_create') return uiT('Создана отгрузка');
+  if(a.action==='invoice_edit') return 'Invoys tahrirlandi: ' + ((a.oldData&&a.oldData.name)||'—') + (a.oldData&&a.newData&&a.oldData.name!==a.newData.name ? ' → ' + a.newData.name : '') + (a.oldData&&a.newData&&a.oldData.date!==a.newData.date ? ' (sana: ' + (a.oldData.date||'—') + ' → ' + (a.newData.date||'—') + ')' : '');
   if(a.action==='invoicefile_add') return 'Imzolangan hujjat biriktirildi: ' + ((a.newData&&a.newData.name)||'');
   if(a.action==='invoicefile_replace') return 'Hujjat almashtirildi: ' + ((a.oldData&&a.oldData.name)||'') + ' → ' + ((a.newData&&a.newData.name)||'');
   if(a.action==='invoicefile_remove') return 'Hujjat olib tashlandi: ' + ((a.oldData&&a.oldData.name)||'');
@@ -1058,7 +1059,7 @@ function openAuditDetailModal(auditId){
       <td class="diff-old">${escapeHtml(formatDiffValue(c.oldValue))}</td>
       <td class="diff-new">${escapeHtml(formatDiffValue(c.newValue))}</td>
     </tr>`).join('')}</tbody></table>`
-    : (a.action==='create' || a.action==='shipment_create' || a.action==='delete' || a.action==='shipment_delete' || String(a.action).startsWith('draft_') || String(a.action).startsWith('invoicefile_')
+    : (a.action==='create' || a.action==='shipment_create' || a.action==='delete' || a.action==='shipment_delete' || String(a.action).startsWith('draft_') || String(a.action).startsWith('invoicefile_') || a.action==='invoice_edit'
         ? ''
         : `<div class="subtle-note" style="margin-bottom:14px;">${escapeHtml(uiT('Детали недоступны для этой записи'))}</div>`);
 
@@ -2529,7 +2530,7 @@ function openMfAddModal(permitId, itemId){
    yangisi yuklansa, eskisi saqlash joyidan ham o'chiriladi. */
 const INVOICE_FILE_MAX = 20*1024*1024;
 const CHECK_ICON_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#1f8a70" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex:0 0 auto;" aria-hidden="true"><path d="M5 13l4 4L19 7"></path></svg>`;
-function invoiceFileRec(key){ return (state.invoiceFiles||[]).find(f=>f.invoiceNumber===key); }
+function invoiceFileRec(key){ const l = state.invoiceFiles||[]; return l.find(f=>f.invoiceNumber===key && f.path && !f.removed) || l.find(f=>f.invoiceNumber===key); }
 function invoiceFileFor(key){ const f = invoiceFileRec(key); return (f && f.path && !f.removed) ? f : null; }
 function fmtFileSize(b){ b = Number(b)||0; return b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
 
@@ -2678,6 +2679,93 @@ async function dropInvoiceDocIfOrphan(key){
   if(old) await addAudit('invoicefile_remove','invoice',key,key,old,null,'Invoysning barcha yuklamalari o\'chirildi',[]);
 }
 
+/* ============================= INVOYSNI RO'YXATDAN TAHRIRLASH / O'CHIRISH ============================= */
+function invoiceItems(key){ return state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)===key); }
+
+async function renameInvoice(oldKey, newName, newDate, dateChanged){
+  const newKey = String(newName||'').trim();
+  const nameChanged = newKey !== oldKey;
+  if(nameChanged && !newKey){ toast('Invoys nomi bo\'sh bo\'lmasin'); return false; }
+  if(!nameChanged && !dateChanged){ closeModal(); return true; }
+  const items = invoiceItems(oldKey);
+  if(!items.length) return false;
+  const targetExists = nameChanged && state.shipments.some(sh=>shipmentHistoryInvoiceKey(sh)===newKey);
+  const oldFile = invoiceFileFor(oldKey), newFile = invoiceFileFor(newKey);
+  if(targetExists){
+    if(oldFile && newFile){ alert('Ikkala invoysda ham imzolangan hujjat biriktirilgan. Birlashtirishdan oldin bittasining hujjatini olib tashlang.'); return false; }
+    if(!confirm(`«${newKey}» nomli invoys allaqachon bor. Ikkala invoys BIRLASHTIRILADI (jami ${items.length + invoiceItems(newKey).length} ta yuklama bitta invoysda bo'ladi).\\n\\nDavom etasizmi?`)) return false;
+  }
+  const before = { name: oldKey, date: items.map(x=>x.invoiceDate||'').filter(Boolean).sort().pop() || '', count: items.length };
+  for(const sh of items){
+    if(nameChanged) sh.invoiceNumber = newKey;
+    if(dateChanged) sh.invoiceDate = newDate;
+  }
+  if(nameChanged && oldFile){
+    const tomb = (state.invoiceFiles||[]).find(f=>f.invoiceNumber===newKey && f!==oldFile);
+    if(tomb){
+      // Shu nomdagi eski (olib tashlangan) yozuv bor — fayl ma'lumotini unga ko'chiramiz, ikkita bo'lib qolmasin.
+      Object.assign(tomb, { path:oldFile.path, name:oldFile.name, size:oldFile.size, uploadedBy:oldFile.uploadedBy, uploadedAt:oldFile.uploadedAt, removed:false });
+      oldFile.removed = true; oldFile.path = null;
+    }else{
+      oldFile.invoiceNumber = newKey;
+    }
+  }
+  await saveShipments();
+  await addAudit('invoice_edit','invoice',newKey,newKey,before,{ name:newKey, date: dateChanged ? newDate : before.date, count: items.length });
+  if(shipmentHistoryOpenInvoice === oldKey) shipmentHistoryOpenInvoice = newKey;
+  closeModal();
+  render();
+  toast(targetExists ? 'Invoyslar birlashtirildi' : 'Invoys yangilandi');
+  return true;
+}
+
+function openInvoiceEditModal(key){
+  if(!canCreateEdit()) return;
+  const items = invoiceItems(key);
+  if(!items.length) return;
+  const dates = items.map(x=>x.invoiceDate||'').filter(Boolean).sort();
+  const latest = dates.length ? dates[dates.length-1] : '';
+  const mixed = new Set(items.map(x=>x.invoiceDate||'')).size > 1;
+  showModal(`
+    <div class="modal-head"><h2>Invoysni tahrirlash</h2><button class="close-x" data-close>&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Invoys nomi</label><input type="text" id="ieName" value="${escapeAttr(key)}"></div>
+      <div class="field"><label>Invoys sanasi</label><input type="date" id="ieDate" value="${escapeAttr(latest)}">
+        ${mixed ? `<div class="subtle-note">Qatorlarda sanalar har xil. Sanani o'zgartirsangiz, hammasiga bir xil sana qo'yiladi.</div>` : ''}</div>
+      <div class="subtle-note">Faqat umumiy nom va sana o'zgaradi (${items.length} ta yuklamada). Modellar va ruxsatnomalarni invoys ichida o'zgartiring.</div>
+      <div style="margin-top:14px;text-align:right;"><button class="btn" id="ieSave">Saqlash</button></div>
+    </div>`);
+  document.getElementById('ieSave').addEventListener('click', async ()=>{
+    const btn = document.getElementById('ieSave');
+    btn.disabled = true;
+    const ok = await renameInvoice(key, document.getElementById('ieName').value, document.getElementById('ieDate').value, document.getElementById('ieDate').value !== latest);
+    if(!ok && btn) btn.disabled = false;
+  });
+}
+
+function deleteInvoiceFlow(key){
+  if(!isEditorMode) return;
+  const items = invoiceItems(key);
+  if(!items.length) return;
+  const permitCount = new Set(items.map(sh=>sh.permitId)).size;
+  showReasonPrompt({
+    title: 'Invoysni butunlay o\'chirish?',
+    message: `«${key||'—'}» invoysining ${items.length} ta yuklamasi (${permitCount} ta ruxsatnoma bo'yicha) o'chiriladi, ruxsatnomalar qoldig'i qayta hisoblanadi.${invoiceFileFor(key) ? ' Biriktirilgan imzolangan hujjat ham o\'chadi.' : ''}`,
+    danger: true,
+    confirmLabel: 'Invoysni o\'chirish',
+    placeholder: uiT('Укажите причину удаления...'),
+    onConfirm: async (reason)=>{
+      state.shipments = state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)!==key);
+      await saveShipments();
+      for(const sh of items) await addAudit('shipment_delete', 'shipment', sh.id, sh.invoiceNumber||sh.id, sh, null, reason, []);
+      await dropInvoiceDocIfOrphan(key);
+      shipmentHistoryOpenInvoice = null;
+      render();
+      toast(`Invoys o'chirildi (${items.length} ta yuklama), qoldiqlar yangilandi`);
+    }
+  });
+}
+
 /* ============================= SHIPMENT HISTORY ============================= */
 function shipmentLineTotals(sh){
   const lines = Array.isArray(sh.lines) ? sh.lines : [];
@@ -2761,7 +2849,7 @@ function renderShipmentHistoryFolders(){
       <td class="num-col">${f.totalLines}</td>
       <td class="num-col">${fmt(f.totalQty,0)}</td>
       <td class="num-col">${fmt(f.totalWeight,2)}</td>
-      <td></td>
+      <td style="white-space:nowrap;text-align:right;">${canCreateEdit() ? `<button type="button" class="btn secondary sm" data-hist-edit-inv="${escapeAttr(f.key)}">${uiT('Изменить')}</button>` : ''}${isEditorMode ? ` <button type="button" class="btn danger sm" data-hist-del-inv="${escapeAttr(f.key)}">${uiT('Удалить')}</button>` : ''}</td>
     </tr>`).join('');
 
   return `
@@ -2818,7 +2906,7 @@ function renderShipmentHistoryInvoiceFolder(key){
         <button class="btn secondary sm" id="shipHistBack" style="margin-bottom:10px;">&larr; ${uiT('Назад к инвойсам')}</button>
         <h1>${escapeHtml(key || '—')}</h1>
         <div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn secondary sm" id="invXlsx">Excel</button><button type="button" class="btn secondary sm" id="invPrint">PDF / Chop etish</button>${isEditorMode ? `<button type="button" class="btn danger sm" id="invDelete">Invoysni o'chirish</button>` : ''}</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn secondary sm" id="invXlsx">Excel</button><button type="button" class="btn secondary sm" id="invPrint">PDF / Chop etish</button>${canCreateEdit() ? `<button type="button" class="btn secondary sm" id="invRename">Nomi / sanasi</button>` : ''}${isEditorMode ? `<button type="button" class="btn danger sm" id="invDelete">Invoysni o'chirish</button>` : ''}</div>
       </div>
       <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
     </div>
@@ -2880,29 +2968,10 @@ function bindShipmentHistoryEvents(){
     docInput.value = '';
     await uploadInvoiceDoc(shipmentHistoryOpenInvoice, file);
   });
-  document.getElementById('invDelete')?.addEventListener('click', ()=>{
-    const key = shipmentHistoryOpenInvoice;
-    if(!isEditorMode || key===null) return;
-    const items = state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)===key);
-    if(!items.length) return;
-    const permitCount = new Set(items.map(sh=>sh.permitId)).size;
-    showReasonPrompt({
-      title: 'Invoysni butunlay o\'chirish?',
-      message: `«${key||'—'}» invoysining ${items.length} ta yuklamasi (${permitCount} ta ruxsatnoma bo'yicha) o'chiriladi, ruxsatnomalar qoldig'i qayta hisoblanadi.${invoiceFileFor(key) ? ' Biriktirilgan imzolangan hujjat ham o\'chadi.' : ''}`,
-      danger: true,
-      confirmLabel: 'Invoysni o\'chirish',
-      placeholder: uiT('Укажите причину удаления...'),
-      onConfirm: async (reason)=>{
-        state.shipments = state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)!==key);
-        await saveShipments();
-        for(const sh of items) await addAudit('shipment_delete', 'shipment', sh.id, sh.invoiceNumber||sh.id, sh, null, reason, []);
-        await dropInvoiceDocIfOrphan(key);
-        shipmentHistoryOpenInvoice = null;
-        render();
-        toast(`Invoys o'chirildi (${items.length} ta yuklama), qoldiqlar yangilandi`);
-      }
-    });
-  });
+  document.getElementById('invDelete')?.addEventListener('click', ()=>deleteInvoiceFlow(shipmentHistoryOpenInvoice));
+  document.getElementById('invRename')?.addEventListener('click', ()=>openInvoiceEditModal(shipmentHistoryOpenInvoice));
+  document.querySelectorAll('[data-hist-edit-inv]').forEach(el=>el.addEventListener('click', e=>{ e.stopPropagation(); openInvoiceEditModal(el.dataset.histEditInv); }));
+  document.querySelectorAll('[data-hist-del-inv]').forEach(el=>el.addEventListener('click', e=>{ e.stopPropagation(); deleteInvoiceFlow(el.dataset.histDelInv); }));
   document.getElementById('invXlsx')?.addEventListener('click', ()=>exportInvoiceXlsx(finalizedInvoice(shipmentHistoryOpenInvoice)));
   document.getElementById('invPrint')?.addEventListener('click', ()=>printInvoice(finalizedInvoice(shipmentHistoryOpenInvoice)));
 
