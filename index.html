@@ -3680,7 +3680,7 @@ function modelFinderResultsHtml(){
       <td>${canCreateEdit() ? `<button type="button" class="btn secondary sm" data-mf-add="${escapeAttr(r.permit.id)}::${escapeAttr(r.item.id)}">Qo'shish</button>` : ''}</td>
     </tr>`).join('');
 
-  return `<div style="margin-top:10px;overflow:auto;"><table><thead><tr>
+  return `<div style="margin-top:10px;overflow:auto;"><table class="center-data-table"><thead><tr>
       <th>${uiT('Разрешение')}</th><th>${uiT('Наименование')}</th><th>${uiT('Мато / material')}</th><th>${uiT('Код ТН ВЭД')}</th><th>${uiT('1 dona vazni')}</th><th>${uiT('Остаток, кол-во')}</th><th>${uiT('Остаток, вес')}</th><th></th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
