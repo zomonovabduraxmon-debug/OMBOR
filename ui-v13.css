@@ -4150,6 +4150,15 @@ table.center-data-table td:nth-child(n+2){
   font-variant-numeric:tabular-nums;
 }
 
+/* Chapga tekislangan jadvallar: sarlavha ham, qiymat ham chapdan (raqamlar ham) */
+table.left-data-table th,
+table.left-data-table td,
+table.left-data-table td.num-col,
+table.left-data-table tfoot td{
+  text-align:left !important;
+  font-variant-numeric:tabular-nums;
+}
+
 /* Qatordagi oxirgi izoh: kattaroq va qator o'rtasida (vertikal va gorizontal) */
 button.comment-preview-btn{
   display:flex !important;

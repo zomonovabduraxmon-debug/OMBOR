@@ -2105,6 +2105,7 @@
           shipmentsForPermit.forEach(()=>{ merges.push({s:{r:1,c:cc},e:{r:1,c:cc+1}}); cc += 2; });
           ws['!merges'] = merges;
           ws['!cols'] = headerTitles.map((_,i)=> i===1 ? {wch:38} : {wch:14});
+          if(typeof window.styleExportSheet === 'function') window.styleExportSheet(ws, aoa, {fixed:5, shipCount:shipmentsForPermit.length, itemCount:items.length});
           XLSX.utils.book_append_sheet(wb, ws, safeSheetName(p.number, usedNames));
         }
 

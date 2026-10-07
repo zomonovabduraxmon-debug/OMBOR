@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v28-invoice-docs';
+const CACHE = 'permit-tracker-shell-v31-left-align';
 const APP_SHELL = [
   './',
   './index.html',
@@ -13,7 +13,7 @@ const APP_SHELL = [
   './icon-192.png',
   './icon-512.png',
   './bg-icon.png',
-  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
+  'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'
 ];
 
 self.addEventListener('install', event => {

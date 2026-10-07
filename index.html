@@ -41,7 +41,7 @@
   };
 })();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="./config.js"></script>
 <script src="./sync-core.js"></script>
 <script src="./offline-sync.js"></script>
@@ -1346,7 +1346,7 @@ function renderDashboard(){
         </div>
       </div>
       <div class="panel-body" style="padding:0;overflow-x:auto;">
-        ${rows.length ? `<table>
+        ${rows.length ? `<table class="left-data-table">
           <thead><tr>
             <th>Разрешение</th><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Вес 1 ед.</th>
             <th>Разрешено</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th><th>Заполнение</th><th>Статус</th>
@@ -1519,7 +1519,7 @@ function openPositionUsageModal(permitId, itemId){
         &middot; ${uiT('Остаток')}: ${fmt(st.remQty,0)} ${escapeHtml(item.unit||'')} / ${fmt(st.remWeight,2)} ${uiT('кг')}
       </div>
       <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 8px 0;">${uiT('Разбивка по отгрузкам')}</h3>
-      <table>
+      <table class="left-data-table">
         <thead><tr><th>${uiT('Инвойс')}</th><th>${uiT('Дата')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
         <tfoot><tr>
@@ -1583,7 +1583,7 @@ function openPermitDetail(permitId){
       <table class="center-data-table"><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
       <tbody>${itemRows}</tbody></table>
       <h3 style="font-family:var(--serif);font-size:14px;margin:20px 0 8px 0;">Отгрузки по этому разрешению</h3>
-      ${shipments.length ? `<table><thead><tr><th>Инвойс</th><th>Дата</th><th>Строк</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead><tbody>${shipRows}</tbody></table>`
+      ${shipments.length ? `<table class="left-data-table"><thead><tr><th>Инвойс</th><th>Дата</th><th>Строк</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead><tbody>${shipRows}</tbody></table>`
       : `<div class="subtle-note">Отгрузок ещё не было.</div>`}
     </div>
   `);
@@ -1907,7 +1907,7 @@ function renderShipmentTabSingle(){
           <span id="itemFilterCount" class="subtle-note"></span>
         </div>
       </div>`;
-    manualTable = `${filterBarHtml}<table><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Остаток</th><th>Отгружаем, кол-во</th><th>Отгружаем, вес (кг)</th></tr></thead><tbody>
+    manualTable = `${filterBarHtml}<table class="left-data-table"><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Остаток</th><th>Отгружаем, кол-во</th><th>Отгружаем, вес (кг)</th></tr></thead><tbody>
       ${permit.items.map(it=>{
         const used = itemUsage(permit.id, it.id);
         const st = itemStatus(it, used);
@@ -2292,7 +2292,7 @@ function renderMultiShipment(){
     <div class="panel">
       <div class="panel-head"><h2>Invoys qatorlari (${d.rows.length})</h2></div>
       <div class="panel-body" style="padding:0;overflow-x:auto;">${d.rows.length
-        ? `<table><thead><tr><th>Разрешение</th><th>Наименование</th><th>Остаток</th><th>Кол-во</th><th>Вес (кг)</th><th></th></tr></thead><tbody>${rows}</tbody>
+        ? `<table class="left-data-table"><thead><tr><th>Разрешение</th><th>Наименование</th><th>Остаток</th><th>Кол-во</th><th>Вес (кг)</th><th></th></tr></thead><tbody>${rows}</tbody>
            <tfoot><tr><td class="table-total-label" colspan="3">Итого</td><td class="num-col" id="mdTotQty">${fmt(tot.qty,0)}</td><td class="num-col" id="mdTotW">${fmt(tot.weight,2)}</td><td></td></tr></tfoot></table>`
         : `<div class="empty">Hali qator yo'q. Yuqoridan ruxsatnoma va modelni tanlab «Qo'shish» bosing.</div>`}</div>
     </div>
@@ -2912,7 +2912,7 @@ function renderShipmentHistoryInvoiceFolder(key){
     </div>
     ${invoiceDocPanelHtml(key)}
     <div class="panel">
-      <div class="panel-body" style="padding:0;">${rows.length ? `<div style="overflow:auto"><table><thead><tr>
+      <div class="panel-body" style="padding:0;">${rows.length ? `<div style="overflow:auto"><table class="left-data-table"><thead><tr>
         <th>${uiT('Дата')}</th><th>${uiT('Разрешение')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th><th></th>
       </tr></thead><tbody>${body}</tbody></table></div>`
       : `<div class="empty"><div class="big">${uiT('Записей пока нет')}</div></div>`}</div>
@@ -3062,7 +3062,7 @@ function openShipmentLinesModal(shipmentId){
       <div class="subtle-note" style="margin-bottom:14px;">
         ${escapeHtml(sh.invoiceDate||'—')}${permit ? ' &middot; '+escapeHtml(permit.number) : ''}
       </div>
-      <table>
+      <table class="left-data-table">
         <thead><tr><th>${uiT('Наименование')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
         <tfoot><tr>
@@ -3206,7 +3206,7 @@ function renderEditShipmentModal(){
         <div class="field"><label>${uiT('Дата')}</label><input type="date" id="editShipInvDate" value="${editShipmentDraft.invoiceDate||''}"></div>
       </div>
       <h3 style="font-family:var(--serif);font-size:14px;margin:14px 0 8px 0;">${escapeHtml(permit.number)}</h3>
-      <div style="overflow:auto"><table><thead><tr><th>Наименование</th><th>ТН ВЭД</th><th>Остаток</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')} (кг)</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+      <div style="overflow:auto"><table class="left-data-table"><thead><tr><th>Наименование</th><th>ТН ВЭД</th><th>Остаток</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')} (кг)</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
     </div>
     <div class="modal-foot">
       <button class="btn secondary" data-close>${uiT('Отмена')}</button>
@@ -3351,7 +3351,7 @@ function renderUploadFlow(permit){
       <div class="panel">
         <div class="panel-head"><h2>Проверьте распределение по позициям</h2></div>
         <div class="panel-body" style="padding:0;">
-          <table><thead><tr><th>Из файла</th><th>Позиция разрешения</th><th>Мато / material</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead>
+          <table class="left-data-table"><thead><tr><th>Из файла</th><th>Позиция разрешения</th><th>Мато / material</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead>
           <tbody>${rows}</tbody></table>
         </div>
       </div>
@@ -3680,7 +3680,7 @@ function modelFinderResultsHtml(){
       <td>${canCreateEdit() ? `<button type="button" class="btn secondary sm" data-mf-add="${escapeAttr(r.permit.id)}::${escapeAttr(r.item.id)}">Qo'shish</button>` : ''}</td>
     </tr>`).join('');
 
-  return `<div style="margin-top:10px;overflow:auto;"><table class="center-data-table"><thead><tr>
+  return `<div style="margin-top:10px;overflow:auto;"><table class="left-data-table"><thead><tr>
       <th>${uiT('Разрешение')}</th><th>${uiT('Наименование')}</th><th>${uiT('Мато / material')}</th><th>${uiT('Код ТН ВЭД')}</th><th>${uiT('1 dona vazni')}</th><th>${uiT('Остаток, кол-во')}</th><th>${uiT('Остаток, вес')}</th><th></th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -3723,6 +3723,91 @@ function renderExportTab(){
     </div></div>
   `;
 }
+
+
+/* ===== Excel eksport: chiroyli dizayn (xlsx-js-style kutubxonasi stil yozadi) ===== */
+window.styleExportSheet = function styleExportSheet(ws, aoa, o){
+  try{
+    if(!ws || !aoa || aoa.length < 4 || typeof XLSX === 'undefined' || !XLSX.utils) return;
+    const fixed = o.fixed, ship = o.shipCount, nItems = o.itemCount;
+    const cols = aoa[2].length;
+    const hdrR = 2, firstR = 3, totR = 3 + nItems;
+    const shipEnd = fixed + ship*2;           // shipment ustunlari [fixed, shipEnd)
+    const remQtyC = shipEnd, remWC = shipEnd+1, perC = shipEnd+2;
+    const thin = {style:'thin', color:{rgb:'BFC7D5'}};
+    const border = {top:thin, bottom:thin, left:thin, right:thin};
+    const fill = rgb => ({patternType:'solid', fgColor:{rgb}});
+    const PAIR_DARK  = ['2F5496','548235'];   // invoys sarlavhasi (juft/toq)
+    const PAIR_LIGHT = ['DCE6F4','E2EFDA'];   // invoys yuqori qator
+    const PAIR_TINT  = ['EEF3FB','F1F7EC'];   // invoys ma'lumot ustunlari
+    const cell = (r,c)=>{
+      const ref = XLSX.utils.encode_cell({r,c});
+      if(!ws[ref]) ws[ref] = {t:'s', v:''};
+      return ws[ref];
+    };
+    const pairOf = c => (c>=fixed && c<shipEnd) ? (Math.floor((c-fixed)/2) % 2) : -1;
+
+    for(let c=0;c<cols;c++){
+      const p = pairOf(c);
+      // 1) sarlavha (ruxsatnoma nomi)
+      cell(0,c).s = { font:{name:'Calibri', sz:14, bold:true, color:{rgb:'FFFFFF'}}, fill:fill('1F3A5F'),
+        alignment:{horizontal:'left', vertical:'center'} };
+      // 2) invoys qatori
+      cell(1,c).s = { font:{name:'Calibri', sz:10, bold:true, color:{rgb:'1F2937'}},
+        fill: fill(p>=0 ? PAIR_LIGHT[p] : 'F2F4F8'),
+        alignment:{horizontal:'left', vertical:'center', wrapText:true}, border };
+      // 3) ustun nomlari
+      const hdrFill = p>=0 ? PAIR_DARK[p] : (c>=remQtyC ? 'C55A11' : '1F3A5F');
+      cell(hdrR,c).s = { font:{name:'Calibri', sz:10, bold:true, color:{rgb:'FFFFFF'}}, fill:fill(hdrFill),
+        alignment:{horizontal:'left', vertical:'center', wrapText:true}, border };
+    }
+
+    for(let r=firstR; r<totR; r++){
+      const zebra = (r-firstR)%2 ? 'F7F9FC' : 'FFFFFF';
+      for(let c=0;c<cols;c++){
+        const p = pairOf(c), ce = cell(r,c);
+        const isName = (c===1);
+        let bg = p>=0 ? PAIR_TINT[p] : (c>=remQtyC ? 'FFF4E5' : zebra);
+        const font = {name:'Calibri', sz:10, color:{rgb:'1F2937'}};
+        if(c===remQtyC || c===remWC){
+          if(typeof ce.v === 'number'){
+            if(ce.v < 0){ font.color = {rgb:'C00000'}; font.bold = true; }
+            else if(ce.v === 0){ font.color = {rgb:'7F7F7F'}; }
+            else font.bold = true;
+          }
+        }
+        ce.s = { font, fill:fill(bg), border,
+          alignment:{horizontal:'left', vertical:'center', wrapText:isName} };
+        if(typeof ce.v === 'number' && !(c>=1 && c<fixed-2)){
+          const isQty = (c===fixed-2) || (p>=0 && (c-fixed)%2===0) || c===remQtyC;
+          const isNo = (c===0);
+          ce.z = isNo ? '0' : (c===perC ? '0.000' : (isQty ? '#,##0' : '#,##0.000'));
+        }
+      }
+    }
+
+    for(let c=0;c<cols;c++){
+      const p = pairOf(c), ce = cell(totR,c);
+      ce.s = { font:{name:'Calibri', sz:10, bold:true, color:{rgb:'1F2937'}},
+        fill: fill(p>=0 ? PAIR_LIGHT[p] : 'D9E2F3'),
+        border:{top:{style:'medium', color:{rgb:'1F3A5F'}}, bottom:thin, left:thin, right:thin},
+        alignment:{horizontal:'left', vertical:'center'} };
+      if(typeof ce.v === 'number'){
+        const isQty = (c===fixed-2) || (p>=0 && (c-fixed)%2===0) || c===remQtyC;
+        ce.z = isQty ? '#,##0' : '#,##0.000';
+      }
+    }
+
+    const widths = [];
+    for(let c=0;c<cols;c++){
+      widths.push({wch: c===0 ? 6 : c===1 ? 46 : (c===2 && fixed===6) ? 16 : c===fixed-3 ? 16 : 14});
+    }
+    ws['!cols'] = widths;
+    ws['!rows'] = [{hpt:30},{hpt:30},{hpt:36}];
+    ws['!freeze'] = {xSplit:'2', ySplit:'3', topLeftCell:'C4', activePane:'bottomRight', state:'frozen'};
+    ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:hdrR,c:0}, e:{r:totR-1,c:cols-1}})};
+  }catch(err){ console.warn('Excel dizayn qo\'llanmadi:', err); }
+};
 
 function exportWorkbook(){
   if (typeof XLSX === 'undefined') {
@@ -3803,6 +3888,7 @@ function exportWorkbook(){
       shipments.forEach(()=>{ merges.push({s:{r:1,c:cc},e:{r:1,c:cc+1}}); cc+=2; });
       ws['!merges'] = merges;
       ws['!cols'] = headerTitles.map((_,i)=> i===1 ? {wch:38} : {wch:14});
+      window.styleExportSheet(ws, aoa, {fixed:6, shipCount:shipments.length, itemCount:(p.items||[]).length});
       XLSX.utils.book_append_sheet(wb, ws, sheetName(p.number));
     }
 
@@ -3932,7 +4018,7 @@ function openStatusModal(kind){
   showModal(`
     <div class="modal-head"><h2>${escapeHtml(title)} — ${rows.length} ta pozitsiya</h2><button class="close-x" data-close>&times;</button></div>
     <div class="modal-body" style="padding:0;max-height:68vh;overflow:auto;">
-      ${rows.length ? `<table>
+      ${rows.length ? `<table class="left-data-table">
         <thead><tr>
           <th>Разрешение</th><th>Наименование</th><th>ТН ВЭД</th><th>Разрешено</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th><th>Статус</th>
         </tr></thead>
