@@ -2187,17 +2187,53 @@ function invoiceFileName(inv){ return ('Invoys_'+(inv.number||'qoralama')).repla
 function exportInvoiceXlsx(inv){
   if(typeof XLSX==='undefined'){ toast('Excel kutubxonasi yuklanmadi'); return; }
   if(!inv.groups.length){ toast('Eksport qilish uchun miqdori kiritilgan qator yo\'q'); return; }
-  const aoa = [[`Invoys: ${inv.number||'—'}`,'','',`Sana: ${inv.date||'—'}`],[]];
+  const NC = 6;
+  const aoa = [[`Invoys: ${inv.number||'—'}`,'','','',`Sana: ${inv.date||'—'}`,''],[]];
+  const kinds = {0:'title', 1:'gap'};               // qator turlari (dizayn uchun)
+  const merges = [{s:{r:0,c:0},e:{r:0,c:3}}, {s:{r:0,c:4},e:{r:0,c:5}}];
+  const add = (row, kind)=>{ kinds[aoa.length] = kind; aoa.push(row); };
   inv.groups.forEach(g=>{
-    aoa.push([`Ruxsatnoma № ${g.permit?g.permit.number:'—'}${g.permit&&g.permit.date?' от '+g.permit.date:''}`]);
-    aoa.push(['№','Наименование','Мато','Код ТН ВЭД','Кол-во','Вес (кг)']);
-    g.lines.forEach((l,i)=>aoa.push([i+1,l.name,l.material,l.tnved,l.qty,Number(l.weight.toFixed(3))]));
-    aoa.push(['','Jami (ruxsatnoma)','','',g.qty,Number(g.weight.toFixed(3))]);
-    aoa.push([]);
+    merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:NC-1}});
+    add([`Ruxsatnoma № ${g.permit?g.permit.number:'—'}${g.permit&&g.permit.date?' от '+g.permit.date:''}`,'','','','',''],'group');
+    add(['№','Наименование','Мато','Код ТН ВЭД','Кол-во','Вес (кг)'],'head');
+    g.lines.forEach((l,i)=>add([i+1,l.name,l.material,l.tnved,l.qty,Number(l.weight.toFixed(3))],'line'));
+    add(['','Jami (ruxsatnoma)','','',g.qty,Number(g.weight.toFixed(3))],'sub');
+    add([],'gap');
   });
-  aoa.push(['','UMUMIY JAMI','','',inv.qty,Number(inv.weight.toFixed(3))]);
+  add(['','UMUMIY JAMI','','',inv.qty,Number(inv.weight.toFixed(3))],'grand');
+
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:6},{wch:44},{wch:22},{wch:16},{wch:10},{wch:12}];
+  ws['!merges'] = merges;
+  ws['!cols'] = [{wch:6},{wch:46},{wch:22},{wch:16},{wch:12},{wch:14}];
+  try{
+    const thin = {style:'thin', color:{rgb:'BFC7D5'}};
+    const border = {top:thin, bottom:thin, left:thin, right:thin};
+    const fill = rgb => ({patternType:'solid', fgColor:{rgb}});
+    const rows = []; let lineNo = 0;
+    Object.keys(kinds).map(Number).sort((x,y)=>x-y).forEach(r=>{
+      const k = kinds[r]; rows[r] = {hpt: k==='title'?30 : k==='head'?26 : k==='group'?24 : k==='gap'?8 : 20};
+      if(k==='gap') return;
+      if(k==='line') lineNo++;
+      for(let c=0;c<NC;c++){
+        const ref = XLSX.utils.encode_cell({r,c});
+        const ce = ws[ref] || (ws[ref] = {t:'s', v:''});
+        const font = {name:'Calibri', sz:10, color:{rgb:'1F2937'}};
+        let bg = null, bd = border;
+        if(k==='title'){ font.sz=14; font.bold=true; font.color={rgb:'FFFFFF'}; bg='1F3A5F'; bd=undefined; }
+        else if(k==='group'){ font.sz=11; font.bold=true; bg='DCE6F4'; }
+        else if(k==='head'){ font.bold=true; font.color={rgb:'FFFFFF'}; bg='2F5496'; }
+        else if(k==='line'){ bg = lineNo%2 ? 'FFFFFF' : 'F7F9FC'; }
+        else if(k==='sub'){ font.bold=true; bg='D9E2F3'; }
+        else if(k==='grand'){ font.sz=11; font.bold=true; font.color={rgb:'FFFFFF'}; bg='1F3A5F'; }
+        ce.s = { font, fill:fill(bg||'FFFFFF'), alignment:{horizontal:'left', vertical:'center', wrapText:(c===1&&k==='line')} };
+        if(bd) ce.s.border = bd;
+        if(typeof ce.v==='number'){
+          ce.z = (c===0) ? '0' : (c===4 ? '#,##0' : '#,##0.000');
+        }
+      }
+    });
+    ws['!rows'] = rows;
+  }catch(err){ console.warn('Excel dizayn qo\'llanmadi:', err); }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Invoys');
   XLSX.writeFile(wb, invoiceFileName(inv)+'.xlsx');

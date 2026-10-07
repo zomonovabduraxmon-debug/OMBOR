@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v31-left-align';
+const CACHE = 'permit-tracker-shell-v32-invoice-excel';
 const APP_SHELL = [
   './',
   './index.html',
