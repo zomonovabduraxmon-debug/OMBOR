@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v32-invoice-excel';
+const CACHE = 'permit-tracker-shell-v33-tolerance';
 const APP_SHELL = [
   './',
   './index.html',

@@ -3559,7 +3559,7 @@ async function confirmUploadShipment(){
    mato/material bo'yicha BARCHA ruxsatnomalar orasidan izlab topish.
    Faqat ma'lumot ko'rsatish uchun: qatorni bosish hech qanday amalni
    ishga tushirmaydi va qoldig'i 0 bo'lgan pozitsiyalar ko'rsatilmaydi. */
-const MODEL_FINDER_TOLERANCE_KG = 0.05; // ±0.05 kg
+const MODEL_FINDER_TOLERANCE_KG = 0.005; // ±5 g
 
 // Pozitsiya nomi deyarli har doim turkum (model turi) so'zi bilan boshlanadi,
 // masalan "Брюки трикотажные женские артикул uz400337" → "Брюки",
@@ -3648,7 +3648,7 @@ function renderModelFinderTab(){
       <div class="panel-body">
         <div class="field-row" style="align-items:flex-end;flex-wrap:wrap;">
           <div class="field" style="min-width:200px;">
-            <label>${uiT('1 dona vazni, kg (±0.05)')}</label>
+            <label>${uiT('1 dona vazni, kg (±5 g)')}</label>
             <input type="number" step="0.001" id="modelFinderWeight" value="${escapeAttr(modelFinder.weightGram)}" placeholder="${uiT('masalan')} 0.308">
           </div>
           <div class="field" style="min-width:200px;">

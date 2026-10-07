@@ -321,7 +321,7 @@
     'Vazn yoki materialni kiriting — barcha ruxsatnomalar orasidan qidiriladi.':{ru:'Введите вес или материал — поиск пройдёт по всем разрешениям.',en:'Enter a weight or material — search runs across all permits.',uz:'Vazn yoki materialni kiriting — barcha ruxsatnomalar orasidan qidiriladi.',tr:'Ağırlık veya malzeme girin — tüm izinlerde aranır.'},
     'Hech narsa topilmadi':{ru:'Ничего не найдено',en:'Nothing found',uz:'Hech narsa topilmadi',tr:'Hiçbir şey bulunamadı'},
     '1 dona vazni':{ru:'Вес 1 шт',en:'Weight per unit',uz:'1 dona vazni',tr:'Birim ağırlık'},
-    '1 dona vazni, kg (±0.05)':{ru:'Вес 1 шт, кг (±0.05)',en:'Weight per unit, kg (±0.05)',uz:'1 dona vazni, kg (±0.05)',tr:'Birim ağırlık, kg (±0.05)'},
+    '1 dona vazni, kg (±5 g)':{ru:'Вес 1 шт, кг (±5 г)',en:'Weight per unit, kg (±5 g)',uz:'1 dona vazni, kg (±5 g)',tr:'Birim ağırlık, kg (±5 g)'},
     'Укажите вес — поиск идёт по всем разрешениям':{ru:'Укажите вес — поиск идёт по всем разрешениям',en:'Enter the weight — searching across all permits',uz:'1 dona vaznini kiriting — barcha ruxsatnomalar orasidan qidiriladi.',tr:'Ağırlığı girin — tüm izinler aranır'},
     'Tanlash':{ru:'Выбрать',en:'Select',uz:'Tanlash',tr:'Seç'}
   };
