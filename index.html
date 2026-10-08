@@ -506,6 +506,8 @@ let modelFinder = { weightGram: '', material: '', category: '' };
 // uchun 1 dona og'irligi (±0.05 kg) va mato/material bo'yicha filtr.
 let shipmentItemFilter = { weight: '', material: '' };
 let auditSearch = '';
+let auditPage = 1;
+const AUDIT_PAGE_SIZE = 10;
 let shipmentHistorySearch = '';
 let shipmentHistoryOpenInvoice = null; // null = папка-список инвойсов; string = открытая папка конкретного инвойса
 let editShipmentDraft = null;
@@ -1038,8 +1040,26 @@ function renderAuditTab(){
     return !auditSearch || hay.includes(auditSearch.toLowerCase());
   });
   const locale={ru:'ru-RU',en:'en-US',uz:'uz-UZ',tr:'tr-TR'}[uiLang()]||'ru-RU';
+  const auditTotalPages = Math.max(1, Math.ceil(rows.length / AUDIT_PAGE_SIZE));
+  if(auditPage > auditTotalPages) auditPage = auditTotalPages;
+  if(auditPage < 1) auditPage = 1;
+  const allAuditRows = rows;
+  const pageRows = allAuditRows.slice((auditPage-1)*AUDIT_PAGE_SIZE, auditPage*AUDIT_PAGE_SIZE);
+  const pagerHtml = auditTotalPages > 1 ? (()=>{
+    const nums = [];
+    for(let i=1;i<=auditTotalPages;i++){
+      if(i===1 || i===auditTotalPages || Math.abs(i-auditPage)<=1) nums.push(i);
+      else if(nums[nums.length-1] !== '…') nums.push('…');
+    }
+    return `<div class="audit-pager" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin-top:14px;">
+      <button type="button" class="btn secondary sm" data-audit-page="${auditPage-1}" ${auditPage<=1?'disabled':''}>‹</button>
+      ${nums.map(n=> n==='…' ? `<span class="subtle-note">…</span>` : `<button type="button" class="btn ${n===auditPage?'':'secondary'} sm" data-audit-page="${n}">${n}</button>`).join('')}
+      <button type="button" class="btn secondary sm" data-audit-page="${auditPage+1}" ${auditPage>=auditTotalPages?'disabled':''}>›</button>
+      <span class="subtle-note" style="margin-left:8px;">${(auditPage-1)*AUDIT_PAGE_SIZE+1}–${Math.min(auditPage*AUDIT_PAGE_SIZE, allAuditRows.length)} / ${allAuditRows.length}</span>
+    </div>`;
+  })() : '';
   return `<div class="toolbar"><div><h1>${uiT('Журнал истории')}</h1><div class="desc">${uiT('Кто, когда и что изменил')} · ${escapeHtml(uiT('Нажмите на строку, чтобы увидеть детали'))}</div></div><input id="auditSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по пользователю, действию или объекту'))}" value="${escapeAttr(auditSearch)}"></div>
-    <div class="panel"><div class="panel-body">${rows.length?`<div style="overflow:auto"><table><thead><tr><th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th>${isEditorMode?`<th></th>`:``}</tr></thead><tbody>${rows.map(a=>`<tr class="row-clickable" data-open-audit="${a.id}"><td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td>${isEditorMode?`<td style="text-align:right;"><button type="button" class="btn danger sm" data-del-audit="${a.id}" title="${escapeAttr(uiT('Удалить запись'))}">${escapeHtml(uiT('Удалить'))}</button></td>`:``}</tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}</div></div>`;
+    <div class="panel"><div class="panel-body">${rows.length?`<div style="overflow:auto"><table><thead><tr><th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th>${isEditorMode?`<th></th>`:``}</tr></thead><tbody>${pageRows.map(a=>`<tr class="row-clickable" data-open-audit="${a.id}"><td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td>${isEditorMode?`<td style="text-align:right;"><button type="button" class="btn danger sm" data-del-audit="${a.id}" title="${escapeAttr(uiT('Удалить запись'))}">${escapeHtml(uiT('Удалить'))}</button></td>`:``}</tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}${pagerHtml}</div></div>`;
 }
 
 // Detail modal for a single audit entry: who/when/what + a clean
@@ -1199,6 +1219,7 @@ function fmt(n, dec){
 
 /* ============================= RENDER: TABS ============================= */
 function setTab(tab){
+  if(tab==='audit' && currentTab!=='audit') auditPage = 1;
   if(tab==='shipmentHistory' && currentTab!=='shipmentHistory'){
     // Har safar "Yuklamalar tarixi" bo'limiga qaytadan kirilganda
     // invoyslar ro'yxatidan (papkalar) boshlaymiz.
@@ -1475,7 +1496,13 @@ function bindTabEvents(){
   }
   if(currentTab==='audit'){
     const q = document.getElementById('auditSearch');
-    if(q) q.addEventListener('input', e=>{ auditSearch=e.target.value; render(); });
+    if(q) q.addEventListener('input', e=>{ auditSearch=e.target.value; auditPage=1; render(); });
+    document.querySelectorAll('[data-audit-page]').forEach(el=>el.addEventListener('click', ()=>{
+      const n = Number(el.dataset.auditPage);
+      if(!Number.isFinite(n) || n<1) return;
+      auditPage = n; render();
+      window.scrollTo({top:0, behavior:'smooth'});
+    }));
     document.querySelectorAll('[data-open-audit]').forEach(el=>el.addEventListener('click', ()=>openAuditDetailModal(el.dataset.openAudit)));
     document.querySelectorAll('[data-del-audit]').forEach(el=>el.addEventListener('click', e=>{
       e.stopPropagation();
