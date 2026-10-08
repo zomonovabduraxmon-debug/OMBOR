@@ -3961,6 +3961,67 @@ function computeAllStatusRows(){
   return rows;
 }
 
+/* Dashboarddagi «Kam qoldi» / «Tugagan» oynasidagi ro'yxatni Excel (.xlsx) ga yuklab olish. */
+function statusExportAoa(kind, rows){
+  const title = kind === 'critical' ? 'Tugagan / ortiqcha sarf' : 'Kam qoldi';
+  const head = ['Ruxsatnoma','Model nomi','Kod (ТН ВЭД)','Ruxsat etilgan (dona)','Ruxsat etilgan vazn (kg)','1 dona vazni (kg)','Qolgan (dona)','Qolgan vazn (kg)'];
+  const r3 = n => Number((Number(n)||0).toFixed(3));
+  const body = rows.map(r=>[
+    String(r.permit.number||'') + (r.permit.date ? ' (' + r.permit.date + ')' : ''),
+    r.item.name || '',
+    r.item.tnved || '',
+    Number(r.item.qty)||0,
+    r3(r.item.weight),
+    r.item.qty ? Number(((Number(r.item.weight)||0)/(Number(r.item.qty)||1)).toFixed(6)) : 0,
+    Number(r.st.remQty)||0,
+    r3(r.st.remWeight)
+  ]);
+  return { title, head, body };
+}
+
+function exportStatusXlsx(kind, rows){
+  if(typeof XLSX === 'undefined'){ toast('Excel kutubxonasi yuklanmadi'); return; }
+  if(!rows.length){ toast('Yuklab olish uchun pozitsiya yo\'q'); return; }
+  const { title, head, body } = statusExportAoa(kind, rows);
+  const today = new Date().toISOString().slice(0,10);
+  const aoa = [[`${title} — ${rows.length} ta pozitsiya`, '', '', '', '', '', '', `Sana: ${today}`], head, ...body];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const NC = head.length;
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:NC-2}}];
+  ws['!cols'] = [{wch:26},{wch:52},{wch:16},{wch:14},{wch:16},{wch:14},{wch:12},{wch:16}];
+  ws['!rows'] = [{hpt:30},{hpt:34}];
+  try{
+    const thin = {style:'thin', color:{rgb:'BFC7D5'}};
+    const border = {top:thin, bottom:thin, left:thin, right:thin};
+    const fill = rgb => ({patternType:'solid', fgColor:{rgb}});
+    for(let r=0; r<aoa.length; r++){
+      for(let c=0; c<NC; c++){
+        const ref = XLSX.utils.encode_cell({r,c});
+        const ce = ws[ref] || (ws[ref] = {t:'s', v:''});
+        const font = {name:'Calibri', sz:10, color:{rgb:'1F2937'}};
+        let bg = (r%2) ? 'F7F9FC' : 'FFFFFF', bd = border;
+        if(r === 0){ font.sz = 14; font.bold = true; font.color = {rgb:'FFFFFF'}; bg = '1F3A5F'; bd = undefined; }
+        else if(r === 1){ font.bold = true; font.color = {rgb:'FFFFFF'}; bg = (c>=6 ? 'C55A11' : '2F5496'); }
+        else if((c === 6 || c === 7) && typeof ce.v === 'number'){
+          if(ce.v < 0){ font.color = {rgb:'C00000'}; font.bold = true; }
+          else if(ce.v === 0){ font.color = {rgb:'7F7F7F'}; }
+          else font.bold = true;
+        }
+        ce.s = { font, fill:fill(bg), alignment:{horizontal:'left', vertical:'center', wrapText:(r===1 || c===1)} };
+        if(bd) ce.s.border = bd;
+        if(r >= 2 && typeof ce.v === 'number'){
+          ce.z = (c === 3 || c === 6) ? '#,##0' : '#,##0.000';
+        }
+      }
+    }
+    ws['!freeze'] = {xSplit:'2', ySplit:'2', topLeftCell:'C3', activePane:'bottomRight', state:'frozen'};
+    ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:1,c:0}, e:{r:aoa.length-1,c:NC-1}})};
+  }catch(err){ console.warn('Excel dizayn qo\'llanmadi:', err); }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, kind === 'critical' ? 'Tugagan' : 'Kam qoldi');
+  XLSX.writeFile(wb, (kind === 'critical' ? 'Tugagan_modellar_' : 'Kam_qoldi_modellar_') + today + '.xlsx');
+}
+
 function openStatusModal(kind){
   const all = computeAllStatusRows();
   const rows = (kind === 'critical'
@@ -4006,8 +4067,12 @@ function openStatusModal(kind){
         <tbody>${bodyRows}</tbody>
       </table>` : `<div class="empty" style="padding:28px;text-align:center;">Bu holatda pozitsiya yo'q</div>`}
     </div>
-    <div class="modal-foot"><button class="btn secondary" data-close>Yopish</button></div>
+    <div class="modal-foot">
+      ${rows.length ? `<button class="btn" id="btnStatusXlsx" type="button">Excel yuklab olish</button>` : ''}
+      <button class="btn secondary" data-close>Yopish</button>
+    </div>
   `);
+  document.getElementById('btnStatusXlsx')?.addEventListener('click', ()=>exportStatusXlsx(kind, rows));
   const modalEl = document.querySelector('#modalBackdrop .modal');
   if(modalEl) modalEl.classList.add('status-modal-wide');
 }
