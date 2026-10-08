@@ -85,6 +85,9 @@
     exportTitle:{ru:'Экспорт',en:'Export',uz:'Eksport',tr:'Dışa aktar'},
     exportDesc:{ru:'Выгрузка полного реестра в Excel — один лист на разрешение, с историей отгрузок',en:'Export the full registry to Excel — one sheet per permit with shipment history',uz:'To‘liq reyestrni Excelga eksport qilish — har ruxsatnomaga bitta varaq va yuklamalar tarixi',tr:'Tüm kaydı Excel’e aktar — izin başına bir sayfa ve sevkiyat geçmişi'},
     downloadExcel:{ru:'Скачать Excel',en:'Download Excel',uz:'Excel yuklab olish',tr:'Excel indir'},
+    backupLabel:{ru:'Резервная копия (JSON)',en:'Backup (JSON)',uz:'Zaxira nusxa (JSON)',tr:'Yedek (JSON)'},
+    backupBtn:{ru:'Скачать',en:'Download',uz:'Yuklab olish',tr:'İndir'},
+    backupHint:{ru:'Полная копия всех данных: разрешения, отгрузки, история и комментарии. Нужна для восстановления при сбое.',en:'Full copy of all data: permits, shipments, history and comments. Used to restore data after a failure.',uz:'Barcha ma’lumotlarning to‘liq nusxasi: ruxsatnomalar, yuklamalar, tarix va izohlar. Nosozlikda tiklash uchun kerak.',tr:'Tüm verilerin tam kopyası: izinler, sevkiyatlar, geçmiş ve yorumlar. Arıza durumunda geri yüklemek için.'},
     exporting:{ru:'Формирование…',en:'Preparing…',uz:'Tayyorlanmoqda…',tr:'Hazırlanıyor…'},
     exportDone:{ru:'Файл сформирован',en:'File created',uz:'Fayl tayyorlandi',tr:'Dosya oluşturuldu'},
     exportError:{ru:'Не удалось сформировать Excel',en:'Could not create Excel file',uz:'Excel faylini yaratib bo‘lmadi',tr:'Excel dosyası oluşturulamadı'},
@@ -779,6 +782,10 @@
           <div class="help-sync-row-v5">
             <span class="help-sync-label-v5">${getText('syncStatusLabel')}</span>
             <span class="sync-pill" id="syncPill" data-kind="${syncState.kind}">${syncState.message}</span>
+          </div>
+          <div class="help-sync-row-v5 help-backup-row-v5">
+            <span class="help-sync-label-v5">${getText('backupLabel')}</span>
+            <button type="button" class="control-btn-v5 help-backup-btn-v5" id="btnBackupJson" title="${getText('backupHint')}">${getText('backupBtn')}</button>
           </div>
           <p class="help-intro-v5">${h.intro}</p>
           <div class="help-list-v5">
@@ -1952,12 +1959,7 @@
       app.insertBefore(crumb, toolbar);
     }
 
-    function styleExportPanel(){
-      const btn = document.getElementById('btnExportAll');
-      if(!btn) return;
-
-      styleExportPanelBreadcrumb();
-
+    function decorateExportCardV7(btn, formatLabel, iconPaths){
       const panel = btn.closest('.panel');
       const body = btn.closest('.panel-body');
       if(panel){
@@ -1975,12 +1977,7 @@
       const icon = document.createElement('div');
       icon.className = 'export-icon-v7';
       icon.setAttribute('aria-hidden','true');
-      icon.innerHTML = `
-        <svg viewBox="0 0 24 24">
-          <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"></path>
-          <path d="M14 2v5h5"></path>
-          <path d="M9 13h6M9 17h6"></path>
-        </svg>`;
+      icon.innerHTML = `<svg viewBox="0 0 24 24">${iconPaths}</svg>`;
 
       const content = document.createElement('div');
       content.className = 'export-content-v7';
@@ -1988,15 +1985,11 @@
       const meta = document.createElement('div');
       meta.className = 'export-meta-v7';
       meta.innerHTML = `
-        <span class="export-format-v7">XLSX</span>
+        <span class="export-format-v7">${formatLabel}</span>
         <span class="export-safe-v7">✓</span>`;
 
-      if(text){
-        content.appendChild(meta);
-        content.appendChild(text);
-      }else{
-        content.appendChild(meta);
-      }
+      content.appendChild(meta);
+      if(text) content.appendChild(text);
 
       const action = document.createElement('div');
       action.className = 'export-action-v7';
@@ -2006,6 +1999,22 @@
       card.appendChild(content);
       card.appendChild(action);
       body.appendChild(card);
+    }
+
+    function styleExportPanel(){
+      const btn = document.getElementById('btnExportAll');
+      if(!btn) return;
+
+      styleExportPanelBreadcrumb();
+
+      decorateExportCardV7(btn, 'XLSX',
+        '<path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"></path><path d="M14 2v5h5"></path><path d="M9 13h6M9 17h6"></path>');
+
+      const zipBtn = document.getElementById('btnExportZip');
+      if(zipBtn){
+        decorateExportCardV7(zipBtn, 'ZIP',
+          '<path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path><path d="M12 10v1.5M12 13v1.5M12 16v1"></path>');
+      }
     }
 
     function decorateLoginModalV15(){

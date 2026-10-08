@@ -3759,23 +3759,8 @@ function renderExportTab(){
       <button class="btn" id="btnExportAll" type="button">Скачать Excel</button>
     </div></div>
     <div class="panel"><div class="panel-body">
-      <h3 style="margin:0 0 8px;">Ruxsatnomalar — alohida Excel fayllar (ZIP)</h3>
-      <p class="subtle-note" style="margin:0 0 14px;">Har bir ruxsatnoma uchun alohida Excel fayl (<strong>${count}</strong> ta), hammasi bitta ZIP ichida. Fayl nomi: ruxsatnoma raqami va sanasi. ZIP ichida yana <strong>00_Royxat.xlsx</strong> — barcha ruxsatnomalar umumiy ro'yxati.</p>
-      <button class="btn secondary" id="btnExportZip" type="button">ZIP (alohida fayllar)</button>
-    </div></div>
-    <div class="panel"><div class="panel-body">
-      <h3 style="margin:0 0 8px;">Modellar bo'yicha umumiy ro'yxat</h3>
-      <p class="subtle-note" style="margin:0 0 14px;">Ruxsatnomalarga bo'linmagan, bitta tekis jadval — har bir model bitta qatorda.</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn secondary" id="btnExportAllModels" type="button">Barcha modellar (Excel)</button>
-        <button class="btn secondary" id="btnExportAvailableModels" type="button">Mavjud modellar (Excel)</button>
-      </div>
-      <p class="subtle-note" style="margin:10px 0 0;">«Mavjud modellar» — qoldig'i bor (Normal + Kam qoldi) modellar; Tugagan va Ortiqcha sarf qilinganlar kirmaydi.</p>
-    </div></div>
-    <div class="panel"><div class="panel-body">
-      <h3 style="margin:0 0 8px;">Резервная копия (JSON)</h3>
-      <p>Полная копия всех данных: разрешения, отгрузки, черновики, история и комментарии. Храните файл в надёжном месте — он нужен для восстановления данных при сбое.</p>
-      <button class="btn secondary" id="btnBackupJson" type="button">Скачать резервную копию</button>
+      <p><strong>${count}</strong> ta ruxsatnoma uchun alohida Excel fayl, hammasi bitta ZIP ichida. Fayl nomi — ruxsatnoma raqami va sanasi. ZIP ichida yana <strong>00_Royxat.xlsx</strong> bor — barcha ruxsatnomalarning umumiy ro'yxati.</p>
+      <button class="btn" id="btnExportZip" type="button">ZIP yuklab olish</button>
     </div></div>
   `;
 }
