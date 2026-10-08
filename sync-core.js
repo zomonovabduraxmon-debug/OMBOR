@@ -136,5 +136,26 @@
     return { rows, totalQty, totalWeight };
   }
 
-  return { diffCollection, mergeRecordSets, recordsToCollection, chooseBootstrapSource, dashboardCategory, buildDashboardView };
+  // Kelajakdagi (qurilma soati oldinda) vaqt belgilarini nowMs ga tushiradi.
+  // Faqat o'zgargan yozuvlarni qaytaradi (dirty:true bilan).
+  function clampFuture(records, nowMs, toleranceMs){
+    const tol = toleranceMs == null ? 60000 : toleranceMs;
+    const iso = new Date(nowMs).toISOString();
+    const out = [];
+    for(const r of (records || [])){
+      if(ts(r.updated_at) > nowMs + tol){
+        out.push({ ...cloneRecord(r), updated_at: iso, deleted_at: r.deleted_at ? iso : null, dirty: true });
+      }
+    }
+    return out;
+  }
+
+  // sync_records server javobi: { rejected:[id,...] } — server yangiroq versiya
+  // topgani uchun qabul qilinmagan yozuvlar. Eski server (void) uchun bo'sh ro'yxat.
+  function parseRejected(body){
+    if(body && Array.isArray(body.rejected)) return body.rejected.map(String);
+    return [];
+  }
+
+  return { clampFuture, parseRejected, diffCollection, mergeRecordSets, recordsToCollection, chooseBootstrapSource, dashboardCategory, buildDashboardView };
 });

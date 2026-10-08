@@ -10,6 +10,12 @@
   const TABLES = { permit:'permits', shipment:'shipments', audit:'audit_logs', comment:'comments' };
   const STATUS_EVENT = 'permit-sync-status';
   const DATA_EVENT = 'permit-sync-data';
+  const CONFLICT_EVENT = 'ombor-sync-conflict';
+  const FUTURE_TOLERANCE_MS = 60000;
+  // Server vaqti bilan qurilma soati orasidagi farq (ms). Qurilma soati noto'g'ri
+  // bo'lsa, "oxirgi yozgan yutadi" qoidasi boshqalarning o'zgarishini bosib
+  // ketmasligi uchun barcha vaqt belgilari shu farq bilan to'g'rilanadi.
+  let clockOffsetMs = 0;
   let syncPromise = null;
   let syncTimer = null;
   let pollTimer = null;
@@ -29,6 +35,35 @@
     root.dispatchEvent(new CustomEvent(STATUS_EVENT, { detail:{ kind, message, ...(extra||{}) } }));
   }
   function emitData(){ root.dispatchEvent(new CustomEvent(DATA_EVENT)); }
+  function correctedNow(){ return new Date(Date.now() + clockOffsetMs); }
+  function nowIso(){ return correctedNow().toISOString(); }
+
+  async function measureClock(){
+    if(!configured() || !navigator.onLine) return;
+    try{
+      const t0 = Date.now();
+      const res = await fetch(baseUrl() + '/rest/v1/rpc/server_now', {
+        method:'POST',
+        headers:{ 'apikey':anonKey(), 'Authorization':'Bearer ' + anonKey(), 'Content-Type':'application/json' },
+        body:'{}',
+      });
+      const t1 = Date.now();
+      let serverMs = NaN;
+      if(res.ok){
+        const j = await res.json().catch(()=>null);
+        serverMs = Date.parse(typeof j === 'string' ? j : '');
+      }
+      if(!Number.isFinite(serverMs)){
+        // server_now() SQL'da yo'q bo'lsa — HTTP "Date" sarlavhasidan (agar o'qib bo'lsa).
+        const d = res.headers && res.headers.get && res.headers.get('date');
+        serverMs = d ? Date.parse(d) : NaN;
+      }
+      if(Number.isFinite(serverMs)){
+        clockOffsetMs = serverMs - (t0 + t1) / 2;
+        await setMeta('clock_offset_ms', clockOffsetMs);
+      }
+    }catch(_){ /* tarmoq xatosi — oxirgi ma'lum farq ishlatiladi */ }
+  }
 
   function openDb(){
     return new Promise((resolve,reject)=>{
@@ -149,7 +184,7 @@
     const permits = parseLegacy(LEGACY_PERMITS);
     const shipments = parseLegacy(LEGACY_SHIPMENTS);
     if(!permits.length && !shipments.length) return false;
-    const now = new Date().toISOString();
+    const now = nowIso();
     const records = [];
     for(const p of permits){
       if(p && p.id) records.push({ id:p.id, entity_type:'permit', data:p, updated_at:now, deleted_at:null, dirty:true });
@@ -180,7 +215,7 @@
 
   async function saveCollection(entityType, items){
     const all = await getAllRecords();
-    const now = new Date().toISOString();
+    const now = nowIso();
     const changed = root.SyncCore.diffCollection(all, items, entityType, now);
     await putRecords(changed);
     emitStatus(navigator.onLine ? 'pending' : 'offline', navigator.onLine ? 'изменения сохранены локально · ожидают синхронизации' : 'офлайн · изменения сохранены на этом устройстве');
@@ -263,9 +298,12 @@
   async function signup(email, password, inviteCode, profile){
     if(!configured()) throw new Error('Supabase ещё не настроен');
     if(!navigator.onLine) throw new Error('Ro\'yxatdan o\'tish uchun internet kerak');
+    // config.js'da kod bo'lsa, brauzerda ham tekshiramiz (tez xabar uchun). Asosiy himoya —
+    // serverdagi trigger (HARDENING-v2.sql): kod bo'sh qoldirilsa, faqat server tekshiradi.
     const expected = String(config().editorInviteCode || '');
-    if(!expected) throw new Error('Taklif kodi sozlanmagan (config.js)');
-    if(String(inviteCode||'').trim() !== expected) throw new Error('Taklif kodi noto\'g\'ri');
+    const given = String(inviteCode||'').trim();
+    if(expected && given !== expected) throw new Error('Taklif kodi noto\'g\'ri');
+    if(!given) throw new Error('Taklif kodini kiriting');
 
     const res = await fetch(baseUrl() + '/auth/v1/signup', {
       method:'POST',
@@ -276,12 +314,17 @@
         data:{
           first_name: String(profile?.firstName||'').trim(),
           last_name: String(profile?.lastName||'').trim(),
-          full_name: (String(profile?.firstName||'').trim()+' '+String(profile?.lastName||'').trim()).trim()
+          full_name: (String(profile?.firstName||'').trim()+' '+String(profile?.lastName||'').trim()).trim(),
+          invite_code: given
         }
       }),
     });
     const body = await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(body.msg || body.error_description || body.message || 'Ro\'yxatdan o\'tib bo\'lmadi');
+    if(!res.ok){
+      const m = String(body.msg || body.error_description || body.message || '');
+      if(/INVITE_CODE_INVALID|Database error saving new user/i.test(m)) throw new Error('Taklif kodi noto\'g\'ri');
+      throw new Error(m || 'Ro\'yxatdan o\'tib bo\'lmadi');
+    }
 
     if(body.access_token){
       // Supabase loyihasida email tasdiqlash o'chirilgan — session darhol keladi.
@@ -492,11 +535,17 @@
 
   async function pushDirty(){
     const session = await getSession(true);
-    if(!session || !session.access_token) return { pushed:0, authRequired:true };
-    const dirty = await dirtyRecords();
-    if(!dirty.length) return { pushed:0, authRequired:false };
+    if(!session || !session.access_token) return { pushed:0, authRequired:true, conflicts:[] };
+    let dirty = await dirtyRecords();
+    if(!dirty.length) return { pushed:0, authRequired:false, conflicts:[] };
+
+    // Kelajak vaqtli (soati noto'g'ri qurilmada yaratilgan) yozuvlarni server vaqtiga tushiramiz.
+    const syncable = dirty.filter(r=>r.entity_type==='permit' || r.entity_type==='shipment');
+    const fixed = root.SyncCore.clampFuture(syncable, correctedNow().getTime(), FUTURE_TOLERANCE_MS);
+    if(fixed.length){ await putRecords(fixed); dirty = await dirtyRecords(); }
 
     let pushed = 0;
+    const conflicts = [];
     for(const entityType of ['permit','shipment','audit','comment']){
       const batch = dirty.filter(r=>r.entity_type===entityType);
       if(!batch.length) continue;
@@ -550,10 +599,15 @@
         const text = await res.text().catch(()=>String(res.status));
         throw new Error('SYNC_PUSH_FAILED '+res.status+' '+text);
       }
+      if(entityType === 'permit' || entityType === 'shipment'){
+        const body = await res.json().catch(()=>null);
+        const rejected = root.SyncCore.parseRejected(body);
+        for(const id of rejected) conflicts.push({ entityType, id });
+      }
       await markClean(batch);
       pushed += batch.length;
     }
-    return { pushed, authRequired:false };
+    return { pushed, authRequired:false, conflicts };
   }
 
   async function fetchTable(entityType, useUserToken=false){
@@ -563,12 +617,41 @@
       : entityType === 'comment'
       ? 'id,entity_type,entity_id,author_id,author_email,text,created_at,updated_at,deleted_at'
       : 'id,data,updated_at,deleted_at';
-    const res = await apiFetch(`/rest/v1/${table}?select=${select}`, { method:'GET' }, useUserToken);
-    if(!res.ok){
-      const text = await res.text().catch(()=>String(res.status));
-      throw new Error('SYNC_PULL_FAILED '+res.status+' '+text);
+    let withUser = !!useUserToken;
+    if(!withUser){
+      // Kirgan foydalanuvchi bo'lsa, o'z tokeni bilan o'qiymiz (OPTIONAL-require-login.sql yoqilgan bo'lsa ham ishlaydi).
+      const sess = await getMeta('auth_session');
+      withUser = !!(sess && sess.access_token);
     }
-    const rows = await res.json();
+    // Supabase bir so'rovda odatda 1000 qatordan ko'p bermaydi — sahifalab (limit/offset) hammasini olamiz,
+    // aks holda katta jadvallarda qatorlar jimgina tushib qoladi (qoldiq noto'g'ri hisoblanadi).
+    const PAGE = 1000;
+    async function fetchPage(offset){
+      const path = `/rest/v1/${table}?select=${select}&order=id.asc&limit=${PAGE}&offset=${offset}`;
+      let res;
+      try{
+        res = await apiFetch(path, { method:'GET' }, withUser);
+      }catch(err){
+        // Sessiya yaroqsiz bo'lsa (AUTH_REQUIRED), ommaviy (anon) o'qishga qaytamiz.
+        if(withUser && !useUserToken && String(err && err.message).includes('AUTH_REQUIRED')){
+          withUser = false;
+          res = await apiFetch(path, { method:'GET' }, false);
+        }else throw err;
+      }
+      if(!res.ok){
+        const text = await res.text().catch(()=>String(res.status));
+        throw new Error('SYNC_PULL_FAILED '+res.status+' '+text);
+      }
+      const page = await res.json();
+      return Array.isArray(page) ? page : [];
+    }
+    let rows = [];
+    for(let offset = 0; ; offset += PAGE){
+      const page = await fetchPage(offset);
+      rows = rows.concat(page);
+      if(page.length < PAGE) break;
+      if(offset > 1000000) throw new Error('SYNC_PULL_FAILED too many rows');
+    }
     if(entityType === 'audit') return (rows || []).map(r=>({
       id:r.id, entity_type:'audit',
       data:{ id:r.id, actorId:r.actor_id, actorEmail:r.actor_email, action:r.action, entityType:r.entity_type, entityId:r.entity_id, entityLabel:r.entity_label, oldData:r.old_data, newData:r.new_data, reason:r.reason||'', changes:Array.isArray(r.changes)?r.changes:[], createdAt:r.created_at },
@@ -614,7 +697,8 @@
       }
       emitStatus('syncing','синхронизация…');
       try{
-        let push = { pushed:0, authRequired:false };
+        await measureClock();
+        let push = { pushed:0, authRequired:false, conflicts:[] };
         const legacyPending = !!(await getMeta('legacy_import_pending'));
         if(legacyPending){
           const remoteBeforePush = await fetchRemoteRecords();
@@ -632,6 +716,9 @@
         }
         await pullRemote();
         emitData();
+        if(push.conflicts && push.conflicts.length){
+          root.dispatchEvent(new CustomEvent(CONFLICT_EVENT, { detail:{ count:push.conflicts.length, items:push.conflicts } }));
+        }
         clearTimeout(retryTimer);
         retryAttempt = 0;
         const pending = (await dirtyRecords()).length;
@@ -692,6 +779,7 @@
   }
 
   async function start(){
+    try{ const saved = Number(await getMeta('clock_offset_ms')); if(Number.isFinite(saved)) clockOffsetMs = saved; }catch(_){}
     await bootstrap();
     if('BroadcastChannel' in root){
       channel = new BroadcastChannel('permit-app-sync-v2');

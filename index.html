@@ -41,7 +41,7 @@
   };
 })();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js" onerror="var s=document.createElement('script');s.src='https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';document.head.appendChild(s)"></script>
 <script src="./config.js"></script>
 <script src="./sync-core.js"></script>
 <script src="./offline-sync.js"></script>
@@ -1286,7 +1286,7 @@ function renderDashboard(){
       <td>${item.material ? `<span class="material-badge">${escapeHtml(item.material)}</span>` : '—'}</td>
       <td class="code-col">${escapeHtml(item.tnved||'—')}</td>
       <td class="num-col">${fmt(perUnit,3)} кг</td>
-      <td class="num-col">${fmt(item.qty,0)} ${item.unit}</td>
+      <td class="num-col">${fmt(item.qty,0)} ${escapeHtml(item.unit)}</td>
       <td class="num-col">${fmt(used.qty,0)}</td>
       <td class="num-col">${fmt(st.remQty,0)}</td>
       <td class="num-col">${fmt(st.remWeight,2)} кг</td>
@@ -1549,7 +1549,7 @@ function openPermitDetail(permitId){
       <td>${escapeHtml(it.name)}</td>
       <td>${it.material ? `<span class="material-badge">${escapeHtml(it.material)}</span>` : '—'}</td>
       <td class="code-col">${escapeHtml(it.tnved||'—')}</td>
-      <td class="num-col">${fmt(it.qty,0)} ${it.unit}</td>
+      <td class="num-col">${fmt(it.qty,0)} ${escapeHtml(it.unit)}</td>
       <td class="num-col">${fmt(it.weight,2)} кг</td>
       <td class="num-col">${fmt(perUnit,3)} кг</td>
       <td class="num-col">${fmt(used.qty,0)}</td>
@@ -1918,7 +1918,7 @@ function renderShipmentTabSingle(){
           <td>${escapeHtml(it.name)}</td>
           <td>${it.material ? `<span class="material-badge">${escapeHtml(it.material)}</span>` : '—'}</td>
           <td class="code-col">${escapeHtml(it.tnved||'—')}</td>
-          <td class="num-col ${st.remQty<0?'mismatch':''}">${fmt(st.remQty,0)} ${it.unit} / ${fmt(st.remWeight,2)} кг</td>
+          <td class="num-col ${st.remQty<0?'mismatch':''}">${fmt(st.remQty,0)} ${escapeHtml(it.unit)} / ${fmt(st.remWeight,2)} кг</td>
           <td><input type="number" min="0" step="any" data-line-qty="${it.id}" data-perunit="${perUnit}" value="${currentQty}" placeholder="0" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
           <td><input type="number" min="0" step="0.001" data-line-weight="${it.id}" value="${currentW}" placeholder="0.00" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
         </tr>`;
@@ -3225,7 +3225,7 @@ function renderEditShipmentModal(){
     return `<tr>
       <td>${escapeHtml(it.name)}</td>
       <td class="code-col">${escapeHtml(it.tnved||'—')}</td>
-      <td class="num-col ${st.remQty<0?'mismatch':''}">${fmt(st.remQty,0)} ${it.unit} / ${fmt(st.remWeight,2)} кг</td>
+      <td class="num-col ${st.remQty<0?'mismatch':''}">${fmt(st.remQty,0)} ${escapeHtml(it.unit)} / ${fmt(st.remWeight,2)} кг</td>
       <td><input type="number" min="0" step="any" data-eline-qty="${it.id}" data-perunit="${perUnit}" value="${currentQty}" placeholder="0" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
       <td><input type="number" min="0" step="0.001" data-eline-weight="${it.id}" value="${currentW}" placeholder="0.00" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
     </tr>`;
@@ -3757,8 +3757,44 @@ function renderExportTab(){
       </div>` : ''}
       <button class="btn" id="btnExportAll" type="button">Скачать Excel</button>
     </div></div>
+    <div class="panel"><div class="panel-body">
+      <h3 style="margin:0 0 8px;">Резервная копия (JSON)</h3>
+      <p>Полная копия всех данных: разрешения, отгрузки, черновики, история и комментарии. Храните файл в надёжном месте — он нужен для восстановления данных при сбое.</p>
+      <button class="btn secondary" id="btnBackupJson" type="button">Скачать резервную копию</button>
+    </div></div>
   `;
 }
+
+/* Zaxira nusxa: barcha yozuvlar (qoralamalar va invoys fayllari yozuvlari ham) bitta JSON faylga. */
+async function downloadBackupJson(){
+  try{
+    const raw = (window.OfflineSync && OfflineSync.loadState) ? await OfflineSync.loadState() : state;
+    const payload = {
+      app: 'OMBOR QOLDIG\'I',
+      format: 1,
+      exportedAt: new Date().toISOString(),
+      counts: {
+        permits: (raw.permits||[]).length, shipments: (raw.shipments||[]).length,
+        audits: (raw.audits||[]).length, comments: (raw.comments||[]).length
+      },
+      permits: raw.permits || [], shipments: raw.shipments || [],
+      audits: raw.audits || [], comments: raw.comments || []
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ombor-zaxira-' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+    toast('Резервная копия скачана');
+  }catch(err){
+    console.error('Backup error:', err);
+    toast('Ошибка резервного копирования: ' + (err && err.message || err));
+  }
+}
+document.addEventListener('click', e=>{
+  if(e.target.closest && e.target.closest('#btnBackupJson')){ e.preventDefault(); downloadBackupJson(); }
+});
 
 
 /* ===== Excel eksport: chiroyli dizayn (xlsx-js-style kutubxonasi stil yozadi) ===== */
@@ -3845,98 +3881,7 @@ window.styleExportSheet = function styleExportSheet(ws, aoa, o){
   }catch(err){ console.warn('Excel dizayn qo\'llanmadi:', err); }
 };
 
-function exportWorkbook(){
-  if (typeof XLSX === 'undefined') {
-    toast('Ошибка: Библиотека XLSX не загрузилась');
-    alert('Excel kutubxonasi (XLSX) yuklanmadi. Iltimos, internet aloqasini tekshiring yoki sahifani yangilang.');
-    return;
-  }
-
-  // State ni xavfsiz topish: state yoki window.state
-  const curState = (typeof state !== 'undefined' && state && Array.isArray(state.permits) && state.permits.length > 0)
-    ? state
-    : ((window.state && Array.isArray(window.state.permits) && window.state.permits.length > 0) ? window.state : (typeof state !== 'undefined' ? state : { permits: [], shipments: [] }));
-
-  if (!curState.permits || curState.permits.length === 0) {
-    toast('Нет данных: сначала добавьте разрешение');
-    alert('Eksport qilish uchun avval «Разрешения» (Ruxsatnomalar) bo‘limida kamida 1 ta ruxsatnoma bo‘lishi kerak.');
-    return;
-  }
-
-  try {
-    const wb = XLSX.utils.book_new();
-    const usedNames = new Set();
-    function sheetName(base){
-      let name = String(base || 'Лист').replace(/[\\/*?:\[\]]/g,'_').slice(0,31);
-      let n=name, i=2;
-      while(usedNames.has(n)){ n = (name.slice(0,28)+'_'+i); i++; }
-      usedNames.add(n);
-      return n;
-    }
-
-    const permitsList = curState.permits.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-
-    for(const p of permitsList){
-      const shipments = (curState.shipments || []).filter(s=>s.permitId===p.id)
-        .sort((a,b)=>(a.invoiceDate||'').localeCompare(b.invoiceDate||''));
-
-      const headerTitles = ['№','Наименование','Мато','Код ТН ВЭД','Количество разреш','Вес разрешение кг'];
-      shipments.forEach(s=>{ headerTitles.push('Кол-во','Вес'); });
-      headerTitles.push('Остаток количество','Остаток вес','Вес 1 единицы');
-
-      const aoa = [];
-      const titleRow = new Array(headerTitles.length).fill('');
-      titleRow[1] = `Разрешение №${p.number || ''} от ${p.date||''}`;
-      aoa.push(titleRow);
-      
-      const invRow = new Array(headerTitles.length).fill('');
-      let c = 6;
-      shipments.forEach(s=>{ invRow[c] = `${s.invoiceNumber||''} от ${s.invoiceDate||''}`; c+=2; });
-      aoa.push(invRow);
-      
-      aoa.push(headerTitles);
-      
-      (p.items || []).forEach((it,idx)=>{
-        const row = [idx+1, it.name, it.material||'', it.tnved, Number(it.qty)||0, Number(it.weight)||0];
-        shipments.forEach(s=>{
-          const line = (s.lines || []).find(l=>l.itemId===it.id);
-          row.push(line?line.qty:'', line?Number(line.weight).toFixed(3)*1:'');
-        });
-        const used = (typeof itemUsage === 'function') ? itemUsage(p.id, it.id) : { qty:0, weight:0 };
-        const st = (typeof itemStatus === 'function') ? itemStatus(it, used) : { remQty: Number(it.qty)||0, remWeight: Number(it.weight)||0 };
-        row.push(st.remQty, Number(st.remWeight.toFixed(3)), it.qty? Number((it.weight/it.qty).toFixed(6)):'');
-        aoa.push(row);
-      });
-      
-      const totals = ['', 'Итого', '', '', (p.items || []).reduce((a,it)=>a+(Number(it.qty)||0),0), (p.items || []).reduce((a,it)=>a+(Number(it.weight)||0),0)];
-      shipments.forEach(s=>{
-        const qtySum = (s.lines || []).reduce((a,l)=>a+(Number(l.qty)||0),0);
-        const wSum = (s.lines || []).reduce((a,l)=>a+(Number(l.weight)||0),0);
-        totals.push(qtySum, Number(wSum.toFixed(3)));
-      });
-      const t = (typeof permitTotals === 'function') ? permitTotals(p) : { remQty: 0, remW: 0 };
-      totals.push(t.remQty, Number(t.remW.toFixed(3)), '');
-      aoa.push(totals);
-
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-      const merges = [{s:{r:0,c:1},e:{r:0,c:headerTitles.length-1}}];
-      let cc = 6;
-      shipments.forEach(()=>{ merges.push({s:{r:1,c:cc},e:{r:1,c:cc+1}}); cc+=2; });
-      ws['!merges'] = merges;
-      ws['!cols'] = headerTitles.map((_,i)=> i===1 ? {wch:38} : {wch:14});
-      window.styleExportSheet(ws, aoa, {fixed:6, shipCount:shipments.length, itemCount:(p.items||[]).length});
-      XLSX.utils.book_append_sheet(wb, ws, sheetName(p.number));
-    }
-
-    XLSX.writeFile(wb, 'Разрешения_учет.xlsx');
-    toast('Файл сформирован и скачан');
-  } catch(err) {
-    console.error('Export error:', err);
-    toast('Ошибка экспорта: ' + err.message);
-    alert('Eksportda xatolik yuz berdi: ' + err.message);
-  }
-}
-window.exportWorkbook = exportWorkbook;
+/* Eksport tugmasi (#btnExportAll) ui-v13.js dagi hardenedExportWorkbook() orqali ishlaydi. */
 
 /* ============================= MODAL HELPERS ============================= */
 function showModal(innerHtml, opts){
@@ -4043,7 +3988,7 @@ function openStatusModal(kind){
       <td>${escapeHtml(permit.number)}<div class="subtle-note">${escapeHtml(permit.date||'')}</div></td>
       <td>${escapeHtml(item.name)}</td>
       <td class="code-col">${escapeHtml(item.tnved||'—')}</td>
-      <td class="num-col">${fmt(item.qty,0)} ${item.unit}</td>
+      <td class="num-col">${fmt(item.qty,0)} ${escapeHtml(item.unit)}</td>
       <td class="num-col">${fmt(used.qty,0)}</td>
       <td class="num-col">${fmt(st.remQty,0)}</td>
       <td class="num-col">${fmt(st.remWeight,2)} кг</td>
@@ -4354,6 +4299,14 @@ async function dedupePermitsByNumber(){
 
   if(window.OfflineSync){
     OfflineSync.onStatus(({kind,message})=>setSyncPill(kind,message));
+    // Server yangiroq versiyani topgani uchun foydalanuvchining o'zgarishi qabul qilinmaganda ogohlantirish.
+    window.addEventListener('ombor-sync-conflict', e=>{
+      const n = (e.detail && e.detail.count) || 0;
+      if(!n) return;
+      toast('Boshqa foydalanuvchi o\'zgartirgan: ' + n + ' ta yozuv yangilandi');
+      alert('Diqqat: ' + n + ' ta yozuv boshqa foydalanuvchi tomonidan siz bilan bir vaqtda o\'zgartirilgan edi.\n\n' +
+        'Serverdagi yangiroq versiya saqlandi va ekranda ko\'rsatildi. Sizning o\'zgarishingiz qabul qilinmadi — iltimos, ma\'lumotni tekshirib, kerak bo\'lsa qayta kiriting.');
+    });
     OfflineSync.onData(async ()=>{
       const next = await OfflineSync.loadState();
       state = splitDrafts({ permits:[], shipments:[], audits:[], comments:[], ...(next||{}) });

@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v33-tolerance';
+const CACHE = 'permit-tracker-shell-v35-pagination';
 const APP_SHELL = [
   './',
   './index.html',
