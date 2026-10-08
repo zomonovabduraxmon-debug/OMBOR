@@ -2183,24 +2183,24 @@ function finalizedInvoice(key){
   });
   return invoiceData(key, date, rows);
 }
-function invoiceFileName(inv){ return ('Invoys_'+(inv.number||'qoralama')).replace(/[\\/:*?"<>|]/g,'_'); }
+function invoiceFileName(inv){ return ('Инвойс_'+(inv.number||'черновик')).replace(/[\\/:*?"<>|]/g,'_'); }
 function exportInvoiceXlsx(inv){
   if(typeof XLSX==='undefined'){ toast('Excel kutubxonasi yuklanmadi'); return; }
   if(!inv.groups.length){ toast('Eksport qilish uchun miqdori kiritilgan qator yo\'q'); return; }
   const NC = 6;
-  const aoa = [[`Invoys: ${inv.number||'—'}`,'','','',`Sana: ${inv.date||'—'}`,''],[]];
+  const aoa = [[`Инвойс: ${inv.number||'—'}`,'','','',`Дата: ${inv.date||'—'}`,''],[]];
   const kinds = {0:'title', 1:'gap'};               // qator turlari (dizayn uchun)
   const merges = [{s:{r:0,c:0},e:{r:0,c:3}}, {s:{r:0,c:4},e:{r:0,c:5}}];
   const add = (row, kind)=>{ kinds[aoa.length] = kind; aoa.push(row); };
   inv.groups.forEach(g=>{
     merges.push({s:{r:aoa.length,c:0},e:{r:aoa.length,c:NC-1}});
-    add([`Ruxsatnoma № ${g.permit?g.permit.number:'—'}${g.permit&&g.permit.date?' от '+g.permit.date:''}`,'','','','',''],'group');
+    add([`Разрешение № ${g.permit?g.permit.number:'—'}${g.permit&&g.permit.date?' от '+g.permit.date:''}`,'','','','',''],'group');
     add(['№','Наименование','Мато','Код ТН ВЭД','Кол-во','Вес (кг)'],'head');
     g.lines.forEach((l,i)=>add([i+1,l.name,l.material,l.tnved,l.qty,Number(l.weight.toFixed(3))],'line'));
-    add(['','Jami (ruxsatnoma)','','',g.qty,Number(g.weight.toFixed(3))],'sub');
+    add(['','Итого (по разрешению)','','',g.qty,Number(g.weight.toFixed(3))],'sub');
     add([],'gap');
   });
-  add(['','UMUMIY JAMI','','',inv.qty,Number(inv.weight.toFixed(3))],'grand');
+  add(['','ОБЩИЙ ИТОГ','','',inv.qty,Number(inv.weight.toFixed(3))],'grand');
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!merges'] = merges;
@@ -2235,7 +2235,7 @@ function exportInvoiceXlsx(inv){
     ws['!rows'] = rows;
   }catch(err){ console.warn('Excel dizayn qo\'llanmadi:', err); }
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Invoys');
+  XLSX.utils.book_append_sheet(wb, ws, 'Инвойс');
   XLSX.writeFile(wb, invoiceFileName(inv)+'.xlsx');
 }
 function printInvoice(inv){
@@ -3758,6 +3758,15 @@ function renderExportTab(){
       <button class="btn" id="btnExportAll" type="button">Скачать Excel</button>
     </div></div>
     <div class="panel"><div class="panel-body">
+      <h3 style="margin:0 0 8px;">Modellar bo'yicha umumiy ro'yxat</h3>
+      <p class="subtle-note" style="margin:0 0 14px;">Ruxsatnomalarga bo'linmagan, bitta tekis jadval — har bir model bitta qatorda.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn secondary" id="btnExportAllModels" type="button">Barcha modellar (Excel)</button>
+        <button class="btn secondary" id="btnExportAvailableModels" type="button">Mavjud modellar (Excel)</button>
+      </div>
+      <p class="subtle-note" style="margin:10px 0 0;">«Mavjud modellar» — qoldig'i bor (Normal + Kam qoldi) modellar; Tugagan va Ortiqcha sarf qilinganlar kirmaydi.</p>
+    </div></div>
+    <div class="panel"><div class="panel-body">
       <h3 style="margin:0 0 8px;">Резервная копия (JSON)</h3>
       <p>Полная копия всех данных: разрешения, отгрузки, черновики, история и комментарии. Храните файл в надёжном месте — он нужен для восстановления данных при сбое.</p>
       <button class="btn secondary" id="btnBackupJson" type="button">Скачать резервную копию</button>
@@ -3963,8 +3972,8 @@ function computeAllStatusRows(){
 
 /* Dashboarddagi «Kam qoldi» / «Tugagan» oynasidagi ro'yxatni Excel (.xlsx) ga yuklab olish. */
 function statusExportAoa(kind, rows){
-  const title = kind === 'critical' ? 'Tugagan / ortiqcha sarf' : 'Kam qoldi';
-  const head = ['Ruxsatnoma','Model nomi','Kod (ТН ВЭД)','Ruxsat etilgan (dona)','Ruxsat etilgan vazn (kg)','1 dona vazni (kg)','Qolgan (dona)','Qolgan vazn (kg)'];
+  const title = kind === 'critical' ? 'Закончено / перерасход' : 'Мало осталось';
+  const head = ['Разрешение','Наименование модели','Код ТН ВЭД','Разрешено (шт)','Разрешенный вес (кг)','Вес 1 ед. (кг)','Остаток (шт)','Остаток вес (кг)'];
   const r3 = n => Number((Number(n)||0).toFixed(3));
   const body = rows.map(r=>[
     String(r.permit.number||'') + (r.permit.date ? ' (' + r.permit.date + ')' : ''),
@@ -3979,12 +3988,106 @@ function statusExportAoa(kind, rows){
   return { title, head, body };
 }
 
+/* ===== Modellar bo'yicha UMUMIY (tekis) Excel ro'yxati =====
+   Ruxsatnoma-ruxsatnoma varaqlarga bo'linmaydi — barcha ruxsatnomalardagi
+   barcha modellar BITTA jadvalda, bitta qatorda bittadan. itemUsage() va
+   itemStatus() — status chegaralari (Normal / Kam qoldi / Tugagan /
+   Ortiqcha sarf) hisoblanadigan joyda allaqachon ishlatiladigan funksiyalar,
+   shu yerda ham xuddi shulardan foydalaniladi — mezon ikki joyda har xil
+   bo'lib qolmasligi uchun.
+   kind: 'all' — hammasi (holatidan qat'i nazar); 'available' — faqat
+   qoldig'i bor (Normal + Kam qoldi), Tugagan va Ortiqcha sarf chiqarib
+   tashlanadi. */
+function buildModelsListRows(kind){
+  const STATUS_LABEL = { ok:'В норме', warn:'Мало осталось', finished:'Закончено', over:'Перерасход' };
+  const rows = [];
+  for(const p of (state.permits||[])){
+    for(const it of (p.items||[])){
+      const used = itemUsage(p.id, it.id);
+      const st = itemStatus(it, used);
+      if(kind === 'available' && !(st.level === 'ok' || st.level === 'warn')) continue;
+      rows.push({ permit:p, item:it, used, st, statusLabel: STATUS_LABEL[st.level] || st.level });
+    }
+  }
+  rows.sort((a,b)=>(a.permit.number||'').localeCompare(b.permit.number||'') || (a.item.name||'').localeCompare(b.item.name||''));
+  return rows;
+}
+
+function exportModelsListXlsx(kind){
+  if(typeof XLSX === 'undefined'){ toast('Excel kutubxonasi yuklanmadi'); return; }
+  const rows = buildModelsListRows(kind);
+  if(!rows.length){ toast('Нет моделей для скачивания'); return; }
+
+  const title = kind === 'available' ? 'Доступные модели (В норме + Мало осталось)' : 'Все модели';
+  const head = ['Разрешение','Наименование модели','Мато / состав','Код ТН ВЭД','Разрешено (шт)','Разрешенный вес (кг)','Отгружено (шт)','Отгруженный вес (кг)','Остаток (шт)','Остаток вес (кг)','Статус'];
+  const r3 = n => Number((Number(n)||0).toFixed(3));
+  const today = new Date().toISOString().slice(0,10);
+  const body = rows.map(r=>[
+    String(r.permit.number||'') + (r.permit.date ? ' (' + r.permit.date + ')' : ''),
+    r.item.name || '',
+    r.item.material || '',
+    r.item.tnved || '',
+    Number(r.item.qty)||0,
+    r3(r.item.weight),
+    Number(r.used.qty)||0,
+    r3(r.used.weight),
+    Number(r.st.remQty)||0,
+    r3(r.st.remWeight),
+    r.statusLabel
+  ]);
+
+  const aoa = [[`${title} — моделей: ${rows.length}`, '', '', '', '', '', '', '', '', '', `Дата: ${today}`], head, ...body];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const NC = head.length;
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:NC-2}}];
+  ws['!cols'] = [{wch:24},{wch:46},{wch:34},{wch:14},{wch:14},{wch:16},{wch:12},{wch:14},{wch:12},{wch:14},{wch:14}];
+  ws['!rows'] = [{hpt:30},{hpt:34}];
+  try{
+    const thin = {style:'thin', color:{rgb:'BFC7D5'}};
+    const border = {top:thin, bottom:thin, left:thin, right:thin};
+    const fill = rgb => ({patternType:'solid', fgColor:{rgb}});
+    const STATUS_COLOR = { 'В норме':'1E7E34', 'Мало осталось':'C55A11', 'Закончено':'7F7F7F', 'Перерасход':'C00000' };
+    for(let r=0; r<aoa.length; r++){
+      for(let c=0; c<NC; c++){
+        const ref = XLSX.utils.encode_cell({r,c});
+        const ce = ws[ref] || (ws[ref] = {t:'s', v:''});
+        const font = {name:'Calibri', sz:10, color:{rgb:'1F2937'}};
+        let bg = (r%2) ? 'F7F9FC' : 'FFFFFF', bd = border;
+        if(r === 0){ font.sz = 14; font.bold = true; font.color = {rgb:'FFFFFF'}; bg = '1F3A5F'; bd = undefined; }
+        else if(r === 1){ font.bold = true; font.color = {rgb:'FFFFFF'}; bg = '2F5496'; }
+        else if(c === NC-1 && STATUS_COLOR[ce.v]){ font.bold = true; font.color = {rgb: STATUS_COLOR[ce.v]}; }
+        else if((c === 8 || c === 9) && typeof ce.v === 'number'){
+          if(ce.v < 0){ font.color = {rgb:'C00000'}; font.bold = true; }
+          else if(ce.v === 0){ font.color = {rgb:'7F7F7F'}; }
+          else font.bold = true;
+        }
+        ce.s = { font, fill:fill(bg), alignment:{horizontal:'left', vertical:'center', wrapText:(r===1 || c===1 || c===2)} };
+        if(bd) ce.s.border = bd;
+        if(r >= 2 && typeof ce.v === 'number'){
+          ce.z = (c === 4 || c === 6 || c === 8) ? '#,##0' : '#,##0.000';
+        }
+      }
+    }
+    ws['!freeze'] = {xSplit:'2', ySplit:'2', topLeftCell:'C3', activePane:'bottomRight', state:'frozen'};
+    ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:1,c:0}, e:{r:aoa.length-1,c:NC-1}})};
+  }catch(err){ console.warn("Excel dizayn qo'llanmadi:", err); }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, kind === 'available' ? 'Доступные модели' : 'Все модели');
+  XLSX.writeFile(wb, (kind === 'available' ? 'Доступные_модели_' : 'Все_модели_') + today + '.xlsx');
+  toast('Excel файл готов');
+}
+document.addEventListener('click', e=>{
+  if(e.target.closest && e.target.closest('#btnExportAllModels')){ e.preventDefault(); exportModelsListXlsx('all'); }
+  if(e.target.closest && e.target.closest('#btnExportAvailableModels')){ e.preventDefault(); exportModelsListXlsx('available'); }
+});
+
 function exportStatusXlsx(kind, rows){
   if(typeof XLSX === 'undefined'){ toast('Excel kutubxonasi yuklanmadi'); return; }
-  if(!rows.length){ toast('Yuklab olish uchun pozitsiya yo\'q'); return; }
+  if(!rows.length){ toast('Нет позиций для скачивания'); return; }
   const { title, head, body } = statusExportAoa(kind, rows);
   const today = new Date().toISOString().slice(0,10);
-  const aoa = [[`${title} — ${rows.length} ta pozitsiya`, '', '', '', '', '', '', `Sana: ${today}`], head, ...body];
+  const aoa = [[`${title} — позиций: ${rows.length}`, '', '', '', '', '', '', `Дата: ${today}`], head, ...body];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const NC = head.length;
   ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:NC-2}}];
@@ -4018,8 +4121,8 @@ function exportStatusXlsx(kind, rows){
     ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:1,c:0}, e:{r:aoa.length-1,c:NC-1}})};
   }catch(err){ console.warn('Excel dizayn qo\'llanmadi:', err); }
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, kind === 'critical' ? 'Tugagan' : 'Kam qoldi');
-  XLSX.writeFile(wb, (kind === 'critical' ? 'Tugagan_modellar_' : 'Kam_qoldi_modellar_') + today + '.xlsx');
+  XLSX.utils.book_append_sheet(wb, ws, kind === 'critical' ? 'Закончено' : 'Мало осталось');
+  XLSX.writeFile(wb, (kind === 'critical' ? 'Закончившиеся_модели_' : 'Модели_с_остатком_мало_') + today + '.xlsx');
 }
 
 function openStatusModal(kind){

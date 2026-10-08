@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v36-status-excel';
+const CACHE = 'permit-tracker-shell-v38-excel-ru';
 const APP_SHELL = [
   './',
   './index.html',
