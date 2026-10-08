@@ -3330,6 +3330,27 @@ html.v12-shell-ready .stat-card{
   font-size:10px;
 }
 
+button.v12-report-card.v12-report-action{
+  font-family:inherit;
+  text-align:left;
+  cursor:pointer;
+  appearance:none;
+  transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+
+button.v12-report-card.v12-report-action:hover,
+button.v12-report-card.v12-report-action:focus-visible{
+  transform:translateY(-2px);
+  border-color:#1b579d;
+  box-shadow:0 12px 26px rgba(31,52,87,.12);
+  outline:none;
+}
+
+button.v12-report-card.v12-report-action small{
+  color:#1b579d;
+  font-weight:700;
+}
+
 .v12-report-icon{
   position:absolute;
   right:16px;

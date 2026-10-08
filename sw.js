@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v38-excel-ru';
+const CACHE = 'permit-tracker-shell-v40-zip-export';
 const APP_SHELL = [
   './',
   './index.html',
@@ -13,7 +13,8 @@ const APP_SHELL = [
   './icon-192.png',
   './icon-512.png',
   './bg-icon.png',
-  'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'
+  'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
+  'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'
 ];
 
 self.addEventListener('install', event => {

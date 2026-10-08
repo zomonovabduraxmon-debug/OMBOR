@@ -1220,9 +1220,26 @@
         unit:v.querySelector('span')?.textContent?.trim() || '',
         label:v.querySelector('.v11-metric-label,.v12-metric-label')?.textContent?.trim() || ''
       }));
-      const warehouseValuesEl = app.querySelector('.warehouse-values');
-      const activeCount = Number(String(values[0]?.num||'0').replace(/\D/g,'')) || 0;
-      const finishedCount = Number(String(stats[2]?.num||'0').replace(/\D/g,'')) || 0;
+      // Kartochkalar: Ruxsatnomalar -> Jami modellar -> Mavjud modellar ->
+      // Kam qolgan -> Tugagan. Raqamlar bosilganda yuklanadigan Excel
+      // fayllari bilan bir xil manbadan (buildModelsListRows) olinadi, shunda
+      // kartochkadagi son va fayldagi qatorlar soni doim mos tushadi.
+      // Mavjud = Jami - Tugagan; Kam qolgan esa Mavjud ning ichida.
+      let permitsCount = Number(String(stats[0]?.num||'0').replace(/\D/g,'')) || 0;
+      let activeCount = Number(String(values[0]?.num||'0').replace(/\D/g,'')) || 0;
+      let warnCount = Number(String(stats[1]?.num||'0').replace(/\D/g,'')) || 0;
+      let finishedCount = Number(String(stats[2]?.num||'0').replace(/\D/g,'')) || 0;
+      try{
+        if(typeof window.buildModelsListRows === 'function'){
+          const liveState = v12GetLiveState();
+          permitsCount = Array.isArray(liveState.permits) ? liveState.permits.length : permitsCount;
+          activeCount = window.buildModelsListRows('available').length;
+          warnCount = window.buildModelsListRows('warn').length;
+          finishedCount = window.buildModelsListRows('critical').length;
+        }
+      }catch(err){ console.warn('Hisobot sonlarini hisoblashda xato:', err); }
+      const totalModels = activeCount + finishedCount;
+      const cards = {permitsCount, totalModels, activeCount, warnCount, finishedCount};
 
       // Muhim: bu funksiya har bir scheduleEnhance() sikli (ya'ni har bir DOM
       // o'zgarishidan keyin, MutationObserver orqali) chaqiriladi. Agar u har
@@ -1235,7 +1252,7 @@
       // butunlay o'tkazib yuboramiz.
       const materialData = v12ComputeMaterialBreakdown();
 
-      const signature = JSON.stringify({stats, values, materialData});
+      const signature = JSON.stringify({cards, materialData});
       if(existing && existing.dataset.v12ReportsSig === signature){
         return;
       }
@@ -1257,16 +1274,26 @@
           <div><h1>Hisobotlar</h1><p>Omborning joriy holati va so‘nggi o‘zgarishlar</p></div>
         </div>
         <div class="v12-report-grid">
-          ${values.map(v=>`
-            <article class="v12-report-card v12-report-primary">
-              <span>${v.label || 'Ko‘rsatkich'}</span>
-              <strong>${v.num}</strong><small>${v.unit}</small>
-            </article>`).join('')}
-          ${stats.map((s,i)=>`
-            <article class="v12-report-card">
-              <div class="v12-report-icon">${v9IconSvg(i===0?'clipboard':i===1?'spool':'chart')}</div>
-              <span>${s.lbl}</span><strong>${s.num}</strong>
-            </article>`).join('')}
+          <article class="v12-report-card">
+            <div class="v12-report-icon">${v9IconSvg('clipboard')}</div>
+            <span>Jami ruxsatnomalar</span><strong>${v12FmtNum(permitsCount)}</strong>
+          </article>
+          <button type="button" class="v12-report-card v12-report-action" data-export-models="all" title="Excel yuklab olish — barcha modellar">
+            <div class="v12-report-icon">${v9IconSvg('spool')}</div>
+            <span>Jami modellar</span><strong>${v12FmtNum(totalModels)}</strong><small>Excel yuklash</small>
+          </button>
+          <button type="button" class="v12-report-card v12-report-action" data-export-models="available" title="Excel yuklab olish — mavjud modellar">
+            <div class="v12-report-icon">${v9IconSvg('spool')}</div>
+            <span>Mavjud modellar</span><strong>${v12FmtNum(activeCount)}</strong><small>Excel yuklash</small>
+          </button>
+          <button type="button" class="v12-report-card v12-report-action" data-export-models="warn" title="Excel yuklab olish — kam qolgan modellar">
+            <div class="v12-report-icon">${v9IconSvg('spool')}</div>
+            <span>Kam qolgan</span><strong>${v12FmtNum(warnCount)}</strong><small>Excel yuklash</small>
+          </button>
+          <button type="button" class="v12-report-card v12-report-action" data-export-models="critical" title="Excel yuklab olish — tugagan / ortiqcha sarf modellar">
+            <div class="v12-report-icon">${v9IconSvg('chart')}</div>
+            <span>Tugagan / ortiqcha sarf</span><strong>${v12FmtNum(finishedCount)}</strong><small>Excel yuklash</small>
+          </button>
           <button type="button" class="v12-report-card v12-report-export-btn">Eksport <span aria-hidden="true">›</span></button>
           <article class="v12-report-card v12-chart-card">
             <div class="v12-chart-visual">${finishedActiveDonut}</div>
@@ -2028,6 +2055,185 @@
       },0);
     }
 
+    // Bitta ruxsatnoma uchun Excel varag'i (hozirgi "Скачать Excel" dagi varaq
+    // bilan aynan bir xil). Bitta fayldagi eksport ham, ZIP (alohida fayllar)
+    // ham shu funksiyadan foydalanadi — ikki joyda ko'rinish farq qilmasligi uchun.
+    function buildPermitSheetV14(p){
+      const shipmentsForPermit = Array.isArray(state.shipments)
+        ? state.shipments.filter(s=>s.permitId===p.id).slice().sort((a,b)=>(a.invoiceDate||'').localeCompare(b.invoiceDate||''))
+        : [];
+
+      const headerTitles = ['№','Наименование','Код ТН ВЭД','Количество разреш','Вес разрешение кг'];
+      shipmentsForPermit.forEach(()=>{ headerTitles.push('Кол-во','Вес'); });
+      headerTitles.push('Остаток количество','Остаток вес','Вес 1 единицы');
+
+      const aoa = [];
+      const titleRow = new Array(headerTitles.length).fill('');
+      titleRow[1] = `Разрешение №${p.number} от ${p.date||''}`;
+      aoa.push(titleRow);
+
+      const invRow = new Array(headerTitles.length).fill('');
+      let c = 5;
+      shipmentsForPermit.forEach(s=>{ invRow[c] = `${s.invoiceNumber||''} от ${s.invoiceDate||''}`; c += 2; });
+      aoa.push(invRow);
+      aoa.push(headerTitles);
+
+      (Array.isArray(p.items) ? p.items : []).forEach((it,idx)=>{
+        const row = [idx+1, it.name, it.tnved, Number(it.qty)||0, Number(it.weight)||0];
+        shipmentsForPermit.forEach(s=>{
+      const line = Array.isArray(s.lines) ? s.lines.find(l=>l.itemId===it.id) : null;
+      row.push(line ? (Number(line.qty)||0) : '', line ? Number((Number(line.weight)||0).toFixed(3)) : '');
+        });
+        const used = typeof itemUsage === 'function' ? itemUsage(p.id, it.id) : {qty:0,weight:0};
+        const remQty = (Number(it.qty)||0) - (Number(used.qty)||0);
+        const remWeight = (Number(it.weight)||0) - (Number(used.weight)||0);
+        row.push(remQty, Number(remWeight.toFixed(3)), it.qty ? Number(((Number(it.weight)||0)/(Number(it.qty)||1)).toFixed(6)) : '');
+        aoa.push(row);
+      });
+
+      const items = Array.isArray(p.items) ? p.items : [];
+      const totals = ['', 'Итого', '', items.reduce((a,it)=>a+(Number(it.qty)||0),0), items.reduce((a,it)=>a+(Number(it.weight)||0),0)];
+      shipmentsForPermit.forEach(s=>{
+        const lines = Array.isArray(s.lines) ? s.lines : [];
+        totals.push(lines.reduce((a,l)=>a+(Number(l.qty)||0),0), Number(lines.reduce((a,l)=>a+(Number(l.weight)||0),0).toFixed(3)));
+      });
+      const totalsUsed = shipmentsForPermit.reduce((acc,s)=>{
+        for(const line of (Array.isArray(s.lines)?s.lines:[])){
+      acc.qty += Number(line.qty)||0;
+      acc.weight += Number(line.weight)||0;
+        }
+        return acc;
+      },{qty:0,weight:0});
+      totals.push(
+        items.reduce((a,it)=>a+(Number(it.qty)||0),0) - totalsUsed.qty,
+        Number((items.reduce((a,it)=>a+(Number(it.weight)||0),0) - totalsUsed.weight).toFixed(3)),
+        ''
+      );
+      aoa.push(totals);
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const merges = [{s:{r:0,c:1},e:{r:0,c:headerTitles.length-1}}];
+      let cc = 5;
+      shipmentsForPermit.forEach(()=>{ merges.push({s:{r:1,c:cc},e:{r:1,c:cc+1}}); cc += 2; });
+      ws['!merges'] = merges;
+      ws['!cols'] = headerTitles.map((_,i)=> i===1 ? {wch:38} : {wch:14});
+      if(typeof window.styleExportSheet === 'function') window.styleExportSheet(ws, aoa, {fixed:5, shipCount:shipmentsForPermit.length, itemCount:items.length});
+      return ws;
+    }
+
+    // ===== ZIP: har bir ruxsatnoma uchun alohida Excel + umumiy ro'yxat =====
+    function zipSafeName(str){
+      return String(str ?? '').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^[_.]+|[_.]+$/g,'').slice(0,80) || 'bez_nomera';
+    }
+
+    function buildPermitsIndexSheetV14(permits){
+      const head = ['№','Разрешение','Дата','Моделей','Разрешено (шт)','Разрешенный вес (кг)','Отгружено (шт)','Отгруженный вес (кг)','Остаток (шт)','Остаток вес (кг)','Файл'];
+      const r3 = n => Number((Number(n)||0).toFixed(3));
+      let tModels=0,tQty=0,tW=0,tUQ=0,tUW=0;
+      const body = permits.map((entry,idx)=>{
+        const p = entry.permit;
+        const items = Array.isArray(p.items) ? p.items : [];
+        let qty=0,w=0,uq=0,uw=0;
+        for(const it of items){
+          const used = typeof itemUsage === 'function' ? itemUsage(p.id, it.id) : {qty:0,weight:0};
+          qty += Number(it.qty)||0; w += Number(it.weight)||0;
+          uq += Number(used.qty)||0; uw += Number(used.weight)||0;
+        }
+        tModels+=items.length; tQty+=qty; tW+=w; tUQ+=uq; tUW+=uw;
+        return [idx+1, String(p.number||''), p.date||'', items.length, qty, r3(w), uq, r3(uw), qty-uq, r3(w-uw), entry.fileName];
+      });
+      const totalRow = ['', 'Итого', '', tModels, tQty, r3(tW), tUQ, r3(tUW), tQty-tUQ, r3(tW-tUW), ''];
+      const today = new Date().toISOString().slice(0,10);
+      const aoa = [[`Список разрешений — всего: ${permits.length}`,'','','','','','','','','',`Дата: ${today}`], head, ...body, totalRow];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const NC = head.length;
+      ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:NC-2}}];
+      ws['!cols'] = [{wch:6},{wch:24},{wch:12},{wch:10},{wch:14},{wch:18},{wch:14},{wch:18},{wch:12},{wch:16},{wch:44}];
+      ws['!rows'] = [{hpt:30},{hpt:34}];
+      try{
+        const thin = {style:'thin', color:{rgb:'BFC7D5'}};
+        const border = {top:thin, bottom:thin, left:thin, right:thin};
+        for(let r=0; r<aoa.length; r++){
+          for(let c=0; c<NC; c++){
+            const ref = XLSX.utils.encode_cell({r,c});
+            const ce = ws[ref] || (ws[ref] = {t:'s', v:''});
+            const font = {name:'Calibri', sz:10, color:{rgb:'1F2937'}};
+            let bg = (r%2) ? 'F7F9FC' : 'FFFFFF', bd = border;
+            if(r === 0){ font.sz = 14; font.bold = true; font.color = {rgb:'FFFFFF'}; bg = '1F3A5F'; bd = undefined; }
+            else if(r === 1){ font.bold = true; font.color = {rgb:'FFFFFF'}; bg = '2F5496'; }
+            else if(r === aoa.length-1){ font.bold = true; bg = 'E8EEF7'; }
+            ce.s = { font, fill:{patternType:'solid', fgColor:{rgb:bg}}, alignment:{horizontal:'left', vertical:'center', wrapText:(r===1)} };
+            if(bd) ce.s.border = bd;
+            if(r >= 2 && typeof ce.v === 'number'){
+              ce.z = (c === 3 || c === 4 || c === 6 || c === 8) ? '#,##0' : '#,##0.000';
+              if((c === 8 || c === 9) && ce.v < 0){ ce.s.font = {...font, color:{rgb:'C00000'}, bold:true}; }
+            }
+          }
+        }
+        ws['!freeze'] = {xSplit:'2', ySplit:'2', topLeftCell:'C3', activePane:'bottomRight', state:'frozen'};
+        ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:1,c:0}, e:{r:aoa.length-2,c:NC-1}})};
+      }catch(err){ console.warn("Excel dizayn qo'llanmadi:", err); }
+      return ws;
+    }
+
+    async function exportPermitsZip(){
+      const button = document.getElementById('btnExportZip');
+      const originalLabel = button ? button.textContent : '';
+      try{
+        if(typeof XLSX === 'undefined' || !XLSX.utils || typeof XLSX.write !== 'function'){
+          notify('exportLibraryMissing');
+          return;
+        }
+        if(typeof JSZip === 'undefined'){
+          notify('ZIP kutubxonasi yuklanmadi. Internetni tekshirib, sahifani yangilang');
+          return;
+        }
+        if(typeof state === 'undefined' || !state || !Array.isArray(state.permits) || !state.permits.length){
+          notify('exportNoData');
+          return;
+        }
+        if(button){ button.disabled = true; button.textContent = getText('exporting'); }
+
+        const permits = state.permits.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'') || String(a.number||'').localeCompare(String(b.number||'')));
+        const usedFileNames = new Set(['00_royxat.xlsx']);
+        const entries = permits.map(p=>{
+          const base = 'Ruxsatnoma_' + zipSafeName(p.number) + (p.date ? '_' + zipSafeName(p.date) : '');
+          let name = base + '.xlsx', i = 2;
+          while(usedFileNames.has(name.toLowerCase())){ name = base + '_' + (i++) + '.xlsx'; }
+          usedFileNames.add(name.toLowerCase());
+          return { permit:p, fileName:name };
+        });
+
+        const zip = new JSZip();
+        const indexWb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(indexWb, buildPermitsIndexSheetV14(entries), 'Список');
+        zip.file('00_Royxat.xlsx', XLSX.write(indexWb, {bookType:'xlsx', type:'array'}));
+
+        for(const entry of entries){
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, buildPermitSheetV14(entry.permit), safeSheetName(entry.permit.number, new Set()));
+          zip.file(entry.fileName, XLSX.write(wb, {bookType:'xlsx', type:'array'}));
+        }
+
+        const blob = await zip.generateAsync({type:'blob', compression:'DEFLATE'});
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = 'Ruxsatnomalar_' + new Date().toISOString().slice(0,10) + '.zip';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 5000);
+        notify('exportDone');
+      }catch(err){
+        console.error('ZIP export failed', err);
+        notify('exportError');
+      }finally{
+        if(button){ button.disabled = false; button.textContent = originalLabel; }
+      }
+    }
+
+
     function hardenedExportWorkbook(){
       const button = document.getElementById('btnExportAll');
       let originalLabel = button ? button.textContent : '';
@@ -2047,65 +2253,7 @@
         const permitsForExport = state.permits.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
 
         for(const p of permitsForExport){
-          const shipmentsForPermit = Array.isArray(state.shipments)
-            ? state.shipments.filter(s=>s.permitId===p.id).slice().sort((a,b)=>(a.invoiceDate||'').localeCompare(b.invoiceDate||''))
-            : [];
-
-          const headerTitles = ['№','Наименование','Код ТН ВЭД','Количество разреш','Вес разрешение кг'];
-          shipmentsForPermit.forEach(()=>{ headerTitles.push('Кол-во','Вес'); });
-          headerTitles.push('Остаток количество','Остаток вес','Вес 1 единицы');
-
-          const aoa = [];
-          const titleRow = new Array(headerTitles.length).fill('');
-          titleRow[1] = `Разрешение №${p.number} от ${p.date||''}`;
-          aoa.push(titleRow);
-
-          const invRow = new Array(headerTitles.length).fill('');
-          let c = 5;
-          shipmentsForPermit.forEach(s=>{ invRow[c] = `${s.invoiceNumber||''} от ${s.invoiceDate||''}`; c += 2; });
-          aoa.push(invRow);
-          aoa.push(headerTitles);
-
-          (Array.isArray(p.items) ? p.items : []).forEach((it,idx)=>{
-            const row = [idx+1, it.name, it.tnved, Number(it.qty)||0, Number(it.weight)||0];
-            shipmentsForPermit.forEach(s=>{
-              const line = Array.isArray(s.lines) ? s.lines.find(l=>l.itemId===it.id) : null;
-              row.push(line ? (Number(line.qty)||0) : '', line ? Number((Number(line.weight)||0).toFixed(3)) : '');
-            });
-            const used = typeof itemUsage === 'function' ? itemUsage(p.id, it.id) : {qty:0,weight:0};
-            const remQty = (Number(it.qty)||0) - (Number(used.qty)||0);
-            const remWeight = (Number(it.weight)||0) - (Number(used.weight)||0);
-            row.push(remQty, Number(remWeight.toFixed(3)), it.qty ? Number(((Number(it.weight)||0)/(Number(it.qty)||1)).toFixed(6)) : '');
-            aoa.push(row);
-          });
-
-          const items = Array.isArray(p.items) ? p.items : [];
-          const totals = ['', 'Итого', '', items.reduce((a,it)=>a+(Number(it.qty)||0),0), items.reduce((a,it)=>a+(Number(it.weight)||0),0)];
-          shipmentsForPermit.forEach(s=>{
-            const lines = Array.isArray(s.lines) ? s.lines : [];
-            totals.push(lines.reduce((a,l)=>a+(Number(l.qty)||0),0), Number(lines.reduce((a,l)=>a+(Number(l.weight)||0),0).toFixed(3)));
-          });
-          const totalsUsed = shipmentsForPermit.reduce((acc,s)=>{
-            for(const line of (Array.isArray(s.lines)?s.lines:[])){
-              acc.qty += Number(line.qty)||0;
-              acc.weight += Number(line.weight)||0;
-            }
-            return acc;
-          },{qty:0,weight:0});
-          totals.push(
-            items.reduce((a,it)=>a+(Number(it.qty)||0),0) - totalsUsed.qty,
-            Number((items.reduce((a,it)=>a+(Number(it.weight)||0),0) - totalsUsed.weight).toFixed(3)),
-            ''
-          );
-          aoa.push(totals);
-
-          const ws = XLSX.utils.aoa_to_sheet(aoa);
-          const merges = [{s:{r:0,c:1},e:{r:0,c:headerTitles.length-1}}];
-          let cc = 5;
-          shipmentsForPermit.forEach(()=>{ merges.push({s:{r:1,c:cc},e:{r:1,c:cc+1}}); cc += 2; });
-          ws['!merges'] = merges;
-          ws['!cols'] = headerTitles.map((_,i)=> i===1 ? {wch:38} : {wch:14});
-          if(typeof window.styleExportSheet === 'function') window.styleExportSheet(ws, aoa, {fixed:5, shipCount:shipmentsForPermit.length, itemCount:items.length});
+          const ws = buildPermitSheetV14(p);
           XLSX.utils.book_append_sheet(wb, ws, safeSheetName(p.number, usedNames));
         }
 
@@ -2136,6 +2284,13 @@
       document.addEventListener('click', e=>{
         if(!e.target.closest('.language-wrap-v5')) closeLanguageMenu();
         if(!e.target.closest('.quick-apps-wrap-v5')) closeQuickAppsMenu();
+        const zipBtn = e.target.closest('#btnExportZip');
+        if(zipBtn){
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          exportPermitsZip();
+          return;
+        }
         const exportBtn = e.target.closest('#btnExportAll');
         if(exportBtn){
           e.preventDefault();

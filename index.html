@@ -42,6 +42,7 @@
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js" onerror="var s=document.createElement('script');s.src='https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';document.head.appendChild(s)"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" onerror="var s=document.createElement('script');s.src='https://unpkg.com/jszip@3.10.1/dist/jszip.min.js';document.head.appendChild(s)"></script>
 <script src="./config.js"></script>
 <script src="./sync-core.js"></script>
 <script src="./offline-sync.js"></script>
@@ -3758,6 +3759,11 @@ function renderExportTab(){
       <button class="btn" id="btnExportAll" type="button">Скачать Excel</button>
     </div></div>
     <div class="panel"><div class="panel-body">
+      <h3 style="margin:0 0 8px;">Ruxsatnomalar — alohida Excel fayllar (ZIP)</h3>
+      <p class="subtle-note" style="margin:0 0 14px;">Har bir ruxsatnoma uchun alohida Excel fayl (<strong>${count}</strong> ta), hammasi bitta ZIP ichida. Fayl nomi: ruxsatnoma raqami va sanasi. ZIP ichida yana <strong>00_Royxat.xlsx</strong> — barcha ruxsatnomalar umumiy ro'yxati.</p>
+      <button class="btn secondary" id="btnExportZip" type="button">ZIP (alohida fayllar)</button>
+    </div></div>
+    <div class="panel"><div class="panel-body">
       <h3 style="margin:0 0 8px;">Modellar bo'yicha umumiy ro'yxat</h3>
       <p class="subtle-note" style="margin:0 0 14px;">Ruxsatnomalarga bo'linmagan, bitta tekis jadval — har bir model bitta qatorda.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -3997,7 +4003,13 @@ function statusExportAoa(kind, rows){
    bo'lib qolmasligi uchun.
    kind: 'all' — hammasi (holatidan qat'i nazar); 'available' — faqat
    qoldig'i bor (Normal + Kam qoldi), Tugagan va Ortiqcha sarf chiqarib
-   tashlanadi. */
+   tashlanadi; 'warn' — faqat Kam qoldi; 'critical' — Tugagan + Ortiqcha sarf. */
+const MODELS_EXPORT_META = {
+  all:       { title:'Все модели',                               sheet:'Все модели',        file:'Все_модели_' },
+  available: { title:'Доступные модели (В норме + Мало осталось)', sheet:'Доступные модели', file:'Доступные_модели_' },
+  warn:      { title:'Мало осталось',                            sheet:'Мало осталось',     file:'Модели_с_остатком_мало_' },
+  critical:  { title:'Закончено / перерасход',                   sheet:'Закончено',         file:'Закончившиеся_модели_' }
+};
 function buildModelsListRows(kind){
   const STATUS_LABEL = { ok:'В норме', warn:'Мало осталось', finished:'Закончено', over:'Перерасход' };
   const rows = [];
@@ -4006,6 +4018,8 @@ function buildModelsListRows(kind){
       const used = itemUsage(p.id, it.id);
       const st = itemStatus(it, used);
       if(kind === 'available' && !(st.level === 'ok' || st.level === 'warn')) continue;
+      if(kind === 'warn' && st.level !== 'warn') continue;
+      if(kind === 'critical' && !(st.level === 'finished' || st.level === 'over')) continue;
       rows.push({ permit:p, item:it, used, st, statusLabel: STATUS_LABEL[st.level] || st.level });
     }
   }
@@ -4018,7 +4032,8 @@ function exportModelsListXlsx(kind){
   const rows = buildModelsListRows(kind);
   if(!rows.length){ toast('Нет моделей для скачивания'); return; }
 
-  const title = kind === 'available' ? 'Доступные модели (В норме + Мало осталось)' : 'Все модели';
+  const meta = MODELS_EXPORT_META[kind] || MODELS_EXPORT_META.all;
+  const title = meta.title;
   const head = ['Разрешение','Наименование модели','Мато / состав','Код ТН ВЭД','Разрешено (шт)','Разрешенный вес (кг)','Отгружено (шт)','Отгруженный вес (кг)','Остаток (шт)','Остаток вес (кг)','Статус'];
   const r3 = n => Number((Number(n)||0).toFixed(3));
   const today = new Date().toISOString().slice(0,10);
@@ -4073,14 +4088,18 @@ function exportModelsListXlsx(kind){
   }catch(err){ console.warn("Excel dizayn qo'llanmadi:", err); }
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, kind === 'available' ? 'Доступные модели' : 'Все модели');
-  XLSX.writeFile(wb, (kind === 'available' ? 'Доступные_модели_' : 'Все_модели_') + today + '.xlsx');
+  XLSX.utils.book_append_sheet(wb, ws, meta.sheet);
+  XLSX.writeFile(wb, meta.file + today + '.xlsx');
   toast('Excel файл готов');
 }
 document.addEventListener('click', e=>{
   if(e.target.closest && e.target.closest('#btnExportAllModels')){ e.preventDefault(); exportModelsListXlsx('all'); }
   if(e.target.closest && e.target.closest('#btnExportAvailableModels')){ e.preventDefault(); exportModelsListXlsx('available'); }
+  const kpiBtn = e.target.closest && e.target.closest('[data-export-models]');
+  if(kpiBtn){ e.preventDefault(); exportModelsListXlsx(kpiBtn.dataset.exportModels); }
 });
+window.exportModelsListXlsx = exportModelsListXlsx;
+window.buildModelsListRows = buildModelsListRows;
 
 function exportStatusXlsx(kind, rows){
   if(typeof XLSX === 'undefined'){ toast('Excel kutubxonasi yuklanmadi'); return; }
