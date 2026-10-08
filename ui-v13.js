@@ -1285,21 +1285,21 @@
             <div class="v12-report-icon">${v9IconSvg('clipboard')}</div>
             <span>Jami ruxsatnomalar</span><strong>${v12FmtNum(permitsCount)}</strong>
           </article>
-          <button type="button" class="v12-report-card v12-report-action" data-export-models="all" title="Excel yuklab olish — barcha modellar">
+          <button type="button" class="v12-report-card v12-report-action" data-models-kind="all" title="Ko‘rish va Excel yuklash — barcha modellar">
             <div class="v12-report-icon">${v9IconSvg('spool')}</div>
-            <span>Jami modellar</span><strong>${v12FmtNum(totalModels)}</strong><small>Excel yuklash</small>
+            <span>Jami modellar</span><strong>${v12FmtNum(totalModels)}</strong><small>Ko‘rish ›</small>
           </button>
-          <button type="button" class="v12-report-card v12-report-action" data-export-models="available" title="Excel yuklab olish — mavjud modellar">
+          <button type="button" class="v12-report-card v12-report-action" data-models-kind="available" title="Ko‘rish va Excel yuklash — mavjud modellar">
             <div class="v12-report-icon">${v9IconSvg('spool')}</div>
-            <span>Mavjud modellar</span><strong>${v12FmtNum(activeCount)}</strong><small>Excel yuklash</small>
+            <span>Mavjud modellar</span><strong>${v12FmtNum(activeCount)}</strong><small>Ko‘rish ›</small>
           </button>
-          <button type="button" class="v12-report-card v12-report-action" data-export-models="warn" title="Excel yuklab olish — kam qolgan modellar">
+          <button type="button" class="v12-report-card v12-report-action" data-models-kind="warn" title="Ko‘rish va Excel yuklash — kam qolgan modellar">
             <div class="v12-report-icon">${v9IconSvg('spool')}</div>
-            <span>Kam qolgan</span><strong>${v12FmtNum(warnCount)}</strong><small>Excel yuklash</small>
+            <span>Kam qolgan</span><strong>${v12FmtNum(warnCount)}</strong><small>Ko‘rish ›</small>
           </button>
-          <button type="button" class="v12-report-card v12-report-action" data-export-models="critical" title="Excel yuklab olish — tugagan / ortiqcha sarf modellar">
+          <button type="button" class="v12-report-card v12-report-action" data-models-kind="critical" title="Ko‘rish va Excel yuklash — tugagan / ortiqcha sarf modellar">
             <div class="v12-report-icon">${v9IconSvg('chart')}</div>
-            <span>Tugagan / ortiqcha sarf</span><strong>${v12FmtNum(finishedCount)}</strong><small>Excel yuklash</small>
+            <span>Tugagan / ortiqcha sarf</span><strong>${v12FmtNum(finishedCount)}</strong><small>Ko‘rish ›</small>
           </button>
           <button type="button" class="v12-report-card v12-report-export-btn">Eksport <span aria-hidden="true">›</span></button>
           <article class="v12-report-card v12-chart-card">

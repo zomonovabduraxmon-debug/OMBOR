@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v41-export-cards';
+const CACHE = 'permit-tracker-shell-v42-report-modals';
 const APP_SHELL = [
   './',
   './index.html',

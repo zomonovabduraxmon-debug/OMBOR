@@ -4012,9 +4012,9 @@ function buildModelsListRows(kind){
   return rows;
 }
 
-function exportModelsListXlsx(kind){
+function exportModelsListXlsx(kind, rowsOverride){
   if(typeof XLSX === 'undefined'){ toast('Excel kutubxonasi yuklanmadi'); return; }
-  const rows = buildModelsListRows(kind);
+  const rows = Array.isArray(rowsOverride) ? rowsOverride : buildModelsListRows(kind);
   if(!rows.length){ toast('Нет моделей для скачивания'); return; }
 
   const meta = MODELS_EXPORT_META[kind] || MODELS_EXPORT_META.all;
@@ -4080,8 +4080,8 @@ function exportModelsListXlsx(kind){
 document.addEventListener('click', e=>{
   if(e.target.closest && e.target.closest('#btnExportAllModels')){ e.preventDefault(); exportModelsListXlsx('all'); }
   if(e.target.closest && e.target.closest('#btnExportAvailableModels')){ e.preventDefault(); exportModelsListXlsx('available'); }
-  const kpiBtn = e.target.closest && e.target.closest('[data-export-models]');
-  if(kpiBtn){ e.preventDefault(); exportModelsListXlsx(kpiBtn.dataset.exportModels); }
+  const kpiBtn = e.target.closest && e.target.closest('[data-models-kind]');
+  if(kpiBtn){ e.preventDefault(); openStatusModal(kpiBtn.dataset.modelsKind); }
 });
 window.exportModelsListXlsx = exportModelsListXlsx;
 window.buildModelsListRows = buildModelsListRows;
@@ -4129,12 +4129,16 @@ function exportStatusXlsx(kind, rows){
   XLSX.writeFile(wb, (kind === 'critical' ? 'Закончившиеся_модели_' : 'Модели_с_остатком_мало_') + today + '.xlsx');
 }
 
+const STATUS_MODAL_TITLES = {
+  all:       'Jami modellar',
+  available: 'Mavjud modellar',
+  warn:      'Kam qolgan',
+  critical:  'Tugagan / ortiqcha sarf'
+};
 function openStatusModal(kind){
-  const all = computeAllStatusRows();
-  const rows = (kind === 'critical'
-    ? all.filter(r=>r.st.level==='finished'||r.st.level==='over')
-    : all.filter(r=>r.st.level==='warn')
-  ).sort((a,b)=>String(b.permit.date||'').localeCompare(String(a.permit.date||'')));
+  if(!STATUS_MODAL_TITLES[kind]) kind = 'critical';
+  const rows = buildModelsListRows(kind)
+    .sort((a,b)=>String(b.permit.date||'').localeCompare(String(a.permit.date||'')) || String(a.permit.number||'').localeCompare(String(b.permit.number||'')) || String(a.item.name||'').localeCompare(String(b.item.name||'')));
 
   const recentKeysV12 = (typeof window!=='undefined' && window.__omborRecentKeysV12)
     ? window.__omborRecentKeysV12
@@ -4144,20 +4148,21 @@ function openStatusModal(kind){
     return recentKeysV12.critKeys.has(key) || recentKeysV12.warnKeys.has(key);
   };
 
-  const title = kind === 'critical' ? 'Tugagan / ortiqcha sarf' : 'Kam qoldi';
+  const title = STATUS_MODAL_TITLES[kind];
 
   const bodyRows = rows.map(r=>{
     const {permit,item,used,st} = r;
     const badge = st.level==='over' ? '<span class="badge crit">перерасход</span>'
       : st.level==='finished' ? '<span class="badge crit">закончено</span>'
-      : '<span class="badge warn">мало осталось</span>';
+      : st.level==='warn' ? '<span class="badge warn">мало осталось</span>'
+      : '<span class="badge ok">в норме</span>';
     const recentBadge = isRecentRow(r) ? ' <span class="badge new-24h" title="So\'nggi 24 soatda shu holatga o\'tdi">🆕 24 soat</span>' : '';
     return `<tr>
       <td>${escapeHtml(permit.number)}<div class="subtle-note">${escapeHtml(permit.date||'')}</div></td>
       <td>${escapeHtml(item.name)}</td>
       <td class="code-col">${escapeHtml(item.tnved||'—')}</td>
-      <td class="num-col">${fmt(item.qty,0)} ${escapeHtml(item.unit)}</td>
-      <td class="num-col">${fmt(used.qty,0)}</td>
+      <td class="num-col">${fmt(item.qty,0)} ${escapeHtml(item.unit)}<div class="subtle-note">${fmt(item.weight,2)} кг</div></td>
+      <td class="num-col">${fmt(used.qty,0)}<div class="subtle-note">${fmt(used.weight,2)} кг</div></td>
       <td class="num-col">${fmt(st.remQty,0)}</td>
       <td class="num-col">${fmt(st.remWeight,2)} кг</td>
       <td>${badge}${recentBadge}</td>
@@ -4179,7 +4184,7 @@ function openStatusModal(kind){
       <button class="btn secondary" data-close>Yopish</button>
     </div>
   `);
-  document.getElementById('btnStatusXlsx')?.addEventListener('click', ()=>exportStatusXlsx(kind, rows));
+  document.getElementById('btnStatusXlsx')?.addEventListener('click', ()=>exportModelsListXlsx(kind, rows));
   const modalEl = document.querySelector('#modalBackdrop .modal');
   if(modalEl) modalEl.classList.add('status-modal-wide');
 }
