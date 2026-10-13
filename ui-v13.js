@@ -326,7 +326,11 @@
     '1 dona vazni':{ru:'Вес 1 шт',en:'Weight per unit',uz:'1 dona vazni',tr:'Birim ağırlık'},
     '1 dona vazni, kg (±50 g)':{ru:'Вес 1 шт, кг (±50 г)',en:'Weight per unit, kg (±50 g)',uz:'1 dona vazni, kg (±50 g)',tr:'Birim ağırlık, kg (±50 g)'},
     'Укажите вес — поиск идёт по всем разрешениям':{ru:'Укажите вес — поиск идёт по всем разрешениям',en:'Enter the weight — searching across all permits',uz:'1 dona vaznini kiriting — barcha ruxsatnomalar orasidan qidiriladi.',tr:'Ağırlığı girin — tüm izinler aranır'},
-    'Tanlash':{ru:'Выбрать',en:'Select',uz:'Tanlash',tr:'Seç'}
+    'Tanlash':{ru:'Выбрать',en:'Select',uz:'Tanlash',tr:'Seç'},
+    'Выбрать всё':{ru:'Выбрать всё',en:'Select all',uz:'Barchasini tanlash',tr:'Tümünü seç'},
+    'Выбранные удалить':{ru:'Удалить выбранные',en:'Delete selected',uz:'Tanlanganlarni o‘chirish',tr:'Seçilenleri sil'},
+    'Отменить выбор':{ru:'Снять выбор',en:'Clear selection',uz:'Tanlovni bekor qilish',tr:'Seçimi kaldır'},
+    'tanlandi':{ru:'выбрано',en:'selected',uz:'tanlandi',tr:'seçildi'}
   };
 
   const reverseText = new Map();

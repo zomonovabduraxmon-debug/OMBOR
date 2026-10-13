@@ -272,6 +272,18 @@
   .modal-backdrop.fullscreen-view .modal{max-width:100%;width:100%;min-height:100vh;border-radius:0;box-shadow:none;}
   .modal-backdrop.fullscreen-view .modal-head{justify-content:flex-start;gap:14px;position:sticky;top:0;background:var(--panel);z-index:5;}
   .modal-backdrop.fullscreen-view .modal-body{max-height:none;}
+  /* Jadval ustun sarlavhalari (NOMI, MATO va h.k.) ham sticky — "← Orqaga"
+     paneli tagiga yopishib, scroll qilinganda doim ko'rinib turadi. Model
+     ko'p bo'lgan ruxsatnomalarda pastdagi qatorlar qaysi ustunga tegishli
+     ekanini yo'qotib qo'ymaslik uchun. Balandlik --ombor-mh custom
+     propertyga pushView() ichida JS orqali yoziladi (fallback: 57px). */
+  .modal-backdrop.fullscreen-view .modal-body table thead th{
+    position:sticky;
+    top:var(--ombor-mh, 57px);
+    background:var(--panel);
+    z-index:4;
+    box-shadow:0 1px 0 var(--line);
+  }
   .fs-back-btn{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;}
   .modal-head{padding:16px 20px;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center;}
   .modal-head h2{font-family:var(--serif);font-size:18px;margin:0;}
@@ -508,6 +520,7 @@ let shipmentItemFilter = { weight: '', material: '' };
 let auditSearch = '';
 let auditPage = 1;
 const AUDIT_PAGE_SIZE = 10;
+let auditSelected = new Set(); // belgilab, bir nechtasini birga o'chirish uchun tanlangan tarix yozuvlari
 let shipmentHistorySearch = '';
 let shipmentHistoryOpenInvoice = null; // null = папка-список инвойсов; string = открытая папка конкретного инвойса
 let editShipmentDraft = null;
@@ -958,32 +971,47 @@ function showReasonPrompt(opts){
 function uiLang(){
   try{return window.EOMBOR_UI_V5?.getCurrentLanguage?.() || 'ru';}catch(_){return 'ru';}
 }
-/* Tarixdan (audit_logs) bitta yozuvni o'chirish — FAQAT editor uchun.
+/* Tarixdan (audit_logs) yozuv(lar)ni o'chirish — FAQAT editor uchun.
    Frontendda tugma shu shart bilan yashirilgan, orqa tomonda esa Supabase
    RLS ("audit_logs_update_editors" siyosati, AUDIT-DELETE-EDITORS.sql) ham
    buni majburlaydi. "Soft delete": mahalliy holatdan (state.audits) olib
    tashlanadi, sinxronlanganda serverdagi qatorga deleted_at yoziladi —
    shu tufayli boshqa qurilmalarda ham yo'qoladi va offline holda ham ishlaydi.
    Ushbu o'chirish uchun yangi audit yozuvi qo'shilmaydi (aks holda tarix
-   o'z-o'zini cheksiz to'ldirib boraveradi). */
+   o'z-o'zini cheksiz to'ldirib boraveradi).
+
+   Boshqa yozuvlarni (ruxsatnoma, yuklama va h.k.) o'chirishdan farqli
+   o'laroq — tarix yozuvini o'chirish uchun SABAB yozish shart EMAS (bu
+   shunchaki jurnalni tozalash, biznes ma'lumotini emas). Shu sababli bu
+   yerda showReasonPrompt o'rniga oddiy tasdiqlash (confirm) ishlatiladi. */
 async function deleteAuditEntry(auditId){
   if(!isEditorMode) return;
   const a = (state.audits||[]).find(x=>x.id===auditId);
   if(!a) return;
-  showReasonPrompt({
-    title: uiT('Удалить запись из истории?'),
-    message: uiT('Запись будет удалена из журнала у всех пользователей. Действие необратимо.'),
-    danger: true,
-    confirmLabel: uiT('Удалить'),
-    placeholder: uiT('Укажите причину удаления записи...'),
-    onConfirm: async ()=>{
-      state.audits = (state.audits||[]).filter(x=>x.id!==auditId);
-      await OfflineSync.saveCollection('audit', state.audits);
-      closeModal();
-      render();
-      toast(uiT('Запись удалена'));
-    }
-  });
+  if(!confirm(uiT('Запись будет удалена из журнала у всех пользователей. Действие необратимо.'))) return;
+  state.audits = (state.audits||[]).filter(x=>x.id!==auditId);
+  auditSelected.delete(auditId);
+  await OfflineSync.saveCollection('audit', state.audits);
+  closeModal();
+  render();
+  toast(uiT('Запись удалена'));
+}
+
+/* Belgilab qo'yilgan bir nechta tarix yozuvini bir vaqtda o'chirish. */
+async function deleteAuditEntries(auditIds){
+  if(!isEditorMode) return;
+  const ids = Array.from(new Set(auditIds||[])).filter(id=>(state.audits||[]).some(x=>x.id===id));
+  if(!ids.length) return;
+  const msg = ids.length===1
+    ? uiT('Запись будет удалена из журнала у всех пользователей. Действие необратимо.')
+    : `${ids.length} ${uiT('записей')} barcha foydalanuvchilar uchun jurnaldan o‘chiriladi. Amalni ortga qaytarib bo‘lmaydi.`;
+  if(!confirm(msg)) return;
+  const idSet = new Set(ids);
+  state.audits = (state.audits||[]).filter(x=>!idSet.has(x.id));
+  ids.forEach(id=>auditSelected.delete(id));
+  await OfflineSync.saveCollection('audit', state.audits);
+  render();
+  toast(`${ids.length} ${uiT('записей')} o‘chirildi`);
 }
 
 function uiT(text){
@@ -1039,12 +1067,19 @@ function renderAuditTab(){
     const hay=[a.actorEmail,auditActionLabel(a.action),auditEntityLabel(a.entityType),a.entityLabel,auditSummary(a)].join(' ').toLowerCase();
     return !auditSearch || hay.includes(auditSearch.toLowerCase());
   });
+  // Endi mavjud bo'lmagan (allaqachon o'chirilgan) yozuvlarni belgilangan
+  // ro'yxatdan tozalaymiz — aks holda sanoq noto'g'ri ko'rinishi mumkin.
+  const liveIds = new Set((state.audits||[]).map(a=>a.id));
+  Array.from(auditSelected).forEach(id=>{ if(!liveIds.has(id)) auditSelected.delete(id); });
   const locale={ru:'ru-RU',en:'en-US',uz:'uz-UZ',tr:'tr-TR'}[uiLang()]||'ru-RU';
   const auditTotalPages = Math.max(1, Math.ceil(rows.length / AUDIT_PAGE_SIZE));
   if(auditPage > auditTotalPages) auditPage = auditTotalPages;
   if(auditPage < 1) auditPage = 1;
   const allAuditRows = rows;
   const pageRows = allAuditRows.slice((auditPage-1)*AUDIT_PAGE_SIZE, auditPage*AUDIT_PAGE_SIZE);
+  const canBulk = isEditorMode; // faqat to'liq editor ko'pini birga o'chira oladi
+  const pagePickedCount = pageRows.filter(a=>auditSelected.has(a.id)).length;
+  const allPageSelected = pageRows.length>0 && pagePickedCount===pageRows.length;
   const pagerHtml = auditTotalPages > 1 ? (()=>{
     const nums = [];
     for(let i=1;i<=auditTotalPages;i++){
@@ -1058,8 +1093,14 @@ function renderAuditTab(){
       <span class="subtle-note" style="margin-left:8px;">${(auditPage-1)*AUDIT_PAGE_SIZE+1}–${Math.min(auditPage*AUDIT_PAGE_SIZE, allAuditRows.length)} / ${allAuditRows.length}</span>
     </div>`;
   })() : '';
+  const bulkBarHtml = (canBulk && auditSelected.size>0) ? `
+    <div class="audit-bulk-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;margin-bottom:10px;background:var(--amber-soft);border-radius:4px;">
+      <strong>${auditSelected.size} ${uiT('записей')} ${uiT('tanlandi')}</strong>
+      <button type="button" class="btn danger sm" id="btnBulkDeleteAudit">${uiT('Выбранные удалить')}</button>
+      <button type="button" class="btn secondary sm" id="btnClearAuditSelection">${uiT('Отменить выбор')}</button>
+    </div>` : '';
   return `<div class="toolbar"><div><h1>${uiT('Журнал истории')}</h1><div class="desc">${uiT('Кто, когда и что изменил')} · ${escapeHtml(uiT('Нажмите на строку, чтобы увидеть детали'))}</div></div><input id="auditSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по пользователю, действию или объекту'))}" value="${escapeAttr(auditSearch)}"></div>
-    <div class="panel"><div class="panel-body">${rows.length?`<div style="overflow:auto"><table><thead><tr><th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th>${isEditorMode?`<th></th>`:``}</tr></thead><tbody>${pageRows.map(a=>`<tr class="row-clickable" data-open-audit="${a.id}"><td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td>${isEditorMode?`<td style="text-align:right;"><button type="button" class="btn danger sm" data-del-audit="${a.id}" title="${escapeAttr(uiT('Удалить запись'))}">${escapeHtml(uiT('Удалить'))}</button></td>`:``}</tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}${pagerHtml}</div></div>`;
+    <div class="panel"><div class="panel-body">${bulkBarHtml}${rows.length?`<div style="overflow:auto"><table><thead><tr>${canBulk?`<th style="width:34px;"><input type="checkbox" id="auditSelectAllPage" ${allPageSelected?'checked':''} aria-label="${escapeAttr(uiT('Выбрать всё'))}"></th>`:``}<th>${uiT('Дата/время')}</th><th>${uiT('Пользователь')}</th><th>${uiT('Действие')}</th><th>${uiT('Объект')}</th><th>${uiT('Изменение')}</th>${isEditorMode?`<th></th>`:``}</tr></thead><tbody>${pageRows.map(a=>`<tr class="row-clickable" data-open-audit="${a.id}">${canBulk?`<td style="text-align:center;" data-audit-checkbox-cell><input type="checkbox" class="audit-row-checkbox" data-audit-check="${a.id}" ${auditSelected.has(a.id)?'checked':''} aria-label="${escapeAttr(uiT('Выбрать'))}"></td>`:``}<td>${escapeHtml(new Date(a.createdAt||a.updated_at||Date.now()).toLocaleString(locale))}</td><td>${escapeHtml(a.actorEmail||'—')}</td><td>${escapeHtml(auditActionLabel(a.action))}</td><td>${escapeHtml(auditEntityLabel(a.entityType))}: ${escapeHtml(a.entityLabel||a.entityId||'—')}</td><td>${escapeHtml(auditSummary(a))}</td>${isEditorMode?`<td style="text-align:right;"><button type="button" class="btn danger sm" data-del-audit="${a.id}" title="${escapeAttr(uiT('Удалить запись'))}">${escapeHtml(uiT('Удалить'))}</button></td>`:``}</tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">${uiT('Записей пока нет')}</div>${uiT('Изменения будут записываться после включения аудита.')}</div>`}${pagerHtml}</div></div>`;
 }
 
 // Detail modal for a single audit entry: who/when/what + a clean
@@ -1508,6 +1549,31 @@ function bindTabEvents(){
       e.stopPropagation();
       deleteAuditEntry(el.dataset.delAudit);
     }));
+
+    // Belgilab, bir nechta tarix yozuvini birga o'chirish uchun checkboxlar.
+    document.querySelectorAll('[data-audit-check]').forEach(el=>{
+      el.addEventListener('click', e=>e.stopPropagation());
+      el.addEventListener('change', e=>{
+        const id = el.dataset.auditCheck;
+        if(el.checked) auditSelected.add(id); else auditSelected.delete(id);
+        render();
+      });
+    });
+    const selectAllEl = document.getElementById('auditSelectAllPage');
+    if(selectAllEl){
+      selectAllEl.addEventListener('click', e=>e.stopPropagation());
+      selectAllEl.addEventListener('change', ()=>{
+        document.querySelectorAll('[data-audit-check]').forEach(el=>{
+          const id = el.dataset.auditCheck;
+          if(selectAllEl.checked) auditSelected.add(id); else auditSelected.delete(id);
+        });
+        render();
+      });
+    }
+    const bulkDeleteBtn = document.getElementById('btnBulkDeleteAudit');
+    if(bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', ()=>deleteAuditEntries(Array.from(auditSelected)));
+    const clearSelBtn = document.getElementById('btnClearAuditSelection');
+    if(clearSelBtn) clearSelBtn.addEventListener('click', ()=>{ auditSelected.clear(); render(); });
   }
 }
 
@@ -3949,7 +4015,25 @@ function pushView(innerHtml){
   __omborViewSeq += 1;
   history.pushState({ __omborViewSeq }, '', location.href);
   layer.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click', ()=>history.back()));
+  syncStickyTableHeadOffset(layer);
   return layer;
+}
+
+// "← Orqaga" paneli (modal-head) balandligini o'lchab, pastdagi jadval
+// ustun sarlavhalari (thead) aynan shu balandlikdan boshlab sticky bo'lib
+// qolishi uchun CSS custom propertyga yozib qo'yamiz. Ruxsatnoma raqami
+// uzun bo'lib panel ikki qatorga tushib qolsa ham, balandlik to'g'ri
+// hisoblanishi uchun ResizeObserver bilan kuzatib boramiz.
+function syncStickyTableHeadOffset(layer){
+  const head = layer.querySelector('.modal-head');
+  if(!head) return;
+  const apply = ()=>{ layer.style.setProperty('--ombor-mh', head.offsetHeight + 'px'); };
+  apply();
+  if(typeof ResizeObserver !== 'undefined'){
+    new ResizeObserver(apply).observe(head);
+  } else {
+    window.addEventListener('resize', apply);
+  }
 }
 function topView(){
   const host = document.getElementById('viewStackHost');

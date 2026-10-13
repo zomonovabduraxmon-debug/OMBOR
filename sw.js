@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v42-report-modals';
+const CACHE = 'permit-tracker-shell-v43-sticky-thead-audit-bulk';
 const APP_SHELL = [
   './',
   './index.html',
