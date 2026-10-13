@@ -4199,3 +4199,47 @@ button.comment-preview-btn em{
   min-width:0;
 }
 button.comment-preview-btn:hover{ color:var(--primary,#1a2338) !important; }
+
+/* ==========================================================
+   FULLSCREEN VIEW FIX (ruxsatnoma / invoys tafsilotlari)
+   Sabab: yuqoridagi "LOGIN MODAL BRANDING (v15)" qoidasi barcha
+   .modal-backdrop'larga align-items:center + padding:18px
+   !important berib yuborgan edi va u .fullscreen-view ning
+   (align-items:stretch; padding:0) qoidasini bosib ketgan.
+   Natijada balandligi ekrandan katta oyna vertikal markazlanib,
+   yuqori qismi (birinchi/ikkinchi modellar) ekrandan tashqariga
+   chiqib ketardi va scroll bilan ham qaytib bo'lmasdi.
+   Quyidagi qoida to'liq ekranli oynalarni tepadan boshlaydi.
+   ========================================================== */
+html.v12-shell-ready .modal-backdrop.fullscreen-view{
+  align-items:flex-start !important;
+  justify-content:center !important;
+  padding:0 !important;
+  background:var(--bg,#eef1f2) !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  overflow-y:auto !important;
+}
+html[data-theme="dark"].v12-shell-ready .modal-backdrop.fullscreen-view{
+  background:#101828 !important;
+}
+html.v12-shell-ready .modal-backdrop.fullscreen-view .modal{
+  max-width:100% !important;
+  width:100% !important;
+  min-height:100vh;
+  margin:0 !important;
+  border-radius:0 !important;
+  flex:0 0 auto;
+}
+html.v12-shell-ready .modal-backdrop.fullscreen-view .modal-head{
+  position:sticky;
+  top:0;
+  z-index:5;
+}
+/* modal-body overflow:auto bo'lsa, u o'zi scroll konteyneriga aylanib, thead
+   sticky'ni .view-layer scrolliga nisbatan ishlamay qo'yadi. To'liq ekranli
+   oynada scroll faqat .view-layer'da bo'ladi. */
+html.v12-shell-ready .modal-backdrop.fullscreen-view .modal-body{
+  overflow:visible !important;
+  max-height:none !important;
+}
