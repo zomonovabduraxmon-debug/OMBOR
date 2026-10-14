@@ -1,4 +1,4 @@
-const CACHE = 'permit-tracker-shell-v44-fullscreen-view-fix';
+const CACHE = 'permit-tracker-shell-v45-audit-nav-gating';
 const APP_SHELL = [
   './',
   './index.html',

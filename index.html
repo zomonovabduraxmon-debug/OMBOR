@@ -1282,6 +1282,11 @@ document.getElementById('brandHome')?.addEventListener('keydown', (e)=>{
 
 function render(){
   const app = document.getElementById('app');
+  // «Тарих» (audit) faqat editor/contributor uchun — boshqalar uchun hech qachon ochilmaydi.
+  if(currentTab==='audit' && !canCreateEdit()){
+    currentTab = 'dashboard';
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='dashboard'));
+  }
   if(currentTab==='dashboard') app.innerHTML = renderDashboard();
   else if(currentTab==='permits') app.innerHTML = renderPermits();
   else if(currentTab==='shipment') app.innerHTML = renderShipmentTab();

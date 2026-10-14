@@ -690,6 +690,7 @@
     function navigateQuickTab(tab){
       const allowed = new Set([...quickSections().map(x=>x.tab), 'audit', 'shipmentHistory', 'modelFinder']);
       if(!allowed.has(tab)) return false;
+      if(tab === 'audit' && !auditAllowedV12()) return false;
       try{
         const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
         if(btn){
@@ -1086,7 +1087,22 @@
       }
     }
 
+    /* «Tarix» bo'limi faqat editor va contributor uchun (index.html: canCreateEdit()).
+       Boshqalarga yon paneldagi ro'yxatda ham ko'rinmaydi va ochib bo'lmaydi. */
+    function auditAllowedV12(){
+      try{ return typeof canCreateEdit === 'function' && !!canCreateEdit(); }catch(err){ return false; }
+    }
+    function syncAuditSidebarV12(){
+      const allowed = auditAllowedV12();
+      document.querySelectorAll('.v12-side-btn[data-v12-section="audit"]').forEach(btn=>{
+        btn.hidden = !allowed;
+        if(allowed) btn.style.removeProperty('display');
+        else btn.style.setProperty('display','none','important');
+      });
+    }
+
     function updateV12SidebarActive(){
+      syncAuditSidebarV12();
       const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'dashboard';
       v12SideSelection = resolveSidebarSelectionV12(activeTab, v12SideSelection);
       document.querySelectorAll('.v12-side-btn[data-v12-section]').forEach(btn=>{
