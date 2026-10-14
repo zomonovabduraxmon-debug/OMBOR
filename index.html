@@ -530,7 +530,7 @@ function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,1
 function toast(msg){
   const t = document.getElementById('toast');
   if(!t) return;
-  t.textContent = msg;
+  t.textContent = (typeof uiT === 'function') ? uiT(msg) : msg;
   t.classList.add('show');
   clearTimeout(toast._t);
   toast._t = setTimeout(()=>t.classList.remove('show'), 2600);
@@ -1004,19 +1004,30 @@ async function deleteAuditEntries(auditIds){
   if(!ids.length) return;
   const msg = ids.length===1
     ? uiT('Запись будет удалена из журнала у всех пользователей. Действие необратимо.')
-    : `${ids.length} ${uiT('записей')} barcha foydalanuvchilar uchun jurnaldan o‘chiriladi. Amalni ortga qaytarib bo‘lmaydi.`;
+    : `Будет удалено записей: ${ids.length}. Они будут удалены из журнала у всех пользователей. Действие необратимо.`;
   if(!confirm(msg)) return;
   const idSet = new Set(ids);
   state.audits = (state.audits||[]).filter(x=>!idSet.has(x.id));
   ids.forEach(id=>auditSelected.delete(id));
   await OfflineSync.saveCollection('audit', state.audits);
   render();
-  toast(`${ids.length} ${uiT('записей')} o‘chirildi`);
+  toast(`Удалено записей: ${ids.length}`);
 }
 
 function uiT(text){
-  try{return window.EOMBOR_UI_V5?.translateText?.(String(text), uiLang()) || String(text);}catch(_){return String(text);}
+  try{
+    const api = window.EOMBOR_UI_V5;
+    if(api && api.translateMessage) return api.translateMessage(String(text), uiLang()) || String(text);
+    return api?.translateText?.(String(text), uiLang()) || String(text);
+  }catch(_){return String(text);}
 }
+/* Native alert/confirm oynalari DOM emas — shuning uchun matn tarjimasi shu yerda qilinadi. */
+(function(){
+  const nativeAlert = window.alert.bind(window);
+  const nativeConfirm = window.confirm.bind(window);
+  window.alert = function(msg){ return nativeAlert(uiT(msg)); };
+  window.confirm = function(msg){ return nativeConfirm(uiT(msg)); };
+})();
 function auditActionLabel(a){
   const map={create:'Создание', update:'Изменение', delete:'Удаление', shipment_create:'Новая отгрузка', shipment_delete:'Удаление отгрузки', shipment_update:'Отгрузка изменена', draft_create:'Qoralama yaratildi', draft_delete:'Qoralama o‘chirildi', draft_finalize:'Qoralama yakunlandi', invoicefile_add:'Hujjat biriktirildi', invoicefile_replace:'Hujjat almashtirildi', invoicefile_remove:'Hujjat olib tashlandi', invoice_edit:'Invoys tahrirlandi'};
   return uiT(map[a] || a);
@@ -1969,7 +1980,7 @@ function renderShipmentTabSingle(){
   if(!canCreateEdit()){
     const msg = isLoggedIn
       ? 'Sizning hisobingiz faqat ko\'rish huquqiga ega. Tahrirlash huquqini administrator beradi.'
-      : 'Ma\'lumotni o\'zgartirish uchun yuqoridagi «Войти» tugmasi orqali tizimga kiring.';
+      : 'Чтобы изменять данные, войдите в систему кнопкой «Войти» вверху.';
     return `<div class="toolbar"><div><h1>Новая отгрузка</h1><div class="desc">Списание количества/веса по разрешению</div></div></div>
     <div class="panel"><div class="empty"><div class="big">Режим просмотра</div>${msg}</div></div>`;
   }
@@ -2422,7 +2433,7 @@ function renderMultiShipment(){
         <div class="field"><label>Model</label><select id="mdAddItem">${itemOpts}</select></div>
         <div class="field" style="flex:0 0 auto;"><button type="button" class="btn secondary sm" id="mdAddBtn">Qo'shish</button></div>
       </div>
-      <div class="subtle-note">Modelni «Поиск модели» bo'limidan ham qidirib qo'shishingiz mumkin.</div>
+      <div class="subtle-note">Модель можно также найти и добавить через раздел «Поиск модели».</div>
     </div></div>
     <div class="panel">
       <div class="panel-head"><h2>Invoys qatorlari (${d.rows.length})</h2></div>
@@ -2828,7 +2839,7 @@ async function renameInvoice(oldKey, newName, newDate, dateChanged){
   const oldFile = invoiceFileFor(oldKey), newFile = invoiceFileFor(newKey);
   if(targetExists){
     if(oldFile && newFile){ alert('Ikkala invoysda ham imzolangan hujjat biriktirilgan. Birlashtirishdan oldin bittasining hujjatini olib tashlang.'); return false; }
-    if(!confirm(`«${newKey}» nomli invoys allaqachon bor. Ikkala invoys BIRLASHTIRILADI (jami ${items.length + invoiceItems(newKey).length} ta yuklama bitta invoysda bo'ladi).\\n\\nDavom etasizmi?`)) return false;
+    if(!confirm(`«${newKey}» nomli invoys allaqachon bor. Ikkala invoys BIRLASHTIRILADI (jami ${items.length + invoiceItems(newKey).length} ta yuklama bitta invoysda bo'ladi).\n\nDavom etasizmi?`)) return false;
   }
   const before = { name: oldKey, date: items.map(x=>x.invoiceDate||'').filter(Boolean).sort().pop() || '', count: items.length };
   for(const sh of items){
@@ -3058,7 +3069,7 @@ function renderShipmentHistoryInvoiceFolder(key){
 function renderShipmentHistoryTab(){
   if(!isLoggedIn){
     return `<div class="toolbar"><div><h1>${uiT('История отгрузок')}</h1><div class="desc">${uiT('Все отгрузки и возможность их редактирования')}</div></div></div>
-    <div class="panel"><div class="empty"><div class="big">Режим просмотра</div>Ma'lumotni ko'rish uchun yuqoridagi «Войти» tugmasi orqali tizimga kiring.</div></div>`;
+    <div class="panel"><div class="empty"><div class="big">Режим просмотра</div>Чтобы просматривать данные, войдите в систему кнопкой «Войти» вверху.</div></div>`;
   }
 
   if(shipmentHistoryOpenInvoice !== null){

@@ -333,6 +333,308 @@
     'tanlandi':{ru:'выбрано',en:'selected',uz:'tanlandi',tr:'seçildi'}
   };
 
+  /* ===== v6: to'ldirilgan tarjimalar va dinamik shablonlar =====
+     Faqat interfeys matni tarjima qilinadi. Model nomi, ruxsatnoma raqami va
+     invoys nomi (foydalanuvchi ma'lumoti) HECH QACHON tarjima qilinmaydi:
+     lug'at faqat aniq mos kelgan matnlarga, shablonlar esa faqat qat'iy
+     tuzilmali xabarlarga ishlaydi, ma'lumot qismlari o'zgarishsiz qoladi. */
+  const EXTRA_V6 = [
+    // [ru, uz, en, tr]
+    ['Отгрузка сохранена, остатки обновлены','Yuklama saqlandi, qoldiqlar yangilandi','Shipment saved, balances updated','Sevkiyat kaydedildi, bakiyeler güncellendi'],
+    ['ошибка локального хранилища','mahalliy xotira xatosi','local storage error','yerel depolama hatası'],
+    ['Не удалось сохранить разрешения','Ruxsatnomalarni saqlab bo‘lmadi','Could not save permits','İzinler kaydedilemedi'],
+    ['Не удалось сохранить отгрузку','Yuklamani saqlab bo‘lmadi','Could not save shipment','Sevkiyat kaydedilemedi'],
+    ['Текст комментария','Izoh matni','Comment text','Yorum metni'],
+    ['Комментарии','Izohlar','Comments','Yorumlar'],
+    ['Введите текст комментария','Izoh matnini kiriting','Enter the comment text','Yorum metnini girin'],
+    ['Комментарий добавлен','Izoh qo‘shildi','Comment added','Yorum eklendi'],
+    ['В офлайн-режиме комментарии писать нельзя','Offline holatda izoh yozish mumkin emas','Comments cannot be written while offline','Çevrimdışıyken yorum yazılamaz'],
+    ['Не удалось сохранить комментарий','Izohni saqlab bo‘lmadi','Could not save the comment','Yorum kaydedilemedi'],
+    ['Редактирование комментария','Izohni tahrirlash','Edit comment','Yorumu düzenle'],
+    ['Укажите причину изменения текста комментария.','Izoh matnini o‘zgartirish sababini kiriting.','Enter the reason for changing the comment text.','Yorum metnini değiştirme nedenini girin.'],
+    ['Комментарий изменён','Izoh tahrirlandi','Comment edited','Yorum düzenlendi'],
+    ['Удалить комментарий?','Izohni o‘chirish?','Delete the comment?','Yorum silinsin mi?'],
+    ['Комментарий будет удалён навсегда. Это действие нельзя отменить.','Bu izoh butunlay o‘chiriladi. Bu amalni bekor qilib bo‘lmaydi.','This comment will be permanently deleted. This action cannot be undone.','Bu yorum kalıcı olarak silinecek. Bu işlem geri alınamaz.'],
+    ['Укажите причину удаления...','O‘chirish sababini yozing...','Enter the reason for deletion...','Silme nedenini yazın...'],
+    ['Комментарий удалён','Izoh o‘chirildi','Comment deleted','Yorum silindi'],
+    ['Не удалось удалить комментарий','Izohni o‘chirib bo‘lmadi','Could not delete the comment','Yorum silinemedi'],
+    ['Примечание','Izoh (eslatma)','Note','Not'],
+    ['Запись будет удалена из журнала у всех пользователей. Действие необратимо.','Yozuv barcha foydalanuvchilar uchun jurnaldan o‘chiriladi. Amalni ortga qaytarib bo‘lmaydi.','The entry will be removed from the log for all users. This cannot be undone.','Kayıt tüm kullanıcılar için günlükten silinecek. Bu işlem geri alınamaz.'],
+    ['Запись удалена','Yozuv o‘chirildi','Entry deleted','Kayıt silindi'],
+    ['Черновик создан','Qoralama yaratildi','Draft created','Taslak oluşturuldu'],
+    ['Черновик удалён','Qoralama o‘chirildi','Draft deleted','Taslak silindi'],
+    ['Черновик завершён','Qoralama yakunlandi','Draft finalized','Taslak tamamlandı'],
+    ['Документ прикреплён','Hujjat biriktirildi','Document attached','Belge eklendi'],
+    ['Документ заменён','Hujjat almashtirildi','Document replaced','Belge değiştirildi'],
+    ['Документ удалён','Hujjat olib tashlandi','Document removed','Belge kaldırıldı'],
+    ['Инвойс изменён','Invoys tahrirlandi','Invoice edited','Fatura düzenlendi'],
+    ['Черновик','Qoralama','Draft','Taslak'],
+    ['Инвойс изменён:','Invoys tahrirlandi:','Invoice edited:','Fatura düzenlendi:'],
+    ['Подписанный документ прикреплён:','Imzolangan hujjat biriktirildi:','Signed document attached:','İmzalı belge eklendi:'],
+    ['Документ заменён:','Hujjat almashtirildi:','Document replaced:','Belge değiştirildi:'],
+    ['Документ удалён:','Hujjat olib tashlandi:','Document removed:','Belge kaldırıldı:'],
+    ['Черновик завершён (стал отгрузкой)','Qoralama yakunlandi (yuklamaga aylandi)','Draft finalized (became a shipment)','Taslak tamamlandı (sevkiyata dönüştü)'],
+    ['номер','raqam','number','numara'],
+    ['дата','sana','date','tarih'],
+    ['позиций','pozitsiya','items','kalem'],
+    ['кол-во','miqdor','qty','miktar'],
+    ['вес','vazn','weight','ağırlık'],
+    ['Удалить выбранные','Tanlanganlarni o‘chirish','Delete selected','Seçilenleri sil'],
+    ['Отменить выбор','Tanlovni bekor qilish','Clear selection','Seçimi temizle'],
+    ['Разрешение не найдено','Ruxsatnoma topilmadi','Permit not found','İzin bulunamadı'],
+    ['Не указана позиция разрешения','Ruxsatnoma pozitsiyasi ko‘rsatilmagan','Permit item not specified','İzin kalemi belirtilmedi'],
+    ['Количество должно быть больше 0','Miqdor 0 dan katta bo‘lishi kerak','Quantity must be greater than 0','Miktar 0’dan büyük olmalıdır'],
+    ['Вес не может быть отрицательным','Vazn manfiy bo‘lishi mumkin emas','Weight cannot be negative','Ağırlık negatif olamaz'],
+    ['Найдена неизвестная позиция разрешения','Noma’lum ruxsatnoma pozitsiyasi topildi','Unknown permit item found','Bilinmeyen izin kalemi bulundu'],
+    ['Нажмите — посмотреть модели, которых осталось мало','Bosing — kam qolgan modellarni ko‘rish','Click to view models that are running low','Azalan modelleri görmek için tıklayın'],
+    ['Нажмите — посмотреть закончившиеся / перерасходованные модели','Bosing — tugagan / ortiqcha sarflangan modellarni ko‘rish','Click to view finished / overused models','Biten / fazla kullanılan modelleri görmek için tıklayın'],
+    ['Отгрузка удалена','Yuklama o‘chirildi','Shipment deleted','Sevkiyat silindi'],
+    ['пара','juft','pair','çift'],
+    ['напр. RC20260001681','masalan, RC20260001681','e.g. RC20260001681','örn. RC20260001681'],
+    ['напр. ARYANCOM','masalan, ARYANCOM','e.g. ARYANCOM','örn. ARYANCOM'],
+    ['+ Добавить позицию','+ Pozitsiya qo‘shish','+ Add item','+ Kalem ekle'],
+    ['Изменить разрешение','Ruxsatnomani tahrirlash','Edit permit','İzni düzenle'],
+    ['Должна остаться хотя бы одна позиция','Kamida bitta pozitsiya qolishi kerak','At least one item must remain','En az bir kalem kalmalıdır'],
+    ['Укажите номер разрешения','Ruxsatnoma raqamini kiriting','Enter the permit number','İzin numarasını girin'],
+    ['Разрешение с таким номером уже существует','Bunday raqamli ruxsatnoma allaqachon mavjud','A permit with this number already exists','Bu numaralı bir izin zaten mevcut'],
+    ['Добавьте хотя бы одну позицию с названием','Nomi bor kamida bitta pozitsiya qo‘shing','Add at least one item with a name','Adı olan en az bir kalem ekleyin'],
+    ['Разрешение не сохранено','Ruxsatnoma saqlanmadi','Permit not saved','İzin kaydedilmedi'],
+    ['Не удалось загрузить PDF-файл','PDF faylni yuklab bo‘lmadi','Could not upload the PDF file','PDF dosyası yüklenemedi'],
+    ['Разрешение обновлено','Ruxsatnoma yangilandi','Permit updated','İzin güncellendi'],
+    ['Разрешение добавлено','Ruxsatnoma qo‘shildi','Permit added','İzin eklendi'],
+    ['Разрешение удалено','Ruxsatnoma o‘chirildi','Permit deleted','İzin silindi'],
+    ['Выберите только PDF-файл','Faqat PDF fayl tanlang','Select a PDF file only','Yalnızca PDF dosyası seçin'],
+    ['Для загрузки PDF войдите в систему','PDF yuklash uchun tizimga kiring','Sign in to upload a PDF','PDF yüklemek için giriş yapın'],
+    ['Чтобы просматривать данные, войдите в систему кнопкой «Войти» вверху.','Ma’lumotni ko‘rish uchun yuqoridagi «Kirish» tugmasi orqali tizimga kiring.','To view the data, sign in with the “Sign in” button at the top.','Verileri görüntülemek için üstteki «Giriş yap» düğmesiyle oturum açın.'],
+    ['Чтобы изменять данные, войдите в систему кнопкой «Войти» вверху.','Ma’lumotni o‘zgartirish uchun yuqoridagi «Kirish» tugmasi orqali tizimga kiring.','To change the data, sign in with the “Sign in” button at the top.','Verileri değiştirmek için üstteki «Giriş yap» düğmesiyle oturum açın.'],
+    ['Позиции разрешения','Ruxsatnoma pozitsiyalari','Permit items','İzin kalemleri'],
+    ['Вес пересчитан по среднему весу единицы разрешения','Vazn ruxsatnomadagi bir birlikning o‘rtacha vazni bo‘yicha qayta hisoblandi','Weight recalculated using the permit’s average unit weight','Ağırlık, iznin ortalama birim ağırlığına göre yeniden hesaplandı'],
+    ['Введите количество хотя бы по одной позиции','Kamida bitta pozitsiya bo‘yicha miqdor kiriting','Enter a quantity for at least one item','En az bir kalem için miktar girin'],
+    ['Отгрузка не сохранена','Yuklama saqlanmadi','Shipment not saved','Sevkiyat kaydedilmedi'],
+    ['Отгрузка не может быть проведена','Yuklamani amalga oshirib bo‘lmaydi','The shipment cannot be processed','Sevkiyat işlenemiyor'],
+    ['Отгрузка не может быть сохранена','Yuklamani saqlab bo‘lmaydi','The shipment cannot be saved','Sevkiyat kaydedilemiyor'],
+    ['Без названия (черновик)','Nomsiz qoralama','Untitled draft','Adsız taslak'],
+    ['Инвойс_','Invoys_','Invoice_','Fatura_'],
+    ['черновик','qoralama','draft','taslak'],
+    ['Нет строк с заполненным количеством для экспорта','Eksport qilish uchun miqdori kiritilgan qator yo‘q','No rows with a quantity to export','Dışa aktarmak için miktarı girilmiş satır yok'],
+    ['Нет строк с заполненным количеством для печати','Chop etish uchun miqdori kiritilgan qator yo‘q','No rows with a quantity to print','Yazdırmak için miktarı girilmiş satır yok'],
+    ['Инвойс:','Invoys:','Invoice:','Fatura:'],
+    ['Дата:','Sana:','Date:','Tarih:'],
+    ['Разрешение №','Ruxsatnoma №','Permit №','İzin №'],
+    ['Вес (кг)','Vazn (kg)','Weight (kg)','Ağırlık (kg)'],
+    ['Итого (по разрешению)','Jami (ruxsatnoma)','Total (per permit)','Toplam (izin bazında)'],
+    ['ОБЩИЙ ИТОГ','UMUMIY JAMI','GRAND TOTAL','GENEL TOPLAM'],
+    ['Окно заблокировано. Разрешите всплывающие окна для этого сайта в браузере.','Oyna bloklandi. Brauzerda ushbu sayt uchun qalqib chiquvchi oynalarga ruxsat bering.','The window was blocked. Allow pop-ups for this site in your browser.','Pencere engellendi. Tarayıcıda bu site için açılır pencerelere izin verin.'],
+    ['➕ Новый инвойс','➕ Yangi invoys','➕ New invoice','➕ Yeni fatura'],
+    ['— Разрешение —','— Ruxsatnoma —','— Permit —','— İzin —'],
+    ['— Модель —','— Model —','— Model —','— Model —'],
+    ['Разрешение или модель не найдены','Ruxsatnoma yoki model topilmadi','Permit or model not found','İzin veya model bulunamadı'],
+    ['Инвойс с несколькими разрешениями','Ko‘p ruxsatnomali invoys','Multi-permit invoice','Çok izinli fatura'],
+    ['Соберите в один инвойс модели из разных разрешений. «Сохранить в черновик» — чтобы продолжить позже, «Сохранить» — чтобы завершить.','Bitta invoysga turli ruxsatnomalardan modellar yig‘ing. «Qoralamaga saqlash» — keyin davom ettirish uchun, «Saqlash» — yakunlash.','Combine models from different permits into one invoice. “Save as draft” — to continue later, “Save” — to finish.','Farklı izinlerden modelleri tek faturada toplayın. «Taslağa kaydet» — daha sonra devam etmek için, «Kaydet» — tamamlamak için.'],
+    ['Основные разделы','Asosiy bo‘limlar','Main sections','Ana bölümler'],
+    ['Разрешения, обновлённые за последние 24 часа','So‘nggi 24 soatda yangilangan ruxsatnomalar','Permits updated in the last 24 hours','Son 24 saatte güncellenen izinler'],
+    ['Изменение количества «мало осталось» из-за отгрузок за последние 24 часа','So‘nggi 24 soatdagi yuklamalar ta’sirida kam qolganlar o‘zgarishi','Change in “running low” caused by shipments in the last 24 hours','Son 24 saatteki sevkiyatların etkisiyle «azalan»larda değişim'],
+    ['Изменение «закончено / перерасход» из-за отгрузок за последние 24 часа','So‘nggi 24 soatdagi yuklamalar ta’sirida tugagan/ortiqcha sarf o‘zgarishi','Change in “finished / overused” caused by shipments in the last 24 hours','Son 24 saatteki sevkiyatların etkisiyle «biten / fazla kullanılan»larda değişim'],
+    ['Количество моделей','Modellar soni','Number of models','Model sayısı'],
+    ['Остаток на складе','Ombordagi qoldiq','Warehouse balance','Depodaki kalan'],
+    ['Укажите причину удаления...','O‘chirish sababini yozing...','Enter the reason for deletion...','Silme nedenini yazın...'],
+    ['Удалить запись','Yozuvni o‘chirish','Delete entry','Kaydı sil'],
+    ['Просмотр и загрузка Excel — все модели','Ko‘rish va Excel yuklash — barcha modellar','View and download Excel — all models','Görüntüle ve Excel indir — tüm modeller'],
+    ['Просмотр и загрузка Excel — модели с малым остатком','Ko‘rish va Excel yuklash — kam qolgan modellar','View and download Excel — models running low','Görüntüle ve Excel indir — azalan modeller'],
+    ['Просмотр и загрузка Excel — доступные модели','Ko‘rish va Excel yuklash — mavjud modellar','View and download Excel — available models','Görüntüle ve Excel indir — mevcut modeller'],
+    ['Просмотр и загрузка Excel — закончившиеся / перерасход','Ko‘rish va Excel yuklash — tugagan / ortiqcha sarf modellar','View and download Excel — finished / overused models','Görüntüle ve Excel indir — biten / fazla kullanılan modeller'],
+    ['Показать модели с этим составом материала','Shu mato tarkibiga ega modellarni ko‘rish','Show models with this material composition','Bu malzeme bileşimine sahip modelleri göster'],
+    ['В этом состоянии позиций нет','Bu holatda pozitsiya yo‘q','No items in this state','Bu durumda kalem yok'],
+    ['Чтобы написать комментарий, войдите в систему (любой аккаунт — права редактирования не нужны).','Izoh yozish uchun tizimga kiring (istalgan hisob bilan — tahrirlash huquqi shart emas).','Sign in to write a comment (any account — editing rights are not required).','Yorum yazmak için giriş yapın (herhangi bir hesapla — düzenleme yetkisi gerekmez).'],
+    ['Комментариев пока нет','Izohlar hali yo‘q','No comments yet','Henüz yorum yok'],
+    ['Смотреть ›','Ko‘rish ›','View ›','Görüntüle ›'],
+    ['Модель можно также найти и добавить через раздел «Поиск модели».','Modelni «Model topish» bo‘limidan ham qidirib qo‘shishingiz mumkin.','You can also find and add a model from the “Find model” section.','Modeli «Model bul» bölümünden de arayıp ekleyebilirsiniz.'],
+    ['Модель','Model','Model','Model'],
+    ['Добавить','Qo‘shish','Add','Ekle'],
+    ['Строки инвойса','Invoys qatorlari','Invoice rows','Fatura satırları'],
+    ['Строк пока нет. Выберите разрешение и модель выше и нажмите «Добавить».','Hali qator yo‘q. Yuqoridan ruxsatnoma va modelni tanlab «Qo‘shish» bosing.','No rows yet. Choose a permit and model above and press “Add”.','Henüz satır yok. Yukarıdan izin ve modeli seçip «Ekle»ye basın.'],
+    ['Сохранить в черновик','Qoralamaga saqlash','Save as draft','Taslağa kaydet'],
+    ['Выберите разрешение и модель','Ruxsatnoma va modelni tanlang','Select a permit and a model','İzin ve modeli seçin'],
+    ['Эта модель уже добавлена','Bu model allaqachon qo‘shilgan','This model has already been added','Bu model zaten eklendi'],
+    ['Остатка по этой модели нет — добавить нельзя','Bu modelning qoldig‘i yo‘q — qo‘shib bo‘lmaydi','No balance left for this model — cannot add','Bu modelin kalanı yok — eklenemez'],
+    ['Введите номер инвойса или добавьте модель','Invoys raqamini kiriting yoki model qo‘shing','Enter an invoice number or add a model','Fatura numarasını girin veya model ekleyin'],
+    ['Черновик сохранён','Qoralama saqlandi','Draft saved','Taslak kaydedildi'],
+    ['Удалить черновик полностью?','Qoralama butunlay o‘chirilsinmi?','Delete the draft completely?','Taslak tamamen silinsin mi?'],
+    ['Введите номер инвойса','Invoys raqamini kiriting','Enter the invoice number','Fatura numarasını girin'],
+    ['Введите количество хотя бы в одной строке','Kamida bitta qatorga miqdor kiriting','Enter a quantity in at least one row','En az bir satıra miktar girin'],
+    ['Не сохранено','Saqlanmadi','Not saved','Kaydedilmedi'],
+    ['Не удалось завершить отгрузку','Yuklamani yakunlab bo‘lmaydi','Could not complete the shipment','Sevkiyat tamamlanamadı'],
+    ['Остатка по этой модели нет','Bu modelning qoldig‘i yo‘q','No balance left for this model','Bu modelin kalanı yok'],
+    ['Добавить в инвойс','Invoysga qo‘shish','Add to invoice','Faturaya ekle'],
+    ['Какой инвойс?','Qaysi invoys?','Which invoice?','Hangi fatura?'],
+    ['Номер нового инвойса','Yangi invoys raqami','New invoice number','Yeni fatura numarası'],
+    ['Вес (кг) — автоматически','Vazn (kg) — avtomatik','Weight (kg) — automatic','Ağırlık (kg) — otomatik'],
+    ['В этом инвойсе уже добавлен весь остаток модели.','Bu invoysda modelning butun qoldig‘i allaqachon kiritilgan.','The entire balance of this model has already been added to this invoice.','Bu modelin tüm kalanı bu faturaya zaten eklenmiş.'],
+    ['Введите количество','Miqdorni kiriting','Enter the quantity','Miktarı girin'],
+    ['Черновик не найден','Qoralama topilmadi','Draft not found','Taslak bulunamadı'],
+    ['Можно загрузить только PDF или ZIP','Faqat PDF yoki ZIP fayl yuklash mumkin','Only PDF or ZIP files can be uploaded','Yalnızca PDF veya ZIP dosyası yüklenebilir'],
+    ['Файл больше 20 МБ','Fayl 20 MB dan katta','File is larger than 20 MB','Dosya 20 MB’tan büyük'],
+    ['Файл загружается…','Fayl yuklanmoqda…','Uploading file…','Dosya yükleniyor…'],
+    ['Файл не загружен','Fayl yuklanmadi','File was not uploaded','Dosya yüklenmedi'],
+    ['Файл не загружен.','Fayl yuklanmadi.','File was not uploaded.','Dosya yüklenmedi.'],
+    ['Старый файл не удалился','Eski fayl o‘chmadi','The old file was not removed','Eski dosya silinmedi'],
+    ['Файл заменён','Fayl almashtirildi','File replaced','Dosya değiştirildi'],
+    ['Файл прикреплён','Fayl biriktirildi','File attached','Dosya eklendi'],
+    ['Подписанный документ (необязательно) — PDF или ZIP, до 20 МБ','Imzolangan hujjat (ixtiyoriy) — PDF yoki ZIP, 20 MB gacha','Signed document (optional) — PDF or ZIP, up to 20 MB','İmzalı belge (isteğe bağlı) — PDF veya ZIP, en fazla 20 MB'],
+    ['Выбрать другой файл','Boshqa fayl tanlash','Choose another file','Başka dosya seç'],
+    ['Выбрать файл','Fayl tanlash','Choose file','Dosya seç'],
+    ['Файл не выбран','Fayl tanlanmagan','No file selected','Dosya seçilmedi'],
+    ['Файл будет прикреплён к инвойсу при нажатии итогового «Сохранить» (в черновике не сохраняется). Если у этого инвойса уже есть файл, он будет заменён.','Fayl yakuniy «Saqlash» bosilganda invoysga biriktiriladi (qoralamaga saqlanmaydi). Bu invoysda fayl allaqachon bo‘lsa, almashtiriladi.','The file will be attached to the invoice when you press the final “Save” (it is not stored in the draft). If this invoice already has a file, it will be replaced.','Dosya, son «Kaydet»e basıldığında faturaya eklenir (taslakta saklanmaz). Bu faturada zaten dosya varsa değiştirilir.'],
+    ['Введите номер инвойса, чтобы прикрепить файл','Fayl biriktirish uchun invoys raqamini kiriting','Enter the invoice number to attach a file','Dosya eklemek için fatura numarasını girin'],
+    ['Отгрузка сохранена, но файл не загружен — загрузите его снова в «Истории отгрузок»','Yuklama saqlandi, lekin fayl yuklanmadi — «Yuklamalar tarixi»dan qayta yuklang','The shipment was saved, but the file was not uploaded — upload it again from “Shipment history”','Sevkiyat kaydedildi ancak dosya yüklenmedi — «Sevkiyat geçmişi»nden yeniden yükleyin'],
+    ['Для открытия файла нужен интернет','Faylni ochish uchun internet kerak','An internet connection is needed to open the file','Dosyayı açmak için internet gerekir'],
+    ['Не удалось открыть файл','Faylni ochib bo‘lmadi','Could not open the file','Dosya açılamadı'],
+    ['Файл не удалился из хранилища','Fayl saqlash joyidan o‘chmadi','The file was not removed from storage','Dosya depodan silinemedi'],
+    ['Удалить прикреплённый документ?','Biriktirilgan hujjatni olib tashlash?','Remove the attached document?','Ekli belge kaldırılsın mı?'],
+    ['Подписанный документ','Imzolangan hujjat','Signed document','İmzalı belge'],
+    ['Загрузить файл','Fayl yuklash','Upload file','Dosya yükle'],
+    ['Документ','Hujjat','Document','Belge'],
+    ['Все отгрузки инвойса удалены','Invoysning barcha yuklamalari o‘chirildi','All shipments of the invoice were deleted','Faturanın tüm sevkiyatları silindi'],
+    ['Название инвойса не должно быть пустым','Invoys nomi bo‘sh bo‘lmasin','The invoice name must not be empty','Fatura adı boş olmamalı'],
+    ['В обоих инвойсах прикреплён подписанный документ. Перед объединением удалите документ у одного из них.','Ikkala invoysda ham imzolangan hujjat biriktirilgan. Birlashtirishdan oldin bittasining hujjatini olib tashlang.','Both invoices have a signed document attached. Remove the document from one of them before merging.','Her iki faturada da imzalı belge ekli. Birleştirmeden önce birinin belgesini kaldırın.'],
+    ['Инвойсы объединены','Invoyslar birlashtirildi','Invoices merged','Faturalar birleştirildi'],
+    ['Инвойс обновлён','Invoys yangilandi','Invoice updated','Fatura güncellendi'],
+    ['Редактировать инвойс','Invoysni tahrirlash','Edit invoice','Faturayı düzenle'],
+    ['Название инвойса','Invoys nomi','Invoice name','Fatura adı'],
+    ['Удалить инвойс целиком?','Invoysni butunlay o‘chirish?','Delete the whole invoice?','Fatura tamamen silinsin mi?'],
+    ['Удалить инвойс','Invoysni o‘chirish','Delete invoice','Faturayı sil'],
+    ['Удалить черновик?','Qoralamani o‘chirish?','Delete the draft?','Taslak silinsin mi?'],
+    ['кг разрешено','kg ruxsat etilgan','kg allowed','kg izinli'],
+    ['Продано, вес','Sotilgan vazn','Shipped weight','Sevk edilen ağırlık'],
+    ['Остаток, вес','Qoldiq vazn','Remaining weight','Kalan ağırlık'],
+    ['Отгрузка не найдена','Yuklama topilmadi','Shipment not found','Sevkiyat bulunamadı'],
+    ['Перетащите файл сюда','Faylni shu yerga tashlang','Drag the file here','Dosyayı buraya sürükleyin'],
+    ['или нажмите, чтобы выбрать','yoki tanlash uchun bosing','or click to choose','veya seçmek için tıklayın'],
+    ['— не использовать —','— ishlatilmasin —','— do not use —','— kullanma —'],
+    ['Файл:','Fayl:','File:','Dosya:'],
+    ['Отменить','Bekor qilish','Cancel','İptal'],
+    ['Нет строк с количеством больше нуля','Miqdori noldan katta qator yo‘q','No rows with a quantity above zero','Miktarı sıfırdan büyük satır yok'],
+    ['Не удалось прочитать файл','Faylni o‘qib bo‘lmadi','Could not read the file','Dosya okunamadı'],
+    ['Отгрузка из файла проведена, остатки обновлены','Fayldan yuklama o‘tkazildi, qoldiqlar yangilandi','Shipment from file processed, balances updated','Dosyadaki sevkiyat işlendi, bakiyeler güncellendi'],
+    ['Файл содержит','Fayl ichida','The file contains','Dosya şunu içerir:'],
+    ['лист(ов), по одному на каждое разрешение, с колонками по каждой отгрузке (как в исходных файлах учёта) и остатками.','varaq bor: har bir ruxsatnomaga bittadan, har bir yuklama uchun ustunlar (asl hisob fayllaridagidek) va qoldiqlar bilan.','sheet(s), one per permit, with a column for each shipment (as in the original records) and balances.','sayfa: her izin için bir tane, her sevkiyat için sütunlar (orijinal kayıt dosyalarındaki gibi) ve kalanlarla.'],
+    ['отдельный файл Excel на каждое разрешение, всё в одном ZIP. Имя файла — номер и дата разрешения. Внутри ZIP также есть','ta ruxsatnoma uchun alohida Excel fayl, hammasi bitta ZIP ichida. Fayl nomi — ruxsatnoma raqami va sanasi. ZIP ichida yana','separate Excel file per permit, all in one ZIP. The file name is the permit number and date. The ZIP also contains','izin için ayrı bir Excel dosyası, hepsi tek ZIP içinde. Dosya adı, izin numarası ve tarihidir. ZIP içinde ayrıca şu da var:'],
+    ['— общий список всех разрешений.','bor — barcha ruxsatnomalarning umumiy ro‘yxati.','— the overall list of all permits.','— tüm izinlerin genel listesi.'],
+    ['Резервная копия скачана','Zaxira nusxa yuklab olindi','Backup downloaded','Yedek indirildi'],
+    ['Ошибка резервного копирования','Zaxira nusxa xatosi','Backup error','Yedekleme hatası'],
+    ['Название модели','Model nomi','Model name','Model adı'],
+    ['Разрешено (шт)','Ruxsat etilgan (dona)','Allowed (pcs)','İzin verilen (adet)'],
+    ['Разрешённый вес (кг)','Ruxsat etilgan vazn (kg)','Allowed weight (kg)','İzin verilen ağırlık (kg)'],
+    ['Вес 1 ед. (кг)','1 birlik vazni (kg)','Unit weight (kg)','Birim ağırlık (kg)'],
+    ['Остаток (шт)','Qoldiq (dona)','Remaining (pcs)','Kalan (adet)'],
+    ['Остаток вес (кг)','Qoldiq vazn (kg)','Remaining weight (kg)','Kalan ağırlık (kg)'],
+    ['Все модели','Barcha modellar','All models','Tüm modeller'],
+    ['Все_модели_','Barcha_modellar_','All_models_','Tum_modeller_'],
+    ['Доступные модели (В норме + Мало осталось)','Mavjud modellar (Me’yorda + Kam qolgan)','Available models (OK + Running low)','Mevcut modeller (Normal + Azalan)'],
+    ['Доступные модели','Mavjud modellar','Available models','Mevcut modeller'],
+    ['Доступные_модели_','Mavjud_modellar_','Available_models_','Mevcut_modeller_'],
+    ['Модели_с_остатком_мало_','Kam_qolgan_modellar_','Models_running_low_','Azalan_modeller_'],
+    ['Закончившиеся_модели_','Tugagan_modellar_','Finished_models_','Biten_modeller_'],
+    ['Нет моделей для скачивания','Yuklab olish uchun modellar yo‘q','No models to download','İndirilecek model yok'],
+    ['Мато / состав','Mato / tarkib','Material / composition','Malzeme / bileşim'],
+    ['Отгружено (шт)','Yuklangan (dona)','Shipped (pcs)','Sevk edilen (adet)'],
+    ['Отгруженный вес (кг)','Yuklangan vazn (kg)','Shipped weight (kg)','Sevk edilen ağırlık (kg)'],
+    ['Файл Excel готов','Excel fayl tayyor','Excel file is ready','Excel dosyası hazır'],
+    ['Excel файл готов','Excel fayl tayyor','Excel file is ready','Excel dosyası hazır'],
+    ['Excel библиотека не загрузилась','Excel kutubxonasi yuklanmadi','The Excel library failed to load','Excel kütüphanesi yüklenemedi'],
+    ['Нет позиций для скачивания','Yuklab olish uchun pozitsiyalar yo‘q','No items to download','İndirilecek kalem yok'],
+    ['Всего моделей','Jami modellar','Total models','Toplam model'],
+    ['Доступные модели (кол.)','Mavjud modellar','Available models','Mevcut modeller'],
+    ['Интернета нет — только просмотр. Для входа и редактирования подключитесь к интернету.','Internet yo‘q — faqat ko‘rish rejimi. Kirish/tahrirlash uchun internetga ulaning.','No internet — view-only mode. Connect to the internet to sign in or edit.','İnternet yok — yalnızca görüntüleme modu. Giriş yapmak veya düzenlemek için internete bağlanın.'],
+    ['Аккаунт','Hisob','Account','Hesap'],
+    ['Аккаунт редактора / выйти','Muharrir hisobi / chiqish','Editor account / sign out','Editör hesabı / çıkış'],
+    ['Аккаунт (добавление) / выйти','Hisob (qo‘shish huquqi) / chiqish','Account (can add) / sign out','Hesap (ekleme yetkisi) / çıkış'],
+    ['Аккаунт (только просмотр) / выйти','Hisob (faqat ko‘rish) / chiqish','Account (view only) / sign out','Hesap (yalnızca görüntüleme) / çıkış'],
+    ['Вы вышли из режима редактирования','Tahrirlash rejimidan chiqdingiz','You have left editing mode','Düzenleme modundan çıktınız'],
+    ['Нет аккаунта?','Hisobingiz yo‘qmi?','No account?','Hesabınız yok mu?'],
+    ['Введите email и пароль','Email va parolni kiriting','Enter your email and password','E-posta ve şifrenizi girin'],
+    ['Вход…','Kirilmoqda…','Signing in…','Giriş yapılıyor…'],
+    ['Вход выполнен, синхронизация запущена','Kirish bajarildi, sinxronlash boshlandi','Signed in, synchronization started','Giriş yapıldı, senkronizasyon başladı'],
+    ['Введите имя и фамилию','Ism va familiyani kiriting','Enter your first and last name','Ad ve soyadınızı girin'],
+    ['Пароль должен содержать не менее 6 символов','Parol kamida 6 belgidan iborat bo‘lishi kerak','The password must be at least 6 characters','Şifre en az 6 karakter olmalıdır'],
+    ['Не удалось зарегистрироваться','Ro‘yxatdan o‘tib bo‘lmadi','Could not register','Kayıt yapılamadı'],
+    ['Более новая версия на сервере сохранена и показана на экране. Ваше изменение не принято — проверьте данные и при необходимости введите снова.','Serverdagi yangiroq versiya saqlandi va ekranda ko‘rsatildi. Sizning o‘zgarishingiz qabul qilinmadi — iltimos, ma’lumotni tekshirib, kerak bo‘lsa qayta kiriting.','A newer version on the server was kept and is shown on screen. Your change was not accepted — please check the data and re-enter it if needed.','Sunucudaki daha yeni sürüm korundu ve ekranda gösterildi. Değişikliğiniz kabul edilmedi — lütfen verileri kontrol edip gerekirse yeniden girin.'],
+    ['Через 1 час бездействия вы автоматически вышли из системы','1 soatlik nofaollikdan so‘ng tizimdan avtomatik chiqarildingiz','You were signed out automatically after 1 hour of inactivity','1 saatlik hareketsizlik nedeniyle oturumunuz otomatik kapatıldı'],
+    ['Офлайн: войти в систему нельзя. Подключитесь к интернету.','Offline holatda tizimga kirish mumkin emas. Internetga ulaning.','You cannot sign in while offline. Connect to the internet.','Çevrimdışıyken giriş yapılamaz. İnternete bağlanın.'],
+    ['Аккаунт создан. Перейдите по ссылке из письма для подтверждения, затем войдите.','Hisob yaratildi. Emailingizga kelgan havolani bosib tasdiqlang, so‘ng kiring.','Account created. Click the link sent to your email to confirm, then sign in.','Hesap oluşturuldu. E-postanıza gelen bağlantıya tıklayarak onaylayın, ardından giriş yapın.'],
+    ['Добро пожаловать! Аккаунт создан, вход выполнен.','Xush kelibsiz! Hisob yaratildi va kirish amalga oshirildi.','Welcome! Your account was created and you are signed in.','Hoş geldiniz! Hesabınız oluşturuldu ve giriş yapıldı.'],
+    ['Выберите разрешение и модель','Ruxsatnoma va modelni tanlang','Select a permit and a model','İzin ve modeli seçin'],
+    ['Новая отгрузка → «С несколькими разрешениями»','Yangi yuklama → «Ko‘p ruxsatnomali»','New shipment → “Multi-permit”','Yeni sevkiyat → «Çok izinli»'],
+    ['Имя, фамилия','Ism, familiya','First and last name','Ad, soyad'],
+    ['шт','dona','pcs','adet'],
+    ['Всего ячеек','Jami','Total','Toplam']
+  ];
+  for(const [ru, uz, en, tr] of EXTRA_V6){
+    // Kalit band bo'lsa ham (boshqa uz/tr yozuvi bilan) alohida kalit ostida qo'shamiz — manba matn qaysi shaklda bo'lsa ham topilsin.
+    EXTRA_TEXT[EXTRA_TEXT[ru] ? ru + '\u200b' : ru] = {ru, uz, en, tr};
+  }
+
+  /* Birliklar (faqat raqamdan keyin yoki aniq shablonlarda ishlatiladi). */
+  const UNIT_WORDS = {
+    'шт':   {ru:'шт',   uz:'dona', en:'pcs',   tr:'adet'},
+    'dona': {ru:'шт',   uz:'dona', en:'pcs',   tr:'adet'},
+    'пара': {ru:'пара', uz:'juft', en:'pairs', tr:'çift'},
+    'juft': {ru:'пара', uz:'juft', en:'pairs', tr:'çift'},
+    'кг':   {ru:'кг',   uz:'kg',   en:'kg',    tr:'kg'},
+    'kg':   {ru:'кг',   uz:'kg',   en:'kg',    tr:'kg'}
+  };
+  function unitWord(u, lang){
+    const e = UNIT_WORDS[String(u||'').trim().toLowerCase()];
+    return e ? e[normalizeLang(lang)] : u;
+  }
+
+  /* Dinamik shablonlar. Har bir shablon: [manba regex, {ru,uz,en,tr}].
+     Shablondagi $1, $2 … — ma'lumot qismlari (nom, raqam) o'zgarishsiz qo'yiladi.
+     $u1 … $u9 — birlik so'zi (shт/кг → dona/pcs/adet). */
+  const N = '([\\d\\s\\u00a0\\u202f.,]+)';
+  const DYN_PATTERNS = [
+    [/^([^:]+): превышено количество \(остаток (.+)\)$/, {ru:'$1: превышено количество (остаток $2)', uz:'$1: miqdor oshib ketdi (qoldiq $2)', en:'$1: quantity exceeded (remaining $2)', tr:'$1: miktar aşıldı (kalan $2)'}],
+    [/^([^:]+): превышен вес \(остаток (.+) кг\)$/, {ru:'$1: превышен вес (остаток $2 кг)', uz:'$1: vazn oshib ketdi (qoldiq $2 kg)', en:'$1: weight exceeded (remaining $2 kg)', tr:'$1: ağırlık aşıldı (kalan $2 kg)'}],
+    [/^([^:]+): количество должно быть больше 0$/, {ru:'$1: количество должно быть больше 0', uz:'$1: miqdor 0 dan katta bo‘lishi kerak', en:'$1: quantity must be greater than 0', tr:'$1: miktar 0’dan büyük olmalıdır'}],
+    [/^([^:]+): вес не может быть отрицательным$/, {ru:'$1: вес не может быть отрицательным', uz:'$1: vazn manfiy bo‘lishi mumkin emas', en:'$1: weight cannot be negative', tr:'$1: ağırlık negatif olamaz'}],
+    [/^Qoldiq: (.+) — undan ortiq (kiritib|qo'shib|qo‘shib) bo['‘]lmaydi$/, {ru:'Остаток: $1 — больше вводить нельзя', uz:'Qoldiq: $1 — undan ortiq kiritib bo‘lmaydi', en:'Balance: $1 — cannot enter more', tr:'Kalan: $1 — daha fazla girilemez'}],
+    [/^Qoldiq vazn: (.+) kg — undan ortiq (kiritib|qo'shib|qo‘shib) bo['‘]lmaydi$/, {ru:'Остаток веса: $1 кг — больше вводить нельзя', uz:'Qoldiq vazn: $1 kg — undan ortiq kiritib bo‘lmaydi', en:'Remaining weight: $1 kg — cannot enter more', tr:'Kalan ağırlık: $1 kg — daha fazla girilemez'}],
+    [/^Yuklama saqlandi \((\d+) ta ruxsatnoma bo['‘]yicha\), qoldiqlar yangilandi$/, {ru:'Отгрузка сохранена ($1 разрешений), остатки обновлены', uz:'Yuklama saqlandi ($1 ta ruxsatnoma bo‘yicha), qoldiqlar yangilandi', en:'Shipment saved (across $1 permits), balances updated', tr:'Sevkiyat kaydedildi ($1 izin için), bakiyeler güncellendi'}],
+    [/^Invoys o['‘]chirildi \((\d+) ta yuklama\), qoldiqlar yangilandi$/, {ru:'Инвойс удалён ($1 отгрузок), остатки обновлены', uz:'Invoys o‘chirildi ($1 ta yuklama), qoldiqlar yangilandi', en:'Invoice deleted ($1 shipments), balances updated', tr:'Fatura silindi ($1 sevkiyat), bakiyeler güncellendi'}],
+    [/^Qoralamaga qo['‘]shildi: (.+)\. «Новая отгрузка» → «Ko['‘]p ruxsatnomali» bo['‘]limida davom ettiring$/, {ru:'Добавлено в черновик: $1. Продолжите в «Новая отгрузка» → «С несколькими разрешениями»', uz:'Qoralamaga qo‘shildi: $1. «Yangi yuklama» → «Ko‘p ruxsatnomali» bo‘limida davom ettiring', en:'Added to draft: $1. Continue in “New shipment” → “Multi-permit”', tr:'Taslağa eklendi: $1. «Yeni sevkiyat» → «Çok izinli» bölümünden devam edin'}],
+    [/^Boshqa foydalanuvchi o['‘]zgartirgan: (\d+) ta yozuv yangilandi$/, {ru:'Изменено другим пользователем: обновлено записей — $1', uz:'Boshqa foydalanuvchi o‘zgartirgan: $1 ta yozuv yangilandi', en:'Changed by another user: $1 record(s) updated', tr:'Başka bir kullanıcı değiştirdi: $1 kayıt güncellendi'}],
+    [/^Diqqat: (\d+) ta yozuv boshqa foydalanuvchi tomonidan siz bilan bir vaqtda o['‘]zgartirilgan edi\.$/, {ru:'Внимание: $1 записей были изменены другим пользователем одновременно с вами.', uz:'Diqqat: $1 ta yozuv boshqa foydalanuvchi tomonidan siz bilan bir vaqtda o‘zgartirilgan edi.', en:'Attention: $1 record(s) were changed by another user at the same time as you.', tr:'Dikkat: $1 kayıt, siz değişiklik yaparken başka bir kullanıcı tarafından da değiştirilmişti.'}],
+    [/^(\d+) (?:записей|yozuv|records|kayıt) o['‘]chirildi$/, {ru:'Удалено записей: $1', uz:'$1 ta yozuv o‘chirildi', en:'$1 record(s) deleted', tr:'$1 kayıt silindi'}],
+    [/^Удалено записей: (\d+)$/, {ru:'Удалено записей: $1', uz:'$1 ta yozuv o‘chirildi', en:'$1 record(s) deleted', tr:'$1 kayıt silindi'}],
+    [/^Будет удалено записей: (\d+)\. Они будут удалены из журнала у всех пользователей\. Действие необратимо\.$/, {ru:'Будет удалено записей: $1. Они будут удалены из журнала у всех пользователей. Действие необратимо.', uz:'$1 ta yozuv barcha foydalanuvchilar uchun jurnaldan o‘chiriladi. Amalni ortga qaytarib bo‘lmaydi.', en:'$1 record(s) will be removed from the log for all users. This cannot be undone.', tr:'$1 kayıt tüm kullanıcılar için günlükten silinecek. Bu işlem geri alınamaz.'}],
+    [/^(.+) bu qoralamani tahrirlayapti \((\d+) daqiqa oldin\)\.$/, {ru:'$1 редактирует этот черновик ($2 мин. назад).', uz:'$1 bu qoralamani tahrirlayapti ($2 daqiqa oldin).', en:'$1 is editing this draft ($2 min ago).', tr:'$1 bu taslağı düzenliyor ($2 dk önce).'}],
+    [/^Baribir ochasizmi\? Oxirgi saqlagan odamning o['‘]zgarishlari qoladi\.$/, {ru:'Всё равно открыть? Останутся изменения того, кто сохранил последним.', uz:'Baribir ochasizmi? Oxirgi saqlagan odamning o‘zgarishlari qoladi.', en:'Open anyway? The changes of the person who saved last will be kept.', tr:'Yine de açılsın mı? En son kaydeden kişinin değişiklikleri korunur.'}],
+    [/^(.+) shu qoralamani tahrirlayapti\. Ikkalangiz saqlasangiz, oxirgi saqlagan odamning o['‘]zgarishlari qoladi\.$/, {ru:'$1 редактирует этот черновик. Если сохраните оба, останутся изменения того, кто сохранил последним.', uz:'$1 shu qoralamani tahrirlayapti. Ikkalangiz saqlasangiz, oxirgi saqlagan odamning o‘zgarishlari qoladi.', en:'$1 is editing this draft. If you both save, the changes of the person who saved last will be kept.', tr:'$1 bu taslağı düzenliyor. İkiniz de kaydederseniz, en son kaydedenin değişiklikleri korunur.'}],
+    [/^«(.+)» nomli invoys allaqachon bor\. Ikkala invoys BIRLASHTIRILADI \(jami (\d+) ta yuklama bitta invoysda bo['‘]ladi\)\.$/, {ru:'Инвойс «$1» уже существует. Оба инвойса будут ОБЪЕДИНЕНЫ (всего отгрузок в одном инвойсе: $2).', uz:'«$1» nomli invoys allaqachon bor. Ikkala invoys BIRLASHTIRILADI (jami $2 ta yuklama bitta invoysda bo‘ladi).', en:'An invoice named “$1” already exists. Both invoices will be MERGED ($2 shipments in one invoice in total).', tr:'«$1» adlı fatura zaten var. İki fatura BİRLEŞTİRİLECEK (tek faturada toplam $2 sevkiyat olacak).'}],
+    [/^Davom etasizmi\?$/, {ru:'Продолжить?', uz:'Davom etasizmi?', en:'Continue?', tr:'Devam edilsin mi?'}],
+    [/^«(.+)» fayli saqlash joyidan o['‘]chiriladi\.$/, {ru:'Файл «$1» будет удалён из хранилища.', uz:'«$1» fayli saqlash joyidan o‘chiriladi.', en:'The file “$1” will be removed from storage.', tr:'«$1» dosyası depodan silinecek.'}],
+    [/^Faqat umumiy nom va sana o['‘]zgaradi \((\d+) ta yuklamada\)\. Modellar va ruxsatnomalarni invoys ichida o['‘]zgartiring\.$/, {ru:'Изменяются только общее название и дата ($1 отгрузок). Модели и разрешения меняйте внутри инвойса.', uz:'Faqat umumiy nom va sana o‘zgaradi ($1 ta yuklamada). Modellar va ruxsatnomalarni invoys ichida o‘zgartiring.', en:'Only the common name and date change ($1 shipments). Change models and permits inside the invoice.', tr:'Yalnızca ortak ad ve tarih değişir ($1 sevkiyatta). Model ve izinleri fatura içinde değiştirin.'}],
+    [/^«(.+)» invoysining (\d+) ta yuklamasi \((\d+) ta ruxsatnoma bo['‘]yicha\) o['‘]chiriladi, ruxsatnomalar qoldig['‘]i qayta hisoblanadi\.(?: Biriktirilgan imzolangan hujjat ham o['‘]chadi\.)?$/, {ru:'Будут удалены отгрузки инвойса «$1» ($2 шт., по $3 разрешениям), остатки разрешений будут пересчитаны.', uz:'«$1» invoysining $2 ta yuklamasi ($3 ta ruxsatnoma bo‘yicha) o‘chiriladi, ruxsatnomalar qoldig‘i qayta hisoblanadi.', en:'$2 shipment(s) of invoice “$1” (across $3 permits) will be deleted and permit balances recalculated.', tr:'«$1» faturasının $2 sevkiyatı ($3 izin için) silinecek ve izin bakiyeleri yeniden hesaplanacak.'}],
+    [/^Biriktirilgan imzolangan hujjat ham o['‘]chadi\.$/, {ru:'Прикреплённый подписанный документ тоже будет удалён.', uz:'Biriktirilgan imzolangan hujjat ham o‘chadi.', en:'The attached signed document will also be deleted.', tr:'Ekli imzalı belge de silinecek.'}],
+    [/^«(.+)» qoralamasi butunlay o['‘]chiriladi\. Qoldiqlarga ta['’‘]sir qilmaydi\.$/, {ru:'Черновик «$1» будет удалён полностью. На остатки это не влияет.', uz:'«$1» qoralamasi butunlay o‘chiriladi. Qoldiqlarga ta’sir qilmaydi.', en:'The draft “$1” will be deleted completely. Balances are not affected.', tr:'«$1» taslağı tamamen silinecek. Bakiyeleri etkilemez.'}],
+    [/^Invoys qatorlari \((\d+)\)$/, {ru:'Строки инвойса ($1)', uz:'Invoys qatorlari ($1)', en:'Invoice rows ($1)', tr:'Fatura satırları ($1)'}],
+    [/^Miqdor \((.+)\)$/, {ru:'Количество ($u1)', uz:'Miqdor ($u1)', en:'Quantity ($u1)', tr:'Miktar ($u1)'}],
+    [/^Qo['‘]shish mumkin:$/, {ru:'Можно добавить:', uz:'Qo‘shish mumkin:', en:'Can add:', tr:'Eklenebilir:'}],
+    [/^\(bu invoysda allaqachon (.+) bor\)$/, {ru:'(в этом инвойсе уже $1)', uz:'(bu invoysda allaqachon $1 bor)', en:'(already $1 in this invoice)', tr:'(bu faturada zaten $1 var)'}],
+    [/^— undan ortiq (qo['‘]shib|kiritib) bo['‘]lmaydi$/, {ru:'— больше добавлять нельзя', uz:'— undan ortiq qo‘shib bo‘lmaydi', en:'— cannot add more', tr:'— daha fazla eklenemez'}],
+    [/^· qoldiq:$/, {ru:'· остаток:', uz:'· qoldiq:', en:'· balance:', tr:'· kalan:'}],
+    [/^Kam qolgan — (\d+) ta pozitsiya$/, {ru:'Мало осталось — позиций: $1', uz:'Kam qolgan — $1 ta pozitsiya', en:'Running low — $1 item(s)', tr:'Azalan — $1 kalem'}],
+    [/^Tugagan \/ ortiqcha sarf — (\d+) ta pozitsiya$/, {ru:'Закончено / перерасход — позиций: $1', uz:'Tugagan / ortiqcha sarf — $1 ta pozitsiya', en:'Finished / overused — $1 item(s)', tr:'Biten / fazla kullanılan — $1 kalem'}],
+    [/^— моделей: (.+)$/, {ru:'— моделей: $1', uz:'— modellar: $1', en:'— models: $1', tr:'— model: $1'}],
+    [/^— позиций: (.+)$/, {ru:'— позиций: $1', uz:'— pozitsiyalar: $1', en:'— items: $1', tr:'— kalem: $1'}],
+    [/^Файл: (.+), строка заголовков № (\d+)\. Укажите, какой столбец за что отвечает\.$/, {ru:'Файл: $1, строка заголовков № $2. Укажите, какой столбец за что отвечает.', uz:'Fayl: $1, sarlavhalar qatori № $2. Qaysi ustun nimaga mos ekanini ko‘rsating.', en:'File: $1, header row № $2. Specify which column is which.', tr:'Dosya: $1, başlık satırı № $2. Hangi sütunun neye karşılık geldiğini belirtin.'}],
+    [/^от (\S+)\s*(?:·\s*(.+?)\s*)?·\s*разрешено (.+) шт \/ (.+) кг\s*·\s*остаток (.+) шт \/ (.+) кг$/, {ru:'от $1 · $2 · разрешено $3 шт / $4 кг · остаток $5 шт / $6 кг', uz:'$1 dan · $2 · ruxsat etilgan $3 dona / $4 kg · qoldiq $5 dona / $6 kg', en:'from $1 · $2 · allowed $3 pcs / $4 kg · remaining $5 pcs / $6 kg', tr:'$1 tarihli · $2 · izin verilen $3 adet / $4 kg · kalan $5 adet / $6 kg'}],
+    [/^(.+) \(sana: (.+) → (.+)\)$/, {ru:'$1 (дата: $2 → $3)', uz:'$1 (sana: $2 → $3)', en:'$1 (date: $2 → $3)', tr:'$1 (tarih: $2 → $3)'}]
+  ];
+
+  const _apos = s => String(s).replace(/[ʻ‘’`]/g, "'");
+  const reverseNorm = new Map();
+
   const reverseText = new Map();
   for(const [key, entry] of Object.entries(UI_TEXT)){
     for(const value of Object.values(entry)){
@@ -344,6 +646,8 @@
       if(translated && !reverseText.has(translated)) reverseText.set(translated, '__extra__:' + value);
     }
   }
+
+  for(const [v, k] of reverseText){ const nv = _apos(v); if(!reverseNorm.has(nv)) reverseNorm.set(nv, k); }
 
   function normalizeLang(lang){ return LANGUAGES[lang] ? lang : 'ru'; }
 
@@ -549,7 +853,7 @@
 
   function translateText(text, lang){
     const value = String(text ?? '');
-    const key = reverseText.get(value);
+    const key = reverseText.get(value) || reverseNorm.get(_apos(value));
     if(!key) return value;
     if(key.startsWith('__extra__:')){
       const source = key.slice(10);
@@ -557,6 +861,60 @@
       return entry ? (entry[normalizeLang(lang)] || entry.ru || value) : value;
     }
     return textByKey(key, lang);
+  }
+
+
+  /* Raqam + birlik ("986 шт", "234,53 кг", "832 шт / 542,92 кг") — jadval
+     katakchalarida ham xavfsiz tarjima qilinadi (nom/raqamga tegmaydi). */
+  const UNIT_ONLY_RE = /^[\d\s\u00a0\u202f.,\-−+\/]*\d\s*(?:шт|кг|пара)(?:[\d\s\u00a0\u202f.,\-−+\/]*(?:шт|кг|пара))*$/;
+  function translateUnitsText(text, lang){
+    const value = String(text ?? '');
+    if(!UNIT_ONLY_RE.test(value.trim())) return value;
+    const code = normalizeLang(lang);
+    if(code === 'ru') return value;
+    return value.replace(/шт|кг|пара/g, u => unitWord(u, code));
+  }
+
+  function applyDynPatterns(value, code){
+    for(const [re, tpl] of DYN_PATTERNS){
+      const m = value.match(re);
+      if(!m) continue;
+      const t = tpl[code];
+      if(!t) continue;
+      const out = t.replace(/\$u(\d)/g, (_, i) => unitWord(m[i], code))
+                   .replace(/\$(\d)/g, (_, i) => m[i] == null ? '' : m[i]);
+      return out.replace(/(\s*·\s*){2,}/g, ' · ');
+    }
+    return null;
+  }
+
+  /* Matn (toast, alert, confirm, interfeys) uchun to'liq tarjima: aniq lug'at →
+     ko'p qatorli → shablon → "Prefiks: ma'lumot". Ma'lumot qismi o'zgarmaydi. */
+  function translateMessage(text, lang, depth){
+    const value = String(text ?? '');
+    const code = normalizeLang(lang);
+    depth = depth || 0;
+    if(!value.trim() || depth > 3) return value;
+    const exact = translateText(value, code);
+    if(exact !== value) return exact;
+    const units = translateUnitsText(value, code);
+    if(units !== value) return units;
+    if(value.includes('\n')) return value.split('\n').map(l => translateMessage(l, code, depth + 1)).join('\n');
+    const dyn = applyDynPatterns(value.trim(), code);
+    if(dyn != null) return dyn;
+    const m = value.match(/^([^:\n]{3,70}):\s+([\s\S]+)$/);
+    if(m){
+      const head = m[1].trim();
+      const p = translateText(head, code);
+      if(p !== head) return p + ': ' + translateMessage(m[2], code, depth + 1);
+    }
+    const tc = value.match(/^([^:\n]{3,70}):\s*$/);
+    if(tc){
+      const head = tc[1].trim();
+      const p = translateText(head, code);
+      if(p !== head) return p + ':';
+    }
+    return value;
   }
 
   function translateDynamicText(text, lang){
@@ -584,7 +942,7 @@
         : value;
     }
 
-    return value;
+    return translateMessage(value, code);
   }
 
   function safeSheetName(base, usedNames){
@@ -1195,7 +1553,7 @@
       const donut = v12DonutSvg(
         segments.map(s=>({value:s.weight, color:s.color})),
         v12FmtNum(totalItems),
-        'Pozitsiyalar'
+        translateMessage('Pozitsiyalar', currentLang)
       );
       const total = segments.reduce((a,s)=>a+Math.max(0,s.weight),0);
 
@@ -1701,7 +2059,7 @@
           const value = values[index];
           const text = formatDeltaV12(value);
           if(badge.textContent !== text) badge.textContent = text;
-          badge.title = titles[index];
+          badge.title = translateMessage(titles[index], currentLang);
           badge.dataset.tone = index===0 ? (value>0?'good':'neutral') : (value>0?'bad':value<0?'good':'neutral');
         });
       });
@@ -1901,7 +2259,14 @@
         const parent = n.parentElement;
         if(!parent || parent.closest('script,style')) continue;
         const rawDataCell = parent.closest('tbody td');
-        if(rawDataCell && !parent.closest('.badge,button')) continue;
+        if(rawDataCell && !parent.closest('.badge,button')){
+          // Ma'lumot katakchasi (model nomi, raqam...) tarjima qilinmaydi;
+          // faqat "986 шт" / "234,53 кг" kabi birliklar tarjima qilinadi.
+          const tv = n.nodeValue.trim();
+          const tu = translateUnitsText(tv, currentLang);
+          if(tu !== tv) n.nodeValue = n.nodeValue.replace(tv, tu);
+          continue;
+        }
         nodes.push(n);
       }
       nodes.forEach(translateNodeText);
@@ -2383,5 +2748,5 @@
     else initBrowser();
   }
 
-  return { paginate, translateText, translateDynamicText, safeSheetName, nextTheme, quickSections, sidebarSectionsV9, resolveSidebarSelectionV10, sidebarSectionsV11, sidebarDestinationV11, resolveSidebarSelectionV11, sidebarSectionsV12, sidebarDestinationV12, resolveSidebarSelectionV12, computeKpiDeltasV12, computeRecentlyCriticalV12, formatDeltaV12, UI_TEXT, LANGUAGES, PAGE_SIZE, getCurrentLanguage:()=> (typeof localStorage!=='undefined' ? normalizeLang(localStorage.getItem(LANG_KEY)||'ru') : 'ru'), extraText:EXTRA_TEXT };
+  return { paginate, translateText, translateDynamicText, translateMessage, translateUnitsText, safeSheetName, nextTheme, quickSections, sidebarSectionsV9, resolveSidebarSelectionV10, sidebarSectionsV11, sidebarDestinationV11, resolveSidebarSelectionV11, sidebarSectionsV12, sidebarDestinationV12, resolveSidebarSelectionV12, computeKpiDeltasV12, computeRecentlyCriticalV12, formatDeltaV12, UI_TEXT, LANGUAGES, PAGE_SIZE, getCurrentLanguage:()=> (typeof localStorage!=='undefined' ? normalizeLang(localStorage.getItem(LANG_KEY)||'ru') : 'ru'), extraText:EXTRA_TEXT };
 });
