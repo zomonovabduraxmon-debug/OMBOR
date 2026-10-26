@@ -2404,10 +2404,12 @@ function renderMultiShipment(){
     const it = p && (p.items||[]).find(x=>x.id===r.itemId);
     if(!p || !it) return `<tr><td colspan="5"><span class="subtle-note">Ruxsatnoma yoki model topilmadi</span></td><td><button type="button" class="btn danger sm" data-md-del="${i}">✕</button></td></tr>`;
     const st = itemStatus(it, itemUsage(p.id, it.id));
-    return `<tr data-md-row="${i}" data-perunit="${itemPerUnit(it)}" data-remqty="${Math.max(0,st.remQty)}" data-remweight="${Math.max(0,st.remWeight)}">
+    const oth = draftOtherUsage(d, i);
+    const effQ = st.remQty - oth.q, effW = st.remWeight - oth.w;
+    return `<tr data-md-row="${i}" data-perunit="${itemPerUnit(it)}" data-remqty="${Math.max(0,effQ)}" data-remweight="${Math.max(0,effW)}">
       <td>${escapeHtml(p.number)}<div class="subtle-note">${escapeHtml(p.date||'')}</div></td>
       <td>${escapeHtml(it.name)}${it.material ? ` <span class="material-badge">${escapeHtml(it.material)}</span>` : ''}</td>
-      <td class="num-col ${st.remQty<0?'mismatch':''}">${fmt(st.remQty,0)} ${escapeHtml(it.unit||'')} / ${fmt(st.remWeight,2)} кг</td>
+      <td class="num-col ${effQ<0?'mismatch':''}">${fmt(effQ,0)} ${escapeHtml(it.unit||'')} / ${fmt(effW,2)} кг</td>
       <td><input type="number" min="0" step="any" data-md-qty="${i}" value="${escapeAttr(String(r.qty??''))}" placeholder="0" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
       <td><input type="number" min="0" step="0.001" data-md-weight="${i}" value="${escapeAttr(String(r.weight??''))}" placeholder="0.00" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:3px;"></td>
       <td><button type="button" class="btn danger sm" data-md-del="${i}">✕</button></td>
@@ -2473,9 +2475,11 @@ function bindShipmentEvents(){
   $('mdAddItem')?.addEventListener('change', e=>{ mdAdd.itemId = e.target.value; });
   $('mdAddBtn')?.addEventListener('click', ()=>{
     if(!mdAdd.permitId || !mdAdd.itemId){ toast('Ruxsatnoma va modelni tanlang'); return; }
-    if(d.rows.some(r=>r.permitId===mdAdd.permitId && r.itemId===mdAdd.itemId)){ toast('Bu model allaqachon qo\'shilgan'); return; }
     const sf = stockFor(mdAdd.permitId, mdAdd.itemId);
-    if(!sf || sf.remQty<=0){ toast('Bu modelning qoldig\'i yo\'q — qo\'shib bo\'lmaydi'); return; }
+    if(!sf){ toast('Model topilmadi'); return; }
+    // Bir xil modelni bir necha marta qo'shish mumkin; jami miqdor qoldiqdan oshmasligi kerak
+    const takenQ = d.rows.reduce((a,r)=> (r.permitId===mdAdd.permitId && r.itemId===mdAdd.itemId) ? a+(Number(r.qty)||0) : a, 0);
+    if(sf.remQty - takenQ <= 1e-9){ toast('Bu modelning qoldig\'i yo\'q — qo\'shib bo\'lmaydi'); return; }
     d.rows.push({ permitId:mdAdd.permitId, itemId:mdAdd.itemId, qty:'', weight:'' });
     mdAdd.itemId = '';
     render();
@@ -3012,6 +3016,41 @@ function renderShipmentHistoryFolders(){
   `;
 }
 
+/* Qoralamadagi shu modelning BOSHQA qatorlaridagi jami miqdor/vazn (idx-qatordan tashqari) */
+function draftOtherUsage(d, idx){
+  const r = d.rows[idx]; let q = 0, w = 0;
+  d.rows.forEach((x,j)=>{
+    if(j!==idx && x.permitId===r.permitId && x.itemId===r.itemId){
+      q += Number(x.qty)||0; w += Number(x.weight)||0;
+    }
+  });
+  return { q, w };
+}
+
+/* Invoys ichidagi BARCHA yuklamalarni (ruxsatnoma + model bo'yicha) bitta ro'yxatga yig'adi:
+   qaysi ruxsatnoma, model, mato turi, necha dona va necha kg. */
+function invoiceModelRows(shipments){
+  const map = new Map();
+  for(const sh of shipments){
+    const p = state.permits.find(x=>x.id===sh.permitId);
+    for(const ln of (Array.isArray(sh.lines) ? sh.lines : [])){
+      const key = sh.permitId + '::' + ln.itemId;
+      if(!map.has(key)){
+        const it = p ? (p.items||[]).find(i=>i.id===ln.itemId) : null;
+        map.set(key, { permit:p, item:it, qty:0, weight:0 });
+      }
+      const g = map.get(key);
+      g.qty += Number(ln.qty)||0;
+      g.weight += Number(ln.weight)||0;
+    }
+  }
+  return [...map.values()].sort((a,b)=>{
+    const n = String(a.permit&&a.permit.number||'').localeCompare(String(b.permit&&b.permit.number||''));
+    if(n) return n;
+    return String(a.item&&a.item.name||'').localeCompare(String(b.item&&b.item.name||''));
+  });
+}
+
 function renderShipmentHistoryInvoiceFolder(key){
   const q = shipmentHistorySearch.trim().toLowerCase();
   let rows = state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)===key);
@@ -3023,6 +3062,27 @@ function renderShipmentHistoryInvoiceFolder(key){
     });
   }
   rows.sort((a,b)=>(b.invoiceDate||'').localeCompare(a.invoiceDate||''));
+
+  const models = invoiceModelRows(rows);
+  const modelTotQty = models.reduce((a,m)=>a+m.qty,0);
+  const modelTotW = models.reduce((a,m)=>a+m.weight,0);
+  const modelBody = models.map(m=>`<tr>
+      <td>${m.permit ? `<a href="#" data-open-permit-h="${m.permit.id}">${escapeHtml(m.permit.number)}</a>` : '—'}</td>
+      <td>${m.item ? escapeHtml(m.item.name) : `<span class="subtle-note">${uiT('Модель не найдена')}</span>`}</td>
+      <td>${m.item && m.item.material ? `<span class="material-badge">${escapeHtml(m.item.material)}</span>` : '<span class="subtle-note">—</span>'}</td>
+      <td class="num-col">${fmt(m.qty,0)} ${escapeHtml((m.item && m.item.unit) || '')}</td>
+      <td class="num-col">${fmt(m.weight,2)} ${uiT('кг')}</td>
+    </tr>`).join('');
+  const modelsPanel = `
+    <div class="panel">
+      <div class="panel-head"><h2>Modellar bo'yicha (${models.length})</h2></div>
+      <div class="panel-body" style="padding:0;">${models.length
+        ? `<div style="overflow:auto"><table class="left-data-table"><thead><tr>
+            <th>${uiT('Разрешение')}</th><th>${uiT('Наименование')}</th><th>Мато / material</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th>
+          </tr></thead><tbody>${modelBody}</tbody>
+          <tfoot><tr><td class="table-total-label" colspan="3">${uiT('Итого')}</td><td class="num-col">${fmt(modelTotQty,0)}</td><td class="num-col">${fmt(modelTotW,2)} ${uiT('кг')}</td></tr></tfoot></table></div>`
+        : `<div class="empty"><div class="big">${uiT('Записей пока нет')}</div></div>`}</div>
+    </div>`;
 
   const body = rows.map(sh=>{
     const permit = state.permits.find(p=>p.id===sh.permitId);
@@ -3057,7 +3117,9 @@ function renderShipmentHistoryInvoiceFolder(key){
       <input id="shipHistSearch" class="search" placeholder="${escapeAttr(uiT('Поиск по разрешению'))}" value="${escapeAttr(shipmentHistorySearch)}">
     </div>
     ${invoiceDocPanelHtml(key)}
+    ${modelsPanel}
     <div class="panel">
+      <div class="panel-head"><h2>Yuklamalar (${rows.length})</h2></div>
       <div class="panel-body" style="padding:0;">${rows.length ? `<div style="overflow:auto"><table class="left-data-table"><thead><tr>
         <th>${uiT('Дата')}</th><th>${uiT('Разрешение')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th><th></th>
       </tr></thead><tbody>${body}</tbody></table></div>`
