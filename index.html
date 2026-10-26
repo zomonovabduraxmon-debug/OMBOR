@@ -1291,6 +1291,20 @@ document.getElementById('brandHome')?.addEventListener('keydown', (e)=>{
   if(e.key==='Enter' || e.key===' '){ e.preventDefault(); document.getElementById('brandHome').click(); }
 });
 
+/* Qidiruv maydonida yozayotganda: sahifani qayta chizib, fokus va kursorni
+   DARHOL (sinxron) qaytaradi. Oldin setTimeout ishlatilardi — shu oraliqda
+   terilgan harflar yo'qolardi. */
+function renderKeepFocus(inputId){
+  const old = document.getElementById(inputId);
+  const pos = old ? old.selectionStart : null;
+  render();
+  const i = document.getElementById(inputId);
+  if(i){
+    i.focus();
+    if(pos!=null) i.setSelectionRange(pos, pos);
+  }
+}
+
 function render(){
   const app = document.getElementById('app');
   // «Тарих» (audit) faqat editor/contributor uchun — boshqalar uchun hech qachon ochilmaydi.
@@ -1495,7 +1509,7 @@ function renderPermits(){
 function bindTabEvents(){
   if(currentTab==='dashboard'){
     const inp = document.getElementById('dashSearch');
-    if(inp) inp.addEventListener('input', e=>{ dashboardSearch = e.target.value; render(); setTimeout(()=>{ const i=document.getElementById('dashSearch'); if(i){ i.focus(); i.selectionStart=i.selectionEnd=i.value.length; } },0); });
+    if(inp) inp.addEventListener('input', e=>{ dashboardSearch = e.target.value; renderKeepFocus('dashSearch'); });
     const sort = document.getElementById('dashboardSort');
     if(sort) sort.addEventListener('change', e=>{ dashboardSort = e.target.value; render(); });
 
@@ -3142,7 +3156,7 @@ function renderShipmentHistoryTab(){
 
 function bindShipmentHistoryEvents(){
   const q = document.getElementById('shipHistSearch');
-  if(q) q.addEventListener('input', e=>{ shipmentHistorySearch = e.target.value; render(); setTimeout(()=>{ const i=document.getElementById('shipHistSearch'); if(i){ i.focus(); i.selectionStart=i.selectionEnd=i.value.length; } },0); });
+  if(q) q.addEventListener('input', e=>{ shipmentHistorySearch = e.target.value; renderKeepFocus('shipHistSearch'); });
 
   if(!__meCache) getMe();
   document.querySelectorAll('[data-resume-draft]').forEach(el=>el.addEventListener('click', ()=>resumeDraft(el.dataset.resumeDraft)));
@@ -4673,10 +4687,30 @@ async function dedupePermitsByNumber(){
       alert('Diqqat: ' + n + ' ta yozuv boshqa foydalanuvchi tomonidan siz bilan bir vaqtda o\'zgartirilgan edi.\n\n' +
         'Serverdagi yangiroq versiya saqlandi va ekranda ko\'rsatildi. Sizning o\'zgarishingiz qabul qilinmadi — iltimos, ma\'lumotni tekshirib, kerak bo\'lsa qayta kiriting.');
     });
+    // Har 30 soniyalik sinxronizatsiya va oynaga qaytishda ma'lumot o'zgarmagan
+    // bo'lsa ham sahifa qayta chizilardi — qidiruvda yozish uzilib qolardi.
+    // Endi: 1) ma'lumot haqiqatan o'zgarganda; 2) foydalanuvchi maydonda yozmayotganda
+    // chizamiz. Yozayotgan bo'lsa, fokus chiqqach (blur) chizamiz.
+    let __lastDataJson = null;
+    let __renderAfterBlur = false;
+    const __isTypingNow = ()=>{
+      const a = document.activeElement;
+      return !!a && (a.tagName==='INPUT' || a.tagName==='TEXTAREA' || a.tagName==='SELECT');
+    };
+    document.addEventListener('focusout', ()=>{
+      setTimeout(()=>{
+        if(__renderAfterBlur && !__isTypingNow()){ __renderAfterBlur = false; render(); }
+      }, 150);
+    });
     OfflineSync.onData(async ()=>{
       const next = await OfflineSync.loadState();
-      state = splitDrafts({ permits:[], shipments:[], audits:[], comments:[], ...(next||{}) });
+      const fresh = splitDrafts({ permits:[], shipments:[], audits:[], comments:[], ...(next||{}) });
+      const freshJson = JSON.stringify(fresh);
+      if(freshJson === __lastDataJson) return;
+      __lastDataJson = freshJson;
+      state = fresh;
       window.state = state;
+      if(__isTypingNow()){ __renderAfterBlur = true; return; }
       render();
     });
     await OfflineSync.start();
@@ -4711,6 +4745,24 @@ async function dedupePermitsByNumber(){
     });
     navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('SW registration failed',err));
   }
+// Sichqonchaning yon tugmalari: 4-tugma (button 3) — orqaga, 5-tugma (button 4) — oldinga.
+// Ilova oynasida brauzerning tabiiy tarix tugmasi ishlamagani uchun o'zimiz boshqaramiz.
+function __mouseGoBack(){
+  if(topView() || __omborViewSeq > 0){ history.back(); return; }
+  if(currentTab==='shipmentHistory' && shipmentHistoryOpenInvoice !== null){
+    shipmentHistoryOpenInvoice = null;
+    shipmentHistorySearch = '';
+    render();
+  }
+}
+document.addEventListener('mousedown', (e)=>{
+  if(e.button===3){ e.preventDefault(); __mouseGoBack(); }
+  else if(e.button===4){ e.preventDefault(); }
+});
+// Brauzer o'zi ham tarixga qaytib yubormasligi uchun standart harakatni bekor qilamiz.
+document.addEventListener('mouseup', (e)=>{ if(e.button===3 || e.button===4) e.preventDefault(); });
+document.addEventListener('auxclick', (e)=>{ if(e.button===3 || e.button===4) e.preventDefault(); });
+
 // ESC: yuklamalar tarixida invoys papkasi ichida bo'lsak — invoyslar ro'yxatiga qaytish.
 // Agar biror oyna (modal) ochiq bo'lsa, ESC avval o'sha oynani yopadi (ui-v13.js).
 document.addEventListener('keydown', (e)=>{
