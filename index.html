@@ -3820,8 +3820,26 @@ function itemCategory(name, categoryMap){
   return raw;
 }
 
+/* Mato turi kaliti: "Сатин " va "сатин" bir xil deb hisoblanadi */
+function materialKey(s){
+  return String(s||'').trim().replace(/\s+/g,' ').toLowerCase();
+}
+function allMaterialOptions(){
+  const map = new Map();
+  for(const p of state.permits){
+    for(const it of (p.items||[])){
+      const k = materialKey(it.material);
+      if(k && !map.has(k)) map.set(k, String(it.material).trim().replace(/\s+/g,' '));
+    }
+  }
+  return [...map.entries()]
+    .map(([key,label])=>({key,label}))
+    .sort((a,b)=>a.label.localeCompare(b.label, 'ru'));
+}
+
 function renderModelFinderTab(){
   const categoryMap = buildCategoryCanonicalMap();
+  const materialOptions = allMaterialOptions();
   const allCategories = Array.from(new Set(
     state.permits.flatMap(p=>(p.items||[]).map(it=>itemCategory(it.name, categoryMap))).filter(Boolean)
   )).sort((a,b)=>a.localeCompare(b, 'ru'));
@@ -3832,16 +3850,23 @@ function renderModelFinderTab(){
     </div>
     <div class="panel">
       <div class="panel-body">
-        <div class="field-row" style="align-items:flex-end;flex-wrap:wrap;">
-          <div class="field" style="min-width:200px;">
+        <div class="field-row" style="align-items:flex-end;flex-wrap:nowrap;gap:10px;">
+          <div class="field" style="flex:1 1 0;min-width:0;">
             <label>${uiT('1 dona vazni, kg (±50 g)')}</label>
             <input type="number" step="0.001" id="modelFinderWeight" value="${escapeAttr(modelFinder.weightGram)}" placeholder="${uiT('masalan')} 0.308">
           </div>
-          <div class="field" style="min-width:200px;">
+          <div class="field" style="flex:1 1 0;min-width:0;">
             <label>${uiT('Turkum')}</label>
             <select id="modelFinderCategory">
               <option value="">${uiT('Barchasi')}</option>
               ${allCategories.map(c=>`<option value="${escapeAttr(c)}" ${modelFinder.category===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field" style="flex:1 1 0;min-width:0;">
+            <label>${uiT('Мато / material')}</label>
+            <select id="modelFinderMaterial">
+              <option value="">${uiT('Barchasi')}</option>
+              ${materialOptions.map(m=>`<option value="${escapeAttr(m.key)}" ${modelFinder.material===m.key?'selected':''}>${escapeHtml(m.label)}</option>`).join('')}
             </select>
           </div>
           <div class="field" style="flex:0 0 auto;">
@@ -3859,8 +3884,9 @@ function modelFinderResultsHtml(){
   const wValKgRaw = Number(rawW);
   const hasWeight = rawW !== '' && Number.isFinite(wValKgRaw);
   const catVal = modelFinder.category || '';
+  const matVal = modelFinder.material || '';
 
-  if(!hasWeight && !catVal){
+  if(!hasWeight && !catVal && !matVal){
     return `<div class="subtle-note" style="margin-top:10px;">${uiT('Укажите вес — поиск идёт по всем разрешениям')}</div>`;
   }
 
@@ -3875,6 +3901,7 @@ function modelFinderResultsHtml(){
       let ok = true;
       if(hasWeight) ok = ok && Math.abs(perUnit - wValKg) <= MODEL_FINDER_TOLERANCE_KG;
       if(catVal) ok = ok && itemCategory(it.name, categoryMap) === catVal;
+      if(matVal) ok = ok && materialKey(it.material) === matVal;
       if(!ok) continue;
       const used = itemUsage(p.id, it.id);
       const st = itemStatus(it, used);
@@ -3924,6 +3951,9 @@ function bindModelFinderEvents(){
 
   const catSelect = document.getElementById('modelFinderCategory');
   if(catSelect) catSelect.addEventListener('change', ()=>{ modelFinder.category = catSelect.value; refresh(); });
+
+  const matSelect = document.getElementById('modelFinderMaterial');
+  if(matSelect) matSelect.addEventListener('change', ()=>{ modelFinder.material = matSelect.value; refresh(); });
 
   const clearBtn = document.getElementById('btnClearModelFinder');
   if(clearBtn) clearBtn.addEventListener('click', ()=>{
