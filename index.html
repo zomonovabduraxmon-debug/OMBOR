@@ -1665,11 +1665,12 @@ function openPermitDetail(permitId){
   if(!p) return;
   const shipments = state.shipments.filter(s=>s.permitId===permitId).sort((a,b)=>(a.invoiceDate||'').localeCompare(b.invoiceDate||''));
   const t = permitTotals(p);
-  const itemRows = p.items.map(it=>{
+  const itemRows = p.items.map((it,idx)=>{
     const used = itemUsage(p.id, it.id);
     const st = itemStatus(it, used);
     const perUnit = it.qty ? (it.weight/it.qty) : 0;
     return `<tr>
+      <td class="num-col">${idx+1}</td>
       <td>${escapeHtml(it.name)}</td>
       <td>${it.material ? `<span class="material-badge">${escapeHtml(it.material)}</span>` : '—'}</td>
       <td class="code-col">${escapeHtml(it.tnved||'—')}</td>
@@ -1704,7 +1705,7 @@ function openPermitDetail(permitId){
       <div class="subtle-note" style="margin-bottom:14px;">от ${p.date||'—'} ${p.note?(' · '+escapeHtml(p.note)):''} &middot; разрешено ${fmt(t.allowedQty,0)} шт / ${fmt(t.allowedW,2)} кг &middot; остаток ${fmt(t.remQty,0)} шт / ${fmt(t.remW,2)} кг</div>
       ${p.pdfUrl ? `<div style="margin-bottom:14px;"><a href="${escapeAttr(p.pdfUrl)}" target="_blank" rel="noopener" class="btn secondary sm">📄 ${escapeHtml(p.pdfName||uiT('PDF файл разрешения'))} — ${uiT('ochish / yuklab olish')}</a></div>` : ''}
       <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 8px 0;">Позиции</h3>
-      <table class="center-data-table"><thead><tr><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
+      <table class="center-data-table"><thead><tr><th>№</th><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
       <tbody>${itemRows}</tbody></table>
       <h3 style="font-family:var(--serif);font-size:14px;margin:20px 0 8px 0;">Отгрузки по этому разрешению</h3>
       ${shipments.length ? `<table class="left-data-table"><thead><tr><th>Инвойс</th><th>Дата</th><th>Строк</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead><tbody>${shipRows}</tbody></table>`
@@ -3850,26 +3851,26 @@ function renderModelFinderTab(){
     </div>
     <div class="panel">
       <div class="panel-body">
-        <div class="field-row" style="align-items:flex-end;flex-wrap:nowrap;gap:10px;">
-          <div class="field" style="flex:1 1 0;min-width:0;">
+        <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;align-items:end;gap:12px;">
+          <div class="field" style="min-width:0;margin-bottom:0;">
             <label>${uiT('1 dona vazni, kg (±50 g)')}</label>
             <input type="number" step="0.001" id="modelFinderWeight" value="${escapeAttr(modelFinder.weightGram)}" placeholder="${uiT('masalan')} 0.308">
           </div>
-          <div class="field" style="flex:1 1 0;min-width:0;">
+          <div class="field" style="min-width:0;margin-bottom:0;">
             <label>${uiT('Turkum')}</label>
             <select id="modelFinderCategory">
               <option value="">${uiT('Barchasi')}</option>
               ${allCategories.map(c=>`<option value="${escapeAttr(c)}" ${modelFinder.category===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}
             </select>
           </div>
-          <div class="field" style="flex:1 1 0;min-width:0;">
+          <div class="field" style="min-width:0;margin-bottom:0;">
             <label>${uiT('Мато / material')}</label>
             <select id="modelFinderMaterial">
               <option value="">${uiT('Barchasi')}</option>
               ${materialOptions.map(m=>`<option value="${escapeAttr(m.key)}" ${modelFinder.material===m.key?'selected':''}>${escapeHtml(m.label)}</option>`).join('')}
             </select>
           </div>
-          <div class="field" style="flex:0 0 auto;">
+          <div class="field" style="margin-bottom:0;">
             <button type="button" class="btn secondary sm" id="btnClearModelFinder">${uiT('Filtrni tozalash')}</button>
           </div>
         </div>
