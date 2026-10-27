@@ -1038,13 +1038,13 @@ function auditSummary(a){
   if(a.action==='create') return uiT('Создано');
   if(a.action==='delete' || a.action==='shipment_delete') return uiT('Удалено');
   if(a.action==='shipment_create') return uiT('Создана отгрузка');
-  if(a.action==='invoice_edit') return 'Invoys tahrirlandi: ' + ((a.oldData&&a.oldData.name)||'—') + (a.oldData&&a.newData&&a.oldData.name!==a.newData.name ? ' → ' + a.newData.name : '') + (a.oldData&&a.newData&&a.oldData.date!==a.newData.date ? ' (sana: ' + (a.oldData.date||'—') + ' → ' + (a.newData.date||'—') + ')' : '');
-  if(a.action==='invoicefile_add') return 'Imzolangan hujjat biriktirildi: ' + ((a.newData&&a.newData.name)||'');
-  if(a.action==='invoicefile_replace') return 'Hujjat almashtirildi: ' + ((a.oldData&&a.oldData.name)||'') + ' → ' + ((a.newData&&a.newData.name)||'');
-  if(a.action==='invoicefile_remove') return 'Hujjat olib tashlandi: ' + ((a.oldData&&a.oldData.name)||'');
-  if(a.action==='draft_create') return 'Qoralama yaratildi';
-  if(a.action==='draft_delete') return 'Qoralama o‘chirildi';
-  if(a.action==='draft_finalize') return 'Qoralama yakunlandi (yuklamaga aylandi)';
+  if(a.action==='invoice_edit') return uiT('Invoys tahrirlandi') + ': ' + ((a.oldData&&a.oldData.name)||'—') + (a.oldData&&a.newData&&a.oldData.name!==a.newData.name ? ' → ' + a.newData.name : '') + (a.oldData&&a.newData&&a.oldData.date!==a.newData.date ? ' (' + uiT('sana') + ': ' + (a.oldData.date||'—') + ' → ' + (a.newData.date||'—') + ')' : '');
+  if(a.action==='invoicefile_add') return uiT('Imzolangan hujjat biriktirildi') + ': ' + ((a.newData&&a.newData.name)||'');
+  if(a.action==='invoicefile_replace') return uiT('Hujjat almashtirildi') + ': ' + ((a.oldData&&a.oldData.name)||'') + ' → ' + ((a.newData&&a.newData.name)||'');
+  if(a.action==='invoicefile_remove') return uiT('Hujjat olib tashlandi') + ': ' + ((a.oldData&&a.oldData.name)||'');
+  if(a.action==='draft_create') return uiT('Qoralama yaratildi');
+  if(a.action==='draft_delete') return uiT('Qoralama o‘chirildi');
+  if(a.action==='draft_finalize') return uiT('Qoralama yakunlandi (yuklamaga aylandi)');
   const changes=[];
   const lang=uiLang();
   const labels={
@@ -2229,7 +2229,7 @@ function draftTotals(d){
   (d.rows||[]).forEach(r=>{ qty += Number(r.qty)||0; weight += Number(r.weight)||0; });
   return { qty, weight };
 }
-function draftLabel(d){ return (d.invoiceNumber||'').trim() || 'Nomsiz qoralama'; }
+function draftLabel(d){ return (d.invoiceNumber||'').trim() || uiT('Nomsiz qoralama'); }
 function itemPerUnit(it){ return it && it.qty ? (Number(it.weight)||0)/(Number(it.qty)||1) : 0; }
 function upsertDraft(d){
   d.updatedAt = new Date().toISOString();
@@ -2695,7 +2695,17 @@ function openMfAddModal(permitId, itemId){
    yangisi yuklansa, eskisi saqlash joyidan ham o'chiriladi. */
 const INVOICE_FILE_MAX = 20*1024*1024;
 const CHECK_ICON_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#1f8a70" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex:0 0 auto;" aria-hidden="true"><path d="M5 13l4 4L19 7"></path></svg>`;
-function invoiceFileRec(key){ const l = state.invoiceFiles||[]; return l.find(f=>f.invoiceNumber===key && f.path && !f.removed) || l.find(f=>f.invoiceNumber===key); }
+/* Joriy yozuv = shu invoys uchun ENG SO'NGI yozilgan fayl yozuvi (yuklash yoki olib tashlash).
+   Har o'zgarish yangi yozuv sifatida yoziladi — eski yozuv yangilanmaydi, shuning uchun
+   server (updated_at tekshiruvi) uni rad etib, eski fayl qaytib kelmaydi. */
+function invoiceFileRec(key){
+  let best = null;
+  for(const f of (state.invoiceFiles||[])){
+    if(f.invoiceNumber !== key) continue;
+    if(!best || String(f.uploadedAt||'') >= String(best.uploadedAt||'')) best = f;
+  }
+  return best;
+}
 function invoiceFileFor(key){ const f = invoiceFileRec(key); return (f && f.path && !f.removed) ? f : null; }
 function fmtFileSize(b){ b = Number(b)||0; return b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
 
@@ -2704,13 +2714,13 @@ async function uploadInvoiceDoc(key, file){
   if(!/\.(pdf|zip)$/i.test(file.name||'')){ toast('Faqat PDF yoki ZIP fayl yuklash mumkin'); return false; }
   if(file.size > INVOICE_FILE_MAX){ toast('Fayl 20 MB dan katta'); return false; }
   const me = await getMe();
-  const existing = invoiceFileRec(key);
-  const rec = existing || { id: uid('invfile'), status:'invoicefile', invoiceNumber:key };
-  const oldPath = existing && existing.path && !existing.removed ? existing.path : null;
+  const existing = invoiceFileFor(key);
+  const newId = uid('invfile');
+  const oldPath = existing ? existing.path : null;
   const oldName = existing ? existing.name : '';
   toast('Fayl yuklanmoqda…');
   let up;
-  try{ up = await OfflineSync.uploadInvoiceFile(rec.id, file); }
+  try{ up = await OfflineSync.uploadInvoiceFile(newId, file); }
   catch(e){
     console.error(e);
     const m = String(e&&e.message||e);
@@ -2720,9 +2730,9 @@ async function uploadInvoiceDoc(key, file){
       : /404|Bucket not found/i.test(m) ? 'Saqlash joyi topilmadi: INVOICE-FILES-STORAGE.sql ni Supabase SQL Editor\'da ishga tushiring.' : m));
     return false;
   }
-  rec.path = up.path; rec.name = file.name; rec.size = file.size;
-  rec.uploadedBy = me.name; rec.uploadedAt = new Date().toISOString(); rec.removed = false;
-  if(!existing) state.invoiceFiles.push(rec);
+  const rec = { id:newId, status:'invoicefile', invoiceNumber:key, path:up.path, name:file.name, size:file.size,
+    uploadedBy:me.name, uploadedAt:new Date().toISOString(), removed:false };
+  state.invoiceFiles.push(rec);
   await saveShipments();
   if(oldPath){ try{ await OfflineSync.deleteInvoiceFile(oldPath); }catch(e){ console.warn('Eski fayl o\'chmadi', e); } }
   await addAudit(oldPath ? 'invoicefile_replace' : 'invoicefile_add', 'invoice', key, key,
@@ -2794,7 +2804,8 @@ async function removeInvoiceDocRecord(key){
   if(!f) return null;
   const old = { name: f.name, size: f.size };
   const path = f.path;
-  f.removed = true; f.path = null;
+  state.invoiceFiles.push({ id:uid('invfile'), status:'invoicefile', invoiceNumber:key, path:null, removed:true,
+    name:f.name, size:f.size, uploadedBy:f.uploadedBy||'', uploadedAt:new Date().toISOString() });
   await saveShipments();
   try{ await OfflineSync.deleteInvoiceFile(path); }catch(e){ console.warn('Fayl saqlash joyidan o\'chmadi', e); }
   return old;
@@ -2866,14 +2877,11 @@ async function renameInvoice(oldKey, newName, newDate, dateChanged){
     if(dateChanged) sh.invoiceDate = newDate;
   }
   if(nameChanged && oldFile){
-    const tomb = (state.invoiceFiles||[]).find(f=>f.invoiceNumber===newKey && f!==oldFile);
-    if(tomb){
-      // Shu nomdagi eski (olib tashlangan) yozuv bor — fayl ma'lumotini unga ko'chiramiz, ikkita bo'lib qolmasin.
-      Object.assign(tomb, { path:oldFile.path, name:oldFile.name, size:oldFile.size, uploadedBy:oldFile.uploadedBy, uploadedAt:oldFile.uploadedAt, removed:false });
-      oldFile.removed = true; oldFile.path = null;
-    }else{
-      oldFile.invoiceNumber = newKey;
-    }
+    // Fayl yangi nomga ko'chadi (yangi yozuv), eski nom uchun esa "olib tashlangan" yozuv qo'yiladi.
+    const now = new Date().toISOString();
+    state.invoiceFiles.push({ ...oldFile, id:uid('invfile'), invoiceNumber:newKey, uploadedAt:now, removed:false });
+    state.invoiceFiles.push({ id:uid('invfile'), status:'invoicefile', invoiceNumber:oldKey, path:null, removed:true,
+      name:oldFile.name, size:oldFile.size, uploadedBy:oldFile.uploadedBy||'', uploadedAt:now });
   }
   await saveShipments();
   await addAudit('invoice_edit','invoice',newKey,newKey,before,{ name:newKey, date: dateChanged ? newDate : before.date, count: items.length });
@@ -3090,7 +3098,7 @@ function renderShipmentHistoryInvoiceFolder(key){
     </tr>`).join('');
   const modelsPanel = `
     <div class="panel">
-      <div class="panel-head"><h2>Modellar bo'yicha (${models.length})</h2></div>
+      <div class="panel-head"><h2>${uiT('Modellar bo\'yicha')} (${models.length})</h2></div>
       <div class="panel-body" style="padding:0;">${models.length
         ? `<div style="overflow:auto"><table class="left-data-table"><thead><tr>
             <th>${uiT('Разрешение')}</th><th>${uiT('Наименование')}</th><th>Мато / material</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th>
@@ -3134,7 +3142,7 @@ function renderShipmentHistoryInvoiceFolder(key){
     ${invoiceDocPanelHtml(key)}
     ${modelsPanel}
     <div class="panel">
-      <div class="panel-head"><h2>Yuklamalar (${rows.length})</h2></div>
+      <div class="panel-head"><h2>${uiT('Yuklamalar')} (${rows.length})</h2></div>
       <div class="panel-body" style="padding:0;">${rows.length ? `<div style="overflow:auto"><table class="left-data-table"><thead><tr>
         <th>${uiT('Дата')}</th><th>${uiT('Разрешение')}</th><th>${uiT('Строк')}</th><th>${uiT('Кол-во')}</th><th>${uiT('Вес')}</th><th></th>
       </tr></thead><tbody>${body}</tbody></table></div>`
