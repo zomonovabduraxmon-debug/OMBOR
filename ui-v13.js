@@ -2373,6 +2373,9 @@
           const tv = n.nodeValue.trim();
           const tu = translateUnitsText(tv, currentLang);
           if(tu !== tv) n.nodeValue = n.nodeValue.replace(tv, tu);
+          // Status matnlari (Tayyorlandi, Imzolangan...) — faqat tarjima lug'atida aniq bor bo'lsa.
+          // Model/mato nomlari lug'atda bo'lmagani uchun ular o'zgarmaydi.
+          if(tv && translateText(tv, currentLang) !== tv) nodes.push(n);
           continue;
         }
         nodes.push(n);
