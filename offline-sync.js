@@ -422,19 +422,31 @@
   // buni Storage RLS siyosati serverda ta'minlaydi (PERMIT-PDF-STORAGE.sql).
   const PDF_BUCKET = 'permit-pdfs';
 
+  // Fayl turi: brauzer bo'sh yoki noto'g'ri tur berganda kengaytma bo'yicha aniqlaymiz
+  const MIME_BY_EXT = {
+    pdf:'application/pdf', zip:'application/zip', rar:'application/vnd.rar', '7z':'application/x-7z-compressed',
+    xls:'application/vnd.ms-excel', xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    csv:'text/csv', doc:'application/msword', docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png'
+  };
+  function mimeFor(name, browserType){
+    const ext = String(name||'').split('.').pop().toLowerCase();
+    return MIME_BY_EXT[ext] || browserType || 'application/octet-stream';
+  }
+
   async function uploadPermitPdf(permitId, file){
     if(!configured()) throw new Error('Supabase ещё не настроен');
     if(!navigator.onLine) throw new Error('PDF yuklash uchun internet kerak');
     const session = await getSession(true);
     if(!session || !session.access_token) throw new Error('AUTH_REQUIRED');
-    const safeName = String(file.name || 'ruxsatnoma.pdf').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-140) || 'ruxsatnoma.pdf';
-    const path = `${permitId}/${Date.now()}_${safeName}`;
+    const safeName = String(file.name || 'ruxsatnoma').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-140) || 'ruxsatnoma';
+    const path = `${permitId}/${Date.now()}_${Math.random().toString(36).slice(2,8)}_${safeName}`;
     const res = await fetch(baseUrl() + '/storage/v1/object/' + PDF_BUCKET + '/' + path, {
       method: 'POST',
       headers: {
         'apikey': anonKey(),
         'Authorization': 'Bearer ' + session.access_token,
-        'Content-Type': file.type || 'application/pdf',
+        'Content-Type': mimeFor(file.name, file.type),
         'x-upsert': 'true'
       },
       body: file
@@ -461,13 +473,13 @@
   }
   async function uploadInvoiceFile(folder, file){
     const token = await userToken();
-    const ext = /\.zip$/i.test(file.name||'') ? 'zip' : 'pdf';
+    const ext = String(file.name||'').split('.').pop().toLowerCase() || 'bin';
     const safeName = String(file.name || ('invoys.'+ext)).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-120) || ('invoys.'+ext);
-    const path = `${folder}/${Date.now()}_${safeName}`;
+    const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2,8)}_${safeName}`;
     const res = await fetch(baseUrl() + '/storage/v1/object/' + INVOICE_BUCKET + '/' + path, {
       method: 'POST',
       headers: { 'apikey': anonKey(), 'Authorization': 'Bearer ' + token,
-        'Content-Type': file.type || (ext==='zip' ? 'application/zip' : 'application/pdf') },
+        'Content-Type': mimeFor(file.name, file.type) },
       body: file
     });
     if(!res.ok){

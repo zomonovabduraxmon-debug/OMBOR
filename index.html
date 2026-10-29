@@ -848,7 +848,7 @@ function diffPermitFields(oldP, newP){
   if(String(oldP.number||'') !== String(newP.number||'')) push('number', uiT('Номер разрешения'), oldP.number, newP.number);
   if(String(oldP.date||'') !== String(newP.date||'')) push('date', uiT('Дата разрешения'), oldP.date, newP.date);
   if(String(oldP.note||'') !== String(newP.note||'')) push('note', uiT('Примечание'), oldP.note, newP.note);
-  if(String(oldP.pdfName||'') !== String(newP.pdfName||'')) push('pdf', uiT('PDF файл разрешения'), oldP.pdfName||'—', newP.pdfName||'—');
+  if(permitFileNames(oldP) !== permitFileNames(newP)) push('pdf', uiT('Файлы разрешения'), permitFileNames(oldP)||'—', permitFileNames(newP)||'—');
 
   const oldItems = Array.isArray(oldP.items) ? oldP.items : [];
   const newItems = Array.isArray(newP.items) ? newP.items : [];
@@ -1501,7 +1501,7 @@ function renderPermits(){
           ${(()=>{ const c = latestComment('permit', p.id); return c ? `<button type="button" class="comment-preview-btn" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 <em>${escapeHtml(truncateText(c.text,60))}</em></button>` : '<span></span>'; })()}
           <span style="display:flex;gap:8px;flex-shrink:0;white-space:nowrap;">
             <button class="btn secondary sm" data-comments-permit="${p.id}" title="${escapeAttr(uiT('Izohlar'))}">💬 ${commentsFor('permit',p.id).length}</button>
-            ${p.pdfUrl ? `<a href="${escapeAttr(p.pdfUrl)}" target="_blank" rel="noopener" class="btn secondary sm" title="${escapeAttr(uiT('ochish / yuklab olish'))}">📄 PDF</a>` : ''}
+            ${permitFiles(p).length ? `<a href="${escapeAttr(permitFiles(p)[0].url)}" target="_blank" rel="noopener" class="btn secondary sm" title="${escapeAttr(uiT('ochish / yuklab olish'))}">📄 PDF${permitFiles(p).length>1?' ('+permitFiles(p).length+')':''}</a>` : ''}
             ${canCreateEdit() ? `<button class="btn secondary sm" data-edit-permit="${p.id}">Изменить</button>` : ''}
             ${isEditorMode ? `<button class="btn danger sm" data-del-permit="${p.id}">Удалить</button>` : ''}
           </span>
@@ -1723,7 +1723,7 @@ function openPermitDetail(permitId){
     </div>
     <div class="modal-body">
       <div class="subtle-note" style="margin-bottom:14px;">от ${p.date||'—'} ${p.note?(' · '+escapeHtml(p.note)):''} &middot; разрешено ${fmt(t.allowedQty,0)} шт / ${fmt(t.allowedW,2)} кг &middot; остаток ${fmt(t.remQty,0)} шт / ${fmt(t.remW,2)} кг</div>
-      ${p.pdfUrl ? `<div style="margin-bottom:14px;"><a href="${escapeAttr(p.pdfUrl)}" target="_blank" rel="noopener" class="btn secondary sm">📄 ${escapeHtml(p.pdfName||uiT('PDF файл разрешения'))} — ${uiT('ochish / yuklab olish')}</a></div>` : ''}
+      ${permitFiles(p).length ? `<div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;">${permitFiles(p).map(f=>`<a href="${escapeAttr(f.url)}" target="_blank" rel="noopener" class="btn secondary sm">📎 ${escapeHtml(f.name||'fayl')}</a>`).join('')}</div>` : ''}
       <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 8px 0;">Позиции</h3>
       <table class="center-data-table"><thead><tr><th>№</th><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
       <tbody>${itemRows}</tbody></table>
@@ -1763,61 +1763,67 @@ function openPermitDetail(permitId){
 /* ============================= PERMIT ADD / EDIT MODAL ============================= */
 function blankItem(){ return { id: uid('it'), name:'', material:'', tnved:'', unit:'шт', qty:'', weight:'' }; }
 
+var UPLOAD_EXT = ['pdf','zip','rar','7z','xls','xlsx','csv','doc','docx','jpg','jpeg','png'];
+function uploadAccept(){ return UPLOAD_EXT.map(e=>'.'+e).join(','); }
+function uploadNameOk(n){ return UPLOAD_EXT.indexOf(String(n||'').split('.').pop().toLowerCase()) !== -1; }
+function permitFiles(p){
+  if(!p) return [];
+  if(Array.isArray(p.files) && p.files.length) return p.files;
+  return p.pdfUrl ? [{ url:p.pdfUrl, path:p.pdfPath||null, name:p.pdfName||'fayl' }] : [];
+}
+function permitFileNames(p){ return permitFiles(p).map(f=>f.name).join(', '); }
+
 function openPermitModal(permitId){
   const editing = !!permitId;
   const p = editing ? state.permits.find(x=>x.id===permitId) : { id: uid('perm'), number:'', date:'', note:'', items:[blankItem()], pdfUrl:null, pdfPath:null, pdfName:null };
   const draft = JSON.parse(JSON.stringify(p));
-  let pendingPdfFile = null;   // tanlangan, hali yuklanmagan PDF (faqat "Сохранить" bosilganda yuklanadi)
-  let pdfRemoved = false;      // mavjud PDF "Olib tashlash" bilan belgilangan
+  draft.files = permitFiles(draft);
+  let pendingFiles = [];   // tanlangan, hali yuklanmagan fayllar (faqat "Сохранить" bosilganda yuklanadi)
+  let removedUrls = [];    // mavjud fayllardan "Olib tashlash" bilan belgilanganlari (url bo'yicha)
 
   function pdfFieldHtml(){
-    if(pendingPdfFile){
-      return `<div class="pdf-field-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span class="subtle-note">📄 ${escapeHtml(pendingPdfFile.name)} — ${uiT('saqlashda yuklanadi')}</span>
-        <button type="button" class="btn secondary sm" id="btnCancelPdf">${uiT('Bekor qilish')}</button>
-      </div>`;
-    }
-    if(draft.pdfUrl && !pdfRemoved){
-      return `<div class="pdf-field-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <a href="${escapeAttr(draft.pdfUrl)}" target="_blank" rel="noopener" class="btn secondary sm">📄 ${escapeHtml(draft.pdfName||'PDF')} — ${uiT('ochish / yuklab olish')}</a>
-        <button type="button" class="btn secondary sm" id="btnReplacePdf">${uiT('Almashtirish')}</button>
-        <button type="button" class="btn danger sm" id="btnRemovePdf">${uiT('Olib tashlash')}</button>
-        <input type="file" id="fldPdf" accept="application/pdf" style="display:none;">
-      </div>`;
-    }
-    return `<input type="file" id="fldPdf" accept="application/pdf">`;
+    const existing = draft.files.filter(f=>!removedUrls.includes(f.url));
+    const rows = existing.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <a href="${escapeAttr(f.url)}" target="_blank" rel="noopener" class="btn secondary sm">📎 ${escapeHtml(f.name||'fayl')}</a>
+        <button type="button" class="btn danger sm" data-rm-file="${i}">${uiT('Olib tashlash')}</button>
+      </div>`).join('');
+    const pend = pendingFiles.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="subtle-note">📎 ${escapeHtml(f.name)} — ${uiT('saqlashda yuklanadi')}</span>
+        <button type="button" class="btn secondary sm" data-cancel-file="${i}">${uiT('Bekor qilish')}</button>
+      </div>`).join('');
+    return `<div style="display:flex;flex-direction:column;gap:8px;">${rows}${pend}
+      <input type="file" id="fldPdf" multiple accept="${uploadAccept()}">
+      <div class="subtle-note">${uiT('Bir nechta fayl birdan tanlash mumkin. Ruxsat etilgan turlar: PDF, ZIP, RAR, 7Z, XLS/XLSX, CSV, DOC/DOCX, JPG, PNG')}</div>
+    </div>`;
+  }
+
+  function refreshPdfField(){
+    document.getElementById('pdfFieldHost').innerHTML = pdfFieldHtml();
+    bindPdfField();
   }
 
   function bindPdfField(){
     const fld = document.getElementById('fldPdf');
     if(fld) fld.addEventListener('change', ()=>{
-      const file = fld.files && fld.files[0];
-      if(!file) return;
-      if(file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name||'')){
-        toast(uiT('Faqat PDF fayl tanlang'));
-        fld.value = '';
-        return;
-      }
-      pendingPdfFile = file;
-      pdfRemoved = false;
-      document.getElementById('pdfFieldHost').innerHTML = pdfFieldHtml();
-      bindPdfField();
+      const picked = Array.from(fld.files || []);
+      fld.value = '';
+      const bad = picked.filter(f=>!uploadNameOk(f.name));
+      if(bad.length) toast(uiT('Ruxsat etilmagan fayl turi: ') + bad.map(f=>f.name).join(', '));
+      picked.filter(f=>uploadNameOk(f.name)).forEach(f=>{
+        if(!pendingFiles.some(x=>x.name===f.name && x.size===f.size)) pendingFiles.push(f);
+      });
+      refreshPdfField();
     });
-    const replaceBtn = document.getElementById('btnReplacePdf');
-    if(replaceBtn) replaceBtn.addEventListener('click', ()=>{ document.getElementById('fldPdf').click(); });
-    const cancelBtn = document.getElementById('btnCancelPdf');
-    if(cancelBtn) cancelBtn.addEventListener('click', ()=>{
-      pendingPdfFile = null;
-      document.getElementById('pdfFieldHost').innerHTML = pdfFieldHtml();
-      bindPdfField();
-    });
-    const removeBtn = document.getElementById('btnRemovePdf');
-    if(removeBtn) removeBtn.addEventListener('click', ()=>{
-      pdfRemoved = true;
-      pendingPdfFile = null;
-      document.getElementById('pdfFieldHost').innerHTML = pdfFieldHtml();
-      bindPdfField();
-    });
+    document.querySelectorAll('[data-rm-file]').forEach(b=>b.addEventListener('click', ()=>{
+      const existing = draft.files.filter(f=>!removedUrls.includes(f.url));
+      const f = existing[Number(b.dataset.rmFile)];
+      if(f) removedUrls.push(f.url);
+      refreshPdfField();
+    }));
+    document.querySelectorAll('[data-cancel-file]').forEach(b=>b.addEventListener('click', ()=>{
+      pendingFiles.splice(Number(b.dataset.cancelFile), 1);
+      refreshPdfField();
+    }));
   }
 
   function itemsHtml(){
@@ -1918,30 +1924,32 @@ function openPermitModal(permitId){
       return;
     }
 
-    if(pdfRemoved && !pendingPdfFile){
-      draft.pdfUrl = null; draft.pdfPath = null; draft.pdfName = null;
-    }
-    if(pendingPdfFile){
+    draft.files = draft.files.filter(f=>!removedUrls.includes(f.url));
+    if(pendingFiles.length){
       const saveBtn = document.getElementById('btnSavePermit');
       const prevLabel = saveBtn.textContent;
       saveBtn.disabled = true;
-      saveBtn.textContent = uiT('PDF yuklanmoqda...');
+      saveBtn.textContent = uiT('Fayllar yuklanmoqda...');
       try{
         if(!window.OfflineSync || !OfflineSync.uploadPermitPdf) throw new Error('NO_UPLOAD_SUPPORT');
-        const uploaded = await OfflineSync.uploadPermitPdf(draft.id, pendingPdfFile);
-        draft.pdfUrl = uploaded.url;
-        draft.pdfPath = uploaded.path;
-        draft.pdfName = uploaded.name;
+        for(const f of pendingFiles){
+          const up = await OfflineSync.uploadPermitPdf(draft.id, f);
+          draft.files.push({ url: up.url, path: up.path, name: up.name });
+        }
       }catch(e){
         console.error(e);
         saveBtn.disabled = false;
         saveBtn.textContent = prevLabel;
-        toast(String(e && e.message)==='AUTH_REQUIRED' ? uiT('PDF yuklash uchun tizimga kiring') : uiT('PDF faylni yuklab bo\'lmadi'));
+        toast(String(e && e.message)==='AUTH_REQUIRED' ? uiT('Fayl yuklash uchun tizimga kiring') : uiT('Faylni yuklab bo\'lmadi'));
         return;
       }
       saveBtn.disabled = false;
       saveBtn.textContent = prevLabel;
     }
+    // Eski maydonlar (orqaga moslik): birinchi fayl
+    draft.pdfUrl  = draft.files[0] ? draft.files[0].url  : null;
+    draft.pdfPath = draft.files[0] ? draft.files[0].path : null;
+    draft.pdfName = draft.files[0] ? draft.files[0].name : null;
 
     const idx = state.permits.findIndex(x=>x.id===draft.id);
     const before = idx>=0 ? JSON.parse(JSON.stringify(state.permits[idx])) : null;
@@ -2734,33 +2742,52 @@ function invoiceFileRec(key){
   }
   return best;
 }
-function invoiceFileFor(key){ const f = invoiceFileRec(key); return (f && f.path && !f.removed) ? f : null; }
+function invoiceFileFor(key){
+  const f = invoiceFileRec(key);
+  return (f && !f.removed && invoiceFileList(f).length) ? f : null;
+}
+/* Invoysning fayl ro'yxati: yangi yozuvda files[] (yangi format) yoki eski path/name (bitta fayl) */
+function invoiceFileList(f){
+  if(!f) return [];
+  if(Array.isArray(f.files) && f.files.length) return f.files;
+  return f.path ? [{ path:f.path, name:f.name, size:f.size }] : [];
+}
 function fmtFileSize(b){ b = Number(b)||0; return b>=1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(b/1024))+' KB'; }
 
-async function uploadInvoiceDoc(key, file){
-  if(!file) return false;
-  if(!/\.(pdf|zip)$/i.test(file.name||'')){ toast('Faqat PDF yoki ZIP fayl yuklash mumkin'); return false; }
-  if(file.size > INVOICE_FILE_MAX){ toast('Fayl 20 MB dan katta'); return false; }
-  const me = await getMe();
-  const existing = invoiceFileFor(key);
-  let replaceReason = '';
-  if(existing){
-    replaceReason = await askReasonAsync({
-      title: uiT('Imzolangan hujjatni almashtirish'),
-      message: `${uiT('Eski fayl')}: ${existing.name}`,
-      confirmLabel: uiT('Saqlash'),
-      placeholder: uiT('Sababini yozing...')
-    });
-    if(replaceReason === null) return false;
+/* Har o'zgarish yangi yozuv: yozuv = invoysning TO'LIQ fayl ro'yxati (bo'sh bo'lsa "olib tashlangan") */
+async function saveInvoiceFileSet(key, files, uploadedBy){
+  const now = new Date().toISOString();
+  if(!files.length){
+    state.invoiceFiles.push({ id:uid('invfile'), status:'invoicefile', invoiceNumber:key, files:[], path:null,
+      name:'', size:0, removed:true, uploadedBy:uploadedBy||'', uploadedAt:now });
+  } else {
+    state.invoiceFiles.push({ id:uid('invfile'), status:'invoicefile', invoiceNumber:key, files,
+      path:files[0].path, name:files[0].name, size:files[0].size,
+      uploadedBy:uploadedBy||'', uploadedAt:now, removed:false });
   }
-  const newId = uid('invfile');
-  const oldPath = existing ? existing.path : null;
-  const oldName = existing ? existing.name : '';
-  toast('Fayl yuklanmoqda…');
-  let up;
-  try{ up = await OfflineSync.uploadInvoiceFile(newId, file); }
-  catch(e){
+  await saveShipments();
+}
+
+async function uploadInvoiceDocs(key, picked){
+  const files = (picked||[]).filter(Boolean);
+  if(!files.length) return false;
+  const bad = files.filter(f=>!uploadNameOk(f.name));
+  if(bad.length){ toast('Ruxsat etilmagan fayl turi: ' + bad.map(f=>f.name).join(', ')); return false; }
+  const big = files.filter(f=>f.size > INVOICE_FILE_MAX);
+  if(big.length){ toast('20 MB dan katta: ' + big.map(f=>f.name).join(', ')); return false; }
+  const me = await getMe();
+  const before = invoiceFileList(invoiceFileFor(key));
+  const folder = uid('invfile');
+  toast('Fayllar yuklanmoqda…');
+  const uploaded = [];
+  try{
+    for(const file of files){
+      const up = await OfflineSync.uploadInvoiceFile(folder, file);
+      uploaded.push({ path:up.path, name:file.name, size:file.size });
+    }
+  }catch(e){
     console.error(e);
+    for(const u of uploaded){ try{ await OfflineSync.deleteInvoiceFile(u.path); }catch(_){} }
     const m = String(e&&e.message||e);
     toast('Fayl yuklanmadi');
     alert('Fayl yuklanmadi.\n\n' + (/403|401|row-level|Unauthorized|AUTH/i.test(m)
@@ -2768,62 +2795,68 @@ async function uploadInvoiceDoc(key, file){
       : /404|Bucket not found/i.test(m) ? 'Saqlash joyi topilmadi: INVOICE-FILES-STORAGE.sql ni Supabase SQL Editor\'da ishga tushiring.' : m));
     return false;
   }
-  const rec = { id:newId, status:'invoicefile', invoiceNumber:key, path:up.path, name:file.name, size:file.size,
-    uploadedBy:me.name, uploadedAt:new Date().toISOString(), removed:false };
-  state.invoiceFiles.push(rec);
-  await saveShipments();
-  if(oldPath){ try{ await OfflineSync.deleteInvoiceFile(oldPath); }catch(e){ console.warn('Eski fayl o\'chmadi', e); } }
-  await addAudit(oldPath ? 'invoicefile_replace' : 'invoicefile_add', 'invoice', key, key,
-    oldPath ? { name: oldName } : null, { name: file.name, size: file.size }, replaceReason || '');
+  await saveInvoiceFileSet(key, before.concat(uploaded), me.name);
+  await addAudit('invoicefile_add', 'invoice', key, key,
+    before.length ? { files: before.map(x=>x.name).join(', ') } : null,
+    { files: before.concat(uploaded).map(x=>x.name).join(', '), count: before.length + uploaded.length }, '');
   render();
-  toast(oldPath ? 'Fayl almashtirildi' : 'Fayl biriktirildi');
+  toast(uploaded.length + ' ta fayl biriktirildi');
   return true;
 }
 
-/* Yangi yuklama saqlanayotganda ixtiyoriy biriktiriladigan imzolangan hujjat */
-let pendingInvoiceDoc = null;
+/* Yangi yuklama saqlanayotganda ixtiyoriy biriktiriladigan imzolangan hujjatlar */
+let pendingInvoiceDocs = [];
 function invoiceDocPickerHtml(){
-  const f = pendingInvoiceDoc;
-  return `<div class="field-row"><div class="field"><label>Imzolangan hujjat (ixtiyoriy) — PDF yoki ZIP, 20 MB gacha</label>
+  const list = pendingInvoiceDocs;
+  const rows = list.map((f,i)=>`<span>${CHECK_ICON_SVG} ${escapeHtml(f.name)} (${fmtFileSize(f.size)})</span><button type="button" class="btn secondary sm" data-pd-clear="${i}" title="Olib tashlash">✕</button>`).join(' ');
+  return `<div class="field-row"><div class="field"><label>Imzolangan hujjatlar (ixtiyoriy): PDF, ZIP, RAR, Excel va boshqalar; bir nechta fayl; har biri 20 MB gacha</label>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      <button type="button" class="btn secondary sm" id="pdPick">${f ? 'Boshqa fayl tanlash' : 'Fayl tanlash'}</button>
-      ${f ? `<span>${CHECK_ICON_SVG} ${escapeHtml(f.name)} (${fmtFileSize(f.size)})</span><button type="button" class="btn secondary sm" id="pdClear" title="Olib tashlash">✕</button>` : `<span class="subtle-note">Fayl tanlanmagan</span>`}
-      <input type="file" id="pdInput" accept=".pdf,.zip,application/pdf,application/zip" style="display:none;">
+      <button type="button" class="btn secondary sm" id="pdPick">${list.length ? "Yana qo'shish" : 'Fayl tanlash'}</button>
+      ${rows || `<span class="subtle-note">Fayl tanlanmagan</span>`}
+      <input type="file" id="pdInput" multiple accept="${uploadAccept()}" style="display:none;">
     </div>
-    <div class="subtle-note">Fayl yakuniy «Saqlash» bosilganda invoysga biriktiriladi (qoralamaga saqlanmaydi). Bu invoysda fayl allaqachon bo'lsa, almashtiriladi.</div>
+    <div class="subtle-note">Fayllar «Saqlash» bosilganda invoysga biriktiriladi (qoralamaga saqlanmaydi).</div>
   </div></div>`;
 }
 function bindInvoiceDocPicker(){
   const inp = document.getElementById('pdInput');
   document.getElementById('pdPick')?.addEventListener('click', ()=>inp && inp.click());
-  document.getElementById('pdClear')?.addEventListener('click', ()=>{ pendingInvoiceDoc = null; render(); });
+  document.querySelectorAll('[data-pd-clear]').forEach(b=>b.addEventListener('click', ()=>{
+    pendingInvoiceDocs.splice(Number(b.dataset.pdClear), 1);
+    render();
+  }));
   if(inp) inp.addEventListener('change', ()=>{
-    const f = inp.files && inp.files[0];
+    const picked = Array.from(inp.files || []);
     inp.value = '';
-    if(!f) return;
-    if(!/\.(pdf|zip)$/i.test(f.name||'')){ toast('Faqat PDF yoki ZIP fayl yuklash mumkin'); return; }
-    if(f.size > INVOICE_FILE_MAX){ toast('Fayl 20 MB dan katta'); return; }
-    pendingInvoiceDoc = f;
+    if(!picked.length) return;
+    const bad = picked.filter(f=>!uploadNameOk(f.name));
+    if(bad.length) toast('Ruxsat etilmagan fayl turi: ' + bad.map(f=>f.name).join(', '));
+    const big = picked.filter(f=>f.size > INVOICE_FILE_MAX);
+    if(big.length) toast('20 MB dan katta: ' + big.map(f=>f.name).join(', '));
+    picked.filter(f=>uploadNameOk(f.name) && f.size <= INVOICE_FILE_MAX).forEach(f=>{
+      if(!pendingInvoiceDocs.some(x=>x.name===f.name && x.size===f.size)) pendingInvoiceDocs.push(f);
+    });
     render();
   });
 }
 function docGuard(invoiceNumber){
-  if(pendingInvoiceDoc && !String(invoiceNumber||'').trim()){
+  if(pendingInvoiceDocs.length && !String(invoiceNumber||'').trim()){
     toast('Fayl biriktirish uchun invoys raqamini kiriting');
     return false;
   }
   return true;
 }
 async function commitPendingDoc(invoiceNumber){
-  const f = pendingInvoiceDoc;
-  if(!f) return;
-  pendingInvoiceDoc = null;
-  const ok = await uploadInvoiceDoc(String(invoiceNumber||'').trim(), f);
-  if(!ok) toast('Yuklama saqlandi, lekin fayl yuklanmadi — «Yuklamalar tarixi»dan qayta yuklang');
+  const files = pendingInvoiceDocs;
+  if(!files.length) return;
+  pendingInvoiceDocs = [];
+  const ok = await uploadInvoiceDocs(String(invoiceNumber||'').trim(), files);
+  if(!ok) toast('Yuklama saqlandi, lekin fayllar yuklanmadi: «Yuklamalar tarixi»dan qayta yuklang');
 }
 
-async function openInvoiceDoc(key){
-  const f = invoiceFileFor(key);
+async function openInvoiceDoc(key, path){
+  const files = invoiceFileList(invoiceFileFor(key));
+  const f = path ? files.find(x=>x.path===path) : files[0];
   if(!f) return;
   if(!navigator.onLine){ toast('Faylni ochish uchun internet kerak'); return; }
   const w = window.open('', '_blank');
@@ -2837,30 +2870,37 @@ async function openInvoiceDoc(key){
   }
 }
 
+/* Hammasini olib tashlash (invoys o'chirilganda) */
 async function removeInvoiceDocRecord(key){
   const f = invoiceFileFor(key);
   if(!f) return null;
-  const old = { name: f.name, size: f.size };
-  const path = f.path;
-  state.invoiceFiles.push({ id:uid('invfile'), status:'invoicefile', invoiceNumber:key, path:null, removed:true,
-    name:f.name, size:f.size, uploadedBy:f.uploadedBy||'', uploadedAt:new Date().toISOString() });
-  await saveShipments();
-  try{ await OfflineSync.deleteInvoiceFile(path); }catch(e){ console.warn('Fayl saqlash joyidan o\'chmadi', e); }
+  const files = invoiceFileList(f);
+  const old = { name: files.map(x=>x.name).join(', '), size: files.reduce((a,x)=>a+(Number(x.size)||0),0) };
+  await saveInvoiceFileSet(key, [], f.uploadedBy||'');
+  for(const x of files){
+    try{ await OfflineSync.deleteInvoiceFile(x.path); }catch(e){ console.warn('Fayl saqlash joyidan o\'chmadi', e); }
+  }
   return old;
 }
 
-function removeInvoiceDoc(key){
-  const f = invoiceFileFor(key);
+/* Bitta faylni olib tashlash (sabab bilan) */
+function removeInvoiceFile(key, path){
+  const files = invoiceFileList(invoiceFileFor(key));
+  const f = files.find(x=>x.path===path);
   if(!f) return;
   showReasonPrompt({
-    title: 'Biriktirilgan hujjatni olib tashlash?',
+    title: 'Hujjatni olib tashlash?',
     message: `«${f.name}» fayli saqlash joyidan o'chiriladi.`,
     danger: true,
     confirmLabel: 'Olib tashlash',
     placeholder: uiT('Укажите причину удаления...'),
     onConfirm: async (reason)=>{
-      const old = await removeInvoiceDocRecord(key);
-      await addAudit('invoicefile_remove','invoice',key,key,old,null,reason,[]);
+      const rest = invoiceFileList(invoiceFileFor(key)).filter(x=>x.path!==path);
+      const me = await getMe();
+      await saveInvoiceFileSet(key, rest, me.name);
+      try{ await OfflineSync.deleteInvoiceFile(path); }catch(e){ console.warn('Fayl o\'chmadi', e); }
+      await addAudit('invoicefile_remove','invoice',key,key,{ files: f.name },
+        rest.length ? { files: rest.map(x=>x.name).join(', ') } : null, reason, []);
       render();
       toast('Hujjat olib tashlandi');
     }
@@ -2870,23 +2910,29 @@ function removeInvoiceDoc(key){
 function invoiceDocPanelHtml(key){
   const f = invoiceFileFor(key);
   const can = canCreateEdit();
-  const input = can ? `<input type="file" id="invDocInput" accept=".pdf,.zip,application/pdf,application/zip" style="display:none;">` : '';
-  if(!f){
+  const input = can ? `<input type="file" id="invDocInput" multiple accept="${uploadAccept()}" style="display:none;">` : '';
+  const files = invoiceFileList(f);
+  if(!files.length){
     return `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-      <div><strong>Imzolangan hujjat</strong><div class="subtle-note">Imzolangan / tasdiqlangan skaner (PDF yoki ZIP, 20 MB gacha) hali biriktirilmagan.</div></div>
+      <div><strong>Imzolangan hujjat</strong><div class="subtle-note">Imzolangan / tasdiqlangan fayllar (PDF, ZIP, RAR, Excel va boshqalar; bir nechta fayl; har biri 20 MB gacha) hali biriktirilmagan.</div></div>
       ${can ? `<button type="button" class="btn secondary sm" id="invDocUpload">Fayl yuklash</button>` : ''}${input}
     </div></div>`;
   }
   const when = f.uploadedAt ? new Date(f.uploadedAt).toLocaleString() : '';
-  return `<div class="panel"><div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-    <div><strong>${CHECK_ICON_SVG} ${escapeHtml(f.name||'Hujjat')}</strong>
-      <div class="subtle-note">${fmtFileSize(f.size)}${f.uploadedBy?' · '+escapeHtml(f.uploadedBy):''}${when?' · '+escapeHtml(when):''}</div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button type="button" class="btn sm" id="invDocOpen">Ochish / yuklab olish</button>
-      ${can ? `<button type="button" class="btn secondary sm" id="invDocReplace">Almashtirish</button><button type="button" class="btn danger sm" id="invDocRemove">Olib tashlash</button>` : ''}
-    </div>${input}
+  const rows = files.map(x=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div><strong>${CHECK_ICON_SVG} ${escapeHtml(x.name||'Hujjat')}</strong> <span class="subtle-note">${fmtFileSize(x.size)}</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn sm" data-inv-open="${escapeAttr(x.path)}">Ochish / yuklab olish</button>
+        ${can ? `<button type="button" class="btn danger sm" data-inv-rm="${escapeAttr(x.path)}">Olib tashlash</button>` : ''}
+      </div>
+    </div>`).join('');
+  return `<div class="panel"><div class="panel-body" style="display:flex;flex-direction:column;gap:10px;">
+    ${rows}
+    <div class="subtle-note">${files.length} ta fayl${f.uploadedBy?' · '+escapeHtml(f.uploadedBy):''}${when?' · '+escapeHtml(when):''}</div>
+    ${can ? `<div><button type="button" class="btn secondary sm" id="invDocUpload">Fayl qo'shish</button></div>` : ''}${input}
   </div></div>`;
 }
+
 async function dropInvoiceDocIfOrphan(key){
   if(state.shipments.some(s=>shipmentHistoryInvoiceKey(s)===key)) return;
   const old = await removeInvoiceDocRecord(key);
@@ -3243,13 +3289,12 @@ function bindShipmentHistoryEvents(){
   const docInput = document.getElementById('invDocInput');
   const pickDoc = ()=>docInput && docInput.click();
   document.getElementById('invDocUpload')?.addEventListener('click', pickDoc);
-  document.getElementById('invDocReplace')?.addEventListener('click', pickDoc);
-  document.getElementById('invDocOpen')?.addEventListener('click', ()=>openInvoiceDoc(shipmentHistoryOpenInvoice));
-  document.getElementById('invDocRemove')?.addEventListener('click', ()=>removeInvoiceDoc(shipmentHistoryOpenInvoice));
+  document.querySelectorAll('[data-inv-open]').forEach(el=>el.addEventListener('click', ()=>openInvoiceDoc(shipmentHistoryOpenInvoice, el.dataset.invOpen)));
+  document.querySelectorAll('[data-inv-rm]').forEach(el=>el.addEventListener('click', ()=>removeInvoiceFile(shipmentHistoryOpenInvoice, el.dataset.invRm)));
   if(docInput) docInput.addEventListener('change', async ()=>{
-    const file = docInput.files && docInput.files[0];
+    const picked = Array.from(docInput.files || []);
     docInput.value = '';
-    await uploadInvoiceDoc(shipmentHistoryOpenInvoice, file);
+    await uploadInvoiceDocs(shipmentHistoryOpenInvoice, picked);
   });
   document.getElementById('invDelete')?.addEventListener('click', ()=>deleteInvoiceFlow(shipmentHistoryOpenInvoice));
   document.getElementById('invRename')?.addEventListener('click', ()=>openInvoiceEditModal(shipmentHistoryOpenInvoice));
