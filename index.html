@@ -1726,7 +1726,7 @@ function openPermitDetail(permitId){
       ${permitFiles(p).length ? `<div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;">${permitFiles(p).map(f=>`<a href="${escapeAttr(f.url)}" target="_blank" rel="noopener" class="btn secondary sm">📎 ${escapeHtml(f.name||'fayl')}</a>`).join('')}</div>` : ''}
       <h3 style="font-family:var(--serif);font-size:14px;margin:0 0 8px 0;">Позиции</h3>
       <table class="center-data-table"><thead><tr><th>№</th><th>Наименование</th><th>Мато / material</th><th>ТН ВЭД</th><th>Разрешено</th><th>Вес разр.</th><th>Вес 1 ед.</th><th>Отгружено</th><th>Остаток кол-во</th><th>Остаток вес</th></tr></thead>
-      <tbody>${itemRows}</tbody></table>
+      <tbody>${itemRows}</tbody><tfoot><tr style="font-weight:700;background:var(--surface-2, rgba(0,0,0,0.04));"><td colspan="4" class="num-col">Jami</td><td class="num-col">${fmt(t.allowedQty,0)}</td><td class="num-col">${fmt(t.allowedW,2)} кг</td><td class="num-col">—</td><td class="num-col">${fmt(t.usedQty,0)}</td><td class="num-col">${fmt(t.remQty,0)}</td><td class="num-col">${fmt(t.remW,2)} кг</td></tr></tfoot></table>
       <h3 style="font-family:var(--serif);font-size:14px;margin:20px 0 8px 0;">Отгрузки по этому разрешению</h3>
       ${shipments.length ? `<table class="left-data-table"><thead><tr><th>Инвойс</th><th>Дата</th><th>Строк</th><th>Кол-во</th><th>Вес</th><th></th></tr></thead><tbody>${shipRows}</tbody></table>`
       : `<div class="subtle-note">Отгрузок ещё не было.</div>`}
