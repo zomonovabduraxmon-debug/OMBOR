@@ -912,6 +912,16 @@ function formatDiffValue(v){
 // Shows a stand-alone overlay (independent from showModal/closeModal so it can
 // stack on top of an already-open modal) asking the user for a mandatory
 // reason. opts: {title, message, changes, confirmLabel, danger, onConfirm(reason), onCancel()}
+/* Sabab so'ramasdan o'zgartirish yo'q: sabab kiritilmaguncha false/null qaytadi */
+function askReasonAsync(opts){
+  return new Promise(resolve=>{
+    showReasonPrompt(Object.assign({}, opts, {
+      onConfirm: reason => resolve(reason),
+      onCancel: () => resolve(null)
+    }));
+  });
+}
+
 function showReasonPrompt(opts){
   const changes = Array.isArray(opts.changes) ? opts.changes : null;
   const changesHtml = (changes && changes.length) ? `
@@ -952,6 +962,16 @@ function showReasonPrompt(opts){
 
   const input = backdrop.querySelector('#reasonPromptInput');
   setTimeout(()=>{ if(input) input.focus(); }, 30);
+  // Enter — saqlash; Shift+Enter — yangi qator
+  if(input){
+    input.addEventListener('keydown', e=>{
+      if(e.key === 'Enter' && !e.shiftKey && !e.isComposing){
+        e.preventDefault();
+        const confirmBtn = backdrop.querySelector('#reasonPromptConfirm');
+        if(confirmBtn) confirmBtn.click();
+      }
+    });
+  }
 
   backdrop.querySelector('#reasonPromptConfirm').addEventListener('click', ()=>{
     const reason = (input.value||'').trim();
@@ -2541,18 +2561,26 @@ async function saveMultiDraft(){
 async function deleteMultiDraft(){
   const d = multiDraft;
   const saved = state.drafts.some(x=>x.id===d.id);
-  if(saved || d.rows.length){
-    if(!confirm('Qoralama butunlay o\'chirilsinmi?')) return;
-  }
-  if(saved){
-    retireDraft(d.id,'draft_deleted');
-    await saveShipments();
-    await addAudit('draft_delete','draft',d.id,draftLabel(d),d,null);
-  }
-  multiDraft = newMultiDraft();
-  mdAdd = { permitId:'', itemId:'' };
-  render();
-  toast('Qoralama o\'chirildi');
+  const doDelete = async (reason)=>{
+    if(saved){
+      retireDraft(d.id,'draft_deleted');
+      await saveShipments();
+      await addAudit('draft_delete','draft',d.id,draftLabel(d),d,null,reason || '');
+    }
+    multiDraft = newMultiDraft();
+    mdAdd = { permitId:'', itemId:'' };
+    render();
+    toast('Qoralama o\'chirildi');
+  };
+  if(!saved && !d.rows.length){ await doDelete(''); return; }
+  showReasonPrompt({
+    title: uiT('Qoralamani o\'chirish?'),
+    message: uiT('Qoralama butunlay o\'chiriladi. Bu amalni bekor qilib bo\'lmaydi.'),
+    danger: true,
+    confirmLabel: uiT('Удалить'),
+    placeholder: uiT('Укажите причину удаления...'),
+    onConfirm: reason => { doDelete(reason); }
+  });
 }
 
 async function finalizeMultiDraft(){
@@ -2715,6 +2743,16 @@ async function uploadInvoiceDoc(key, file){
   if(file.size > INVOICE_FILE_MAX){ toast('Fayl 20 MB dan katta'); return false; }
   const me = await getMe();
   const existing = invoiceFileFor(key);
+  let replaceReason = '';
+  if(existing){
+    replaceReason = await askReasonAsync({
+      title: uiT('Imzolangan hujjatni almashtirish'),
+      message: `${uiT('Eski fayl')}: ${existing.name}`,
+      confirmLabel: uiT('Saqlash'),
+      placeholder: uiT('Sababini yozing...')
+    });
+    if(replaceReason === null) return false;
+  }
   const newId = uid('invfile');
   const oldPath = existing ? existing.path : null;
   const oldName = existing ? existing.name : '';
@@ -2736,7 +2774,7 @@ async function uploadInvoiceDoc(key, file){
   await saveShipments();
   if(oldPath){ try{ await OfflineSync.deleteInvoiceFile(oldPath); }catch(e){ console.warn('Eski fayl o\'chmadi', e); } }
   await addAudit(oldPath ? 'invoicefile_replace' : 'invoicefile_add', 'invoice', key, key,
-    oldPath ? { name: oldName } : null, { name: file.name, size: file.size });
+    oldPath ? { name: oldName } : null, { name: file.name, size: file.size }, replaceReason || '');
   render();
   toast(oldPath ? 'Fayl almashtirildi' : 'Fayl biriktirildi');
   return true;
@@ -2858,7 +2896,7 @@ async function dropInvoiceDocIfOrphan(key){
 /* ============================= INVOYSNI RO'YXATDAN TAHRIRLASH / O'CHIRISH ============================= */
 function invoiceItems(key){ return state.shipments.filter(sh=>shipmentHistoryInvoiceKey(sh)===key); }
 
-async function renameInvoice(oldKey, newName, newDate, dateChanged){
+async function renameInvoice(oldKey, newName, newDate, dateChanged, reason){
   const newKey = String(newName||'').trim();
   const nameChanged = newKey !== oldKey;
   if(nameChanged && !newKey){ toast('Invoys nomi bo\'sh bo\'lmasin'); return false; }
@@ -2884,7 +2922,7 @@ async function renameInvoice(oldKey, newName, newDate, dateChanged){
       name:oldFile.name, size:oldFile.size, uploadedBy:oldFile.uploadedBy||'', uploadedAt:now });
   }
   await saveShipments();
-  await addAudit('invoice_edit','invoice',newKey,newKey,before,{ name:newKey, date: dateChanged ? newDate : before.date, count: items.length });
+  await addAudit('invoice_edit','invoice',newKey,newKey,before,{ name:newKey, date: dateChanged ? newDate : before.date, count: items.length }, reason || '');
   if(shipmentHistoryOpenInvoice === oldKey) shipmentHistoryOpenInvoice = newKey;
   closeModal();
   render();
@@ -2910,9 +2948,23 @@ function openInvoiceEditModal(key){
     </div>`);
   document.getElementById('ieSave').addEventListener('click', async ()=>{
     const btn = document.getElementById('ieSave');
-    btn.disabled = true;
-    const ok = await renameInvoice(key, document.getElementById('ieName').value, document.getElementById('ieDate').value, document.getElementById('ieDate').value !== latest);
-    if(!ok && btn) btn.disabled = false;
+    const newName = document.getElementById('ieName').value;
+    const newDate = document.getElementById('ieDate').value;
+    const dateChanged = newDate !== latest;
+    const nameChanged = String(newName||'').trim() !== key;
+    const apply = async (reason)=>{
+      btn.disabled = true;
+      const ok = await renameInvoice(key, newName, newDate, dateChanged, reason);
+      if(!ok && btn) btn.disabled = false;
+    };
+    if(!nameChanged && !dateChanged){ await apply(''); return; }
+    showReasonPrompt({
+      title: uiT('Invoysni tahrirlash'),
+      message: uiT('Izoh kiritilmaguncha o\'zgarish saqlanmaydi.'),
+      confirmLabel: uiT('Saqlash'),
+      placeholder: uiT('Sababini yozing...'),
+      onConfirm: reason => { apply(reason); }
+    });
   });
 }
 
